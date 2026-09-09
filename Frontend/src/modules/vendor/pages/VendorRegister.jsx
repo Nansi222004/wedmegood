@@ -365,6 +365,9 @@ const VendorRegister = () => {
       const response = await vendorApi.sendRegistrationOtp(formState.phone);
       if (response.success) {
         setIsOtpSent(true);
+        if (response.devOtp) {
+          setOtpValue(response.devOtp);
+        }
       } else {
         setOtpError(response.message || 'Failed to send OTP.');
         setTimeout(() => setOtpError(''), 3000);
@@ -882,6 +885,11 @@ const VendorRegister = () => {
                       {isVerifyingOtp ? 'Verifying...' : 'Verify'}
                     </button>
                   </div>
+                )}
+                {isOtpSent && !isPhoneVerified && (
+                  <p className="text-[10px] text-indigo-600 font-medium ml-1 mt-1">
+                    Demo Mode: Use prefilled code or <b>123456</b>
+                  </p>
                 )}
               </div>
 
