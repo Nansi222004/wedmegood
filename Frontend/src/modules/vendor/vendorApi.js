@@ -178,9 +178,10 @@ export const vendorApi = {
     },
 
     getSubscriptionPlans: async (token) => {
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
         const response = await fetch(`${BASE_URL}/subscription/plans`, {
             method: 'GET',
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers
         });
         return response.json();
     },

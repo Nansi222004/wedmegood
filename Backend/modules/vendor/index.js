@@ -140,7 +140,7 @@ router.get('/support', protectVendor, requireSubscription, requireVendorApproval
 router.post('/support', protectVendor, requireSubscription, requireVendorApproval, createSupportTicket);
 
 // Subscription Payments
-router.get('/subscription/plans', protectVendor, getSubscriptionPlans);
+router.get('/subscription/plans', getSubscriptionPlans);
 router.post('/subscription/order', protectVendor, createSubscriptionOrder);
 router.post('/subscription/verify', protectVendor, verifySubscriptionPayment);
 

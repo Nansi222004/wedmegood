@@ -92,30 +92,34 @@ const VendorSubscriptionOnboarding = () => {
   useEffect(() => {
     const fetchPlans = async () => {
       const token = localStorage.getItem('vendorToken');
-      if (!token) {
-        setActivePlans(MOCKUP_PLANS);
-        setSelectedPlanId(MOCKUP_PLANS[1]._id);
-        return;
-      }
       try {
         const res = await vendorApi.getSubscriptionPlans(token);
         if (res.success && res.data && res.data.length > 0) {
-          // Merge database details (especially ObjectIds) with our mockup styles
-          const merged = MOCKUP_PLANS.map(mock => {
-            const dbPlan = res.data.find(p => p.name === mock.name);
-            return dbPlan ? { ...mock, _id: dbPlan._id, price: dbPlan.price, features: dbPlan.features } : mock;
-          });
-          setActivePlans(merged);
-          const proPlan = merged.find(p => p.name === 'Professional Plan') || merged[0];
-          setSelectedPlanId(proPlan._id);
+          const icons = [
+            <CreditCard key="icon-0" className="w-3.5 h-3.5 text-slate-500" />,
+            <Award key="icon-1" className="w-3.5 h-3.5 text-[#4F35C3]" />,
+            <Gem key="icon-2" className="w-3.5 h-3.5 text-rose-500" />
+          ];
+          const mapped = res.data.map((p, idx) => ({
+            _id: p._id,
+            name: p.name,
+            price: p.price,
+            durationValue: p.durationValue || 1,
+            durationUnit: p.durationUnit || 'month',
+            features: p.features || [],
+            mostPopular: p.isPopular || (res.data.length > 1 && idx === 1) || res.data.length === 1,
+            icon: icons[idx % icons.length]
+          }));
+          setActivePlans(mapped);
+          setSelectedPlanId(mapped[0]._id);
         } else {
           setActivePlans(MOCKUP_PLANS);
-          setSelectedPlanId(MOCKUP_PLANS[1]._id);
+          setSelectedPlanId(MOCKUP_PLANS[0]._id);
         }
       } catch (err) {
         console.warn('Failed to fetch subscription plans from DB, using mockups', err);
         setActivePlans(MOCKUP_PLANS);
-        setSelectedPlanId(MOCKUP_PLANS[1]._id);
+        setSelectedPlanId(MOCKUP_PLANS[0]._id);
       }
     };
     fetchPlans();
@@ -383,9 +387,9 @@ const VendorSubscriptionOnboarding = () => {
           <button 
             type="button" 
             onClick={handleSkip} 
-            className="text-[12px] font-extrabold text-slate-400 hover:text-slate-600 transition-colors active:scale-95 px-1 py-0.5"
+            className="text-[11.5px] font-bold text-[#4F35C3] bg-[#EDE9FE]/80 hover:bg-[#EDE9FE] px-2.5 py-1 rounded-lg transition-all active:scale-95 shadow-sm flex items-center gap-1"
           >
-            Skip
+            Skip ➔
           </button>
         </div>
 
@@ -507,8 +511,8 @@ const VendorSubscriptionOnboarding = () => {
           })}
         </div>
 
-        {/* Action Button */}
-        <div className="mt-4 mb-2 max-w-md mx-auto w-full px-0.5">
+        {/* Action Buttons */}
+        <div className="mt-4 mb-2 max-w-md mx-auto w-full px-0.5 space-y-2.5">
           <button
             type="button"
             onClick={handleComplete}
@@ -525,8 +529,17 @@ const VendorSubscriptionOnboarding = () => {
                 Activating Plan...
               </span>
             ) : (
-              'Complete Registration'
+              'Complete Registration & Activate Plan'
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSkip}
+            disabled={isSaving}
+            className="w-full rounded-xl py-2.5 text-[12px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all active:scale-[0.98] border border-slate-200 flex items-center justify-center gap-1.5"
+          >
+            Skip for now & Continue ➔
           </button>
         </div>
 
