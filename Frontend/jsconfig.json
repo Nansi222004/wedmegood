@@ -6,12 +6,10 @@
     "jsx": "react-jsx",
     "checkJs": false,
     "allowJs": true,
-    "ignoreDeprecations": "6.0",
-    "baseUrl": "./src",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*", "setupTests.js"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
