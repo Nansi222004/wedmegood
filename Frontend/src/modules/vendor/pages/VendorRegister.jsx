@@ -704,8 +704,10 @@ const VendorRegister = () => {
                     <span className="text-white text-[8px] font-black">!</span>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-bold text-rose-700 leading-snug">{submitError}</p>
-                    {submitError.toLowerCase().includes('email') && (
+                    <p className="text-[11px] font-bold text-rose-700 leading-snug">
+                      {Array.isArray(submitError) ? submitError.join(', ') : String(submitError)}
+                    </p>
+                    {String(submitError).toLowerCase().includes('email') && (
                       <button
                         type="button"
                         onClick={() => navigate('/vendor/login')}
@@ -714,7 +716,7 @@ const VendorRegister = () => {
                         Sign in instead →
                       </button>
                     )}
-                    {submitError.toLowerCase().includes('phone') && (
+                    {String(submitError).toLowerCase().includes('phone') && (
                       <button
                         type="button"
                         onClick={() => navigate('/vendor/login')}
@@ -974,6 +976,11 @@ const VendorRegister = () => {
                       setTimeout(() => setSubmitError(''), 5000);
                       return;
                     }
+                    if (formState.password && formState.password.length < 8) {
+                      setSubmitError('Password must be at least 8 characters long.');
+                      setTimeout(() => setSubmitError(''), 5000);
+                      return;
+                    }
                     if (!isPhoneVerified) {
                       setSubmitError('Please verify your mobile number with OTP first.');
                       setTimeout(() => setSubmitError(''), 5000);
@@ -1037,7 +1044,10 @@ const VendorRegister = () => {
                             
                             navigate('/vendor/onboarding/subscription');
                         } else {
-                            setSubmitError(registerRes.message || 'Registration failed. Please try again.');
+                            const formattedErr = Array.isArray(registerRes.message)
+                                ? registerRes.message.join(', ')
+                                : (registerRes.message ? String(registerRes.message) : 'Registration failed. Please try again.');
+                            setSubmitError(formattedErr);
                         }
                     } catch (err) {
                       setSubmitError('Unable to connect to server. Please check your internet and try again.');

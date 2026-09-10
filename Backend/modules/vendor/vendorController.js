@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Vendor = require('./Vendor');
 const Lead = require('./Lead');
 const Booking = require('./Booking');
@@ -116,6 +117,27 @@ exports.register = async (req, res, next) => {
             });
         }
 
+        // Sanitize selectedCategories to ensure valid ObjectIds
+        const sanitizedCategories = (selectedCategories || []).map(cat => {
+            const cleanCat = {
+                categoryName: cat.categoryName,
+                subcategories: []
+            };
+            if (cat.categoryId && mongoose.Types.ObjectId.isValid(cat.categoryId)) {
+                cleanCat.categoryId = cat.categoryId;
+            }
+            if (Array.isArray(cat.subcategories)) {
+                cleanCat.subcategories = cat.subcategories.map(sub => {
+                    const cleanSub = { subcategoryName: sub.subcategoryName };
+                    if (sub.subcategoryId && mongoose.Types.ObjectId.isValid(sub.subcategoryId)) {
+                        cleanSub.subcategoryId = sub.subcategoryId;
+                    }
+                    return cleanSub;
+                });
+            }
+            return cleanCat;
+        });
+
         // Prepare vendor object
         const vendorData = {
             fullName,
@@ -123,7 +145,7 @@ exports.register = async (req, res, next) => {
             email: normalizedEmail,
             phone,
             city,
-            selectedCategories: selectedCategories || [],
+            selectedCategories: sanitizedCategories,
             languages: Array.isArray(languages) ? languages : (languages ? languages.split(',').map(l => l.trim()) : []),
             serviceCities: Array.isArray(serviceCities) ? serviceCities : (serviceCities ? serviceCities.split(',').map(c => c.trim()) : []),
             hasDocuments: Boolean(hasDocuments),
