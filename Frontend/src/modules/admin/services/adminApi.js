@@ -1,6 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL 
-    ? `${import.meta.env.VITE_API_URL}/admin` 
-    : (window.location.hostname === 'localhost' ? '/api/admin' : 'https://wedmegood1-2.onrender.com/api/admin');
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://wedmegood-u0n7.onrender.com/api';
+const API_URL = `${API_BASE_URL}/admin`;
 
 export const adminApi = {
     getVendors: async (token) => {
