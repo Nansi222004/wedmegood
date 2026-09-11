@@ -30,6 +30,26 @@ const VendorInventory = () => {
         }
     }, [token]);
 
+    useEffect(() => {
+        if (isModalOpen) {
+            document.body.style.overflow = 'hidden';
+            if (window.lenis && typeof window.lenis.stop === 'function') {
+                window.lenis.stop();
+            }
+        } else {
+            document.body.style.overflow = '';
+            if (window.lenis && typeof window.lenis.start === 'function') {
+                window.lenis.start();
+            }
+        }
+        return () => {
+            document.body.style.overflow = '';
+            if (window.lenis && typeof window.lenis.start === 'function') {
+                window.lenis.start();
+            }
+        };
+    }, [isModalOpen]);
+
     const fetchCategories = async () => {
         try {
             const res = await vendorApi.getCategories();
@@ -259,7 +279,7 @@ const VendorInventory = () => {
             </div>
 
             {isModalOpen && createPortal(
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" data-lenis-prevent="true">
                     {/* Backdrop */}
                     <div 
                         className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity" 
@@ -267,7 +287,7 @@ const VendorInventory = () => {
                     />
                     
                     {/* Modal Content */}
-                    <div className="relative bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh] ring-1 ring-slate-900/5 z-10">
+                    <div className="relative bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh] ring-1 ring-slate-900/5 z-10" data-lenis-prevent="true">
                         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center shrink-0">
                             <h3 className="text-lg font-black text-slate-900 uppercase">Add New Inventory Item</h3>
                             <button 
@@ -278,7 +298,7 @@ const VendorInventory = () => {
                                 <Icon name="close" size="md" />
                             </button>
                         </div>
-                        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 min-h-0">
+                        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 min-h-0" data-lenis-prevent="true" style={{ overscrollBehavior: 'contain' }}>
                             {formError && (
                                 <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-start gap-2">
                                     <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
