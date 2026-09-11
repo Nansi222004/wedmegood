@@ -1623,6 +1623,14 @@ exports.getVendorInventory = async (req, res, next) => {
 exports.createInventoryItem = async (req, res, next) => {
     try {
         req.body.vendor = req.vendor.id;
+
+        if (!req.body.category || !req.body.category.toString().trim()) {
+            return res.status(400).json({ success: false, message: 'Please select a category for this item' });
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(req.body.category)) {
+            return res.status(400).json({ success: false, message: 'Invalid category selected' });
+        }
         
         // Handle images
         if (req.files && req.files.length > 0) {
@@ -1650,6 +1658,14 @@ exports.updateInventoryItem = async (req, res, next) => {
 
         if (inventoryItem.vendor.toString() !== req.vendor.id) {
             return res.status(403).json({ success: false, message: 'Not authorized to update this inventory item' });
+        }
+
+        if (req.body.category !== undefined) {
+            if (!req.body.category || !req.body.category.toString().trim()) {
+                delete req.body.category;
+            } else if (!mongoose.Types.ObjectId.isValid(req.body.category)) {
+                return res.status(400).json({ success: false, message: 'Invalid category selected' });
+            }
         }
 
         // Keep existing images and add new ones if uploaded
