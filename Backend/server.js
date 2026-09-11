@@ -17,88 +17,65 @@ const adminRoutes = require('./modules/admin');
 const uploadRoutes = require('./modules/upload/upload.routes');
 const initializeAdmin = require('./utils/adminInit');
 
+// Build list of base allowed origins
+const defaultAllowedOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5174',
+  'http://localhost:3000',
+  'http://localhost:8080',
+  'http://192.168.1.28:5173',
+  'https://wedmegood-six.vercel.app',
+  'https://uc-wed.vercel.app',
+  'https://utsavo-wine.vercel.app',
+  'https://wed-me-good-lake.vercel.app',
+  'https://wedme-good1.vercel.app'
+];
+
+const envOrigins = (process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [])
+  .concat(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...envOrigins]));
+
+const isOriginAllowed = (origin) => {
+  if (!origin) return true; // Allow non-browser requests (mobile apps, Postman, curl, server-to-server)
+  if (allowedOrigins.includes(origin)) return true;
+  // Allow all Vercel domains (*.vercel.app)
+  if (/^https:\/\/.*\.vercel\.app$/.test(origin)) return true;
+  // Allow any localhost / local IP port
+  if (/^http:\/\/localhost(:\d+)?$/.test(origin) || /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) return true;
+  return false;
+};
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (isOriginAllowed(origin)) {
+      callback(null, true);
+    } else {
+      console.error(`❌ CORS Error: Origin ${origin} not allowed. Allowed origins: ${allowedOrigins.join(', ')}`);
+      callback(new Error(`The CORS policy for this site does not allow access from the specified Origin: ${origin}`));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  optionsSuccessStatus: 204
+};
+
 // Create Express app
 const app = express();
 const httpServer = http.createServer(app);
 
+// Apply CORS middleware before any routes or handlers
+app.use(cors(corsOptions));
+
 // Initialize Socket.io
 const io = new Server(httpServer, {
-  cors: {
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    credentials: true
-  }
+  cors: corsOptions
 });
-
-// Socket.io connection handling
-io.on('connection', (socket) => {
-  console.log(`🔌 New client connected: ${socket.id}`);
-
-  socket.on('disconnect', () => {
-    console.log(`🔌 Client disconnected: ${socket.id}`);
-  });
-});
-
-// Make io accessible in requests
-app.set('io', io);
-
-// Database connection
-const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/utsavo-chakra');
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-  } catch (error) {
-    console.error('❌ Database connection error:', error);
-    process.exit(1);
-  }
-};
-
-// Security middleware
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
-
-// CORS configuration
-let allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-  : [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://192.168.1.28:5173',
-    'http://localhost:3000',
-    'http://localhost:8080',
-    'https://uc-wed.vercel.app',
-    'https://utsavo-wine.vercel.app',
-    'https://wed-me-good-lake.vercel.app',
-    'https://wedme-good1.vercel.app'
-  ];
-
-if (!allowedOrigins.includes('https://wedme-good1.vercel.app')) {
-  allowedOrigins.push('https://wedme-good1.vercel.app');
-}
-
-app.use(cors({
-  origin: function (origin, callback) {
-    // allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.indexOf(origin) === -1) {
-      console.error(`❌ CORS Error: Origin ${origin} not allowed. Allowed origins: ${allowedOrigins.join(', ')}`);
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
 
 // Rate limiting
 const limiter = rateLimit({
