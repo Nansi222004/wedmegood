@@ -77,14 +77,9 @@ const io = new Server(httpServer, {
   cors: corsOptions
 });
 
-// Socket.io connection handling
-io.on('connection', (socket) => {
-  console.log(`🔌 New client connected: ${socket.id}`);
-
-  socket.on('disconnect', () => {
-    console.log(`🔌 Client disconnected: ${socket.id}`);
-  });
-});
+// Socket.io connection handling & authentication
+const { initSocketService } = require('./modules/chat/socket.service');
+initSocketService(io);
 
 // Make io accessible in requests
 app.set('io', io);
@@ -94,6 +89,9 @@ const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/utsavo-chakra');
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    // Run safe chat migration
+    const { migrateConversations } = require('./modules/chat/chat.migration');
+    await migrateConversations();
   } catch (error) {
     console.error('❌ Database connection error:', error);
     process.exit(1);
@@ -184,6 +182,13 @@ app.get('/api/categories', getAllCategories);
 app.use('/api/user', userRoutes);
 app.use('/api/vendor', vendorRoutes);
 app.use('/api/upload', uploadRoutes);
+
+// Chat & Real-Time Messaging Routes
+const { userRouter: chatUserRouter, vendorRouter: chatVendorRouter, uploadRouter: chatUploadRouter } = require('./modules/chat/chat.routes');
+app.use('/api/user/conversations', chatUserRouter);
+app.use('/api/vendor/conversations', chatVendorRouter);
+app.use('/api/chat', chatUploadRouter);
+
 app.get('/api/admin/test', (req, res) => res.json({ success: true, message: 'Test route works' }));
 app.use('/api/admin', adminRoutes);
 

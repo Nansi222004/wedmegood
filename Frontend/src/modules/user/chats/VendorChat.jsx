@@ -1,397 +1,597 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
-import { useLenisContext } from '../../../providers/LenisProvider';
 import Icon from '../../../components/ui/Icon';
+import { chatApi } from '../../../services/chatApi';
+import { socketService } from '../../../services/socket';
 
 const VendorChat = () => {
   const { vendorId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const { theme } = useTheme();
+
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
   const inputRef = useRef(null);
-  
-  // Get Lenis instance to disable it for this page
-  const lenis = useLenisContext();
-  
+  const typingTimeoutRef = useRef(null);
+
+  const [conversation, setConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [isVendorOnline, setIsVendorOnline] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [isVendorTyping, setIsVendorTyping] = useState(false);
+  const [isVendorOnline, setIsVendorOnline] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
 
-  // Get vendor info from navigation state or default
-  const vendorInfo = location.state || {
-    vendorName: 'Vendor',
-    vendorCategory: 'Service Provider',
-    vendorImage: 'https://via.placeholder.com/48x48?text=Vendor'
-  };
+  // Report Modal State
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('Inappropriate Content');
+  const [reportDescription, setReportDescription] = useState('');
+  const [submittingReport, setSubmittingReport] = useState(false);
+  const [reportSuccess, setReportSuccess] = useState(false);
 
+  const token = localStorage.getItem('token');
+  const stateInfo = location.state || {};
+
+  const vendorName = stateInfo.vendorName || conversation?.vendorId?.businessName || conversation?.vendorId?.name || 'Vendor Partner';
+  const vendorCategory = stateInfo.vendorCategory || conversation?.vendorId?.category || 'Wedding Professional';
+  const vendorImage = stateInfo.vendorImage || conversation?.vendorId?.profileImage || 'https://images.unsplash.com/photo-1519741497674-611481863552?w=150';
+
+  // 1. Initialize Conversation and History
   useEffect(() => {
-    // Disable Lenis smooth scrolling for chat page
-    if (lenis) {
-      lenis.stop();
+    let isMounted = true;
+
+    async function initChat() {
+      try {
+        setLoading(true);
+        let convId = stateInfo.conversationId;
+
+        // If conversationId not passed in navigation state, search user conversations for this vendor
+        if (!convId) {
+          const res = await chatApi.getUserConversations();
+          if (res.success && Array.isArray(res.data)) {
+            const found = res.data.find(c => {
+              const vId = c.vendorId?._id ? c.vendorId._id.toString() : (c.vendorId ? c.vendorId.toString() : '');
+              return vId === vendorId;
+            });
+            if (found) {
+              convId = found._id;
+            }
+          }
+        }
+
+        if (convId) {
+          const convRes = await chatApi.getUserConversationById(convId);
+          if (convRes.success && isMounted) {
+            setConversation(convRes.data);
+          }
+
+          const msgRes = await chatApi.getMessages(convId);
+          if (msgRes.success && isMounted) {
+            setMessages(msgRes.data || []);
+          }
+
+          // Mark as read immediately on open
+          chatApi.markAsRead(convId).catch(() => {});
+        }
+      } catch (err) {
+        console.error('Failed to initialize chat:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
     }
 
-    // Hide main header when chat component mounts
-    const mainHeader = document.querySelector('header');
-    if (mainHeader) {
-      mainHeader.style.display = 'none';
+    if (token) {
+      initChat();
     }
 
-    // Re-enable Lenis and show header when component unmounts
     return () => {
-      if (lenis) {
-        lenis.start();
-      }
-      if (mainHeader) {
-        mainHeader.style.display = '';
-      }
+      isMounted = false;
     };
-  }, [lenis]);
+  }, [vendorId, stateInfo.conversationId, token]);
 
+  // 2. Socket Connection & Room Event Listeners
   useEffect(() => {
-    // Initialize chat with some sample messages
-    const initialMessages = [
-      {
-        id: 1,
-        text: `Hi! Thank you for adding me to your cart. I'm excited to be part of your special day!`,
-        sender: 'vendor',
-        timestamp: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
-        isRead: true
-      },
-      {
-        id: 2,
-        text: `I'd love to discuss your requirements and how I can make your wedding perfect. When is your wedding date?`,
-        sender: 'vendor',
-        timestamp: new Date(Date.now() - 3500000).toISOString(),
-        isRead: true
-      },
-      {
-        id: 3,
-        text: `Hi! I'm interested in your services for my wedding. Can you share more details about your packages?`,
-        sender: 'user',
-        timestamp: new Date(Date.now() - 1800000).toISOString(), // 30 min ago
-        isRead: true
-      },
-      {
-        id: 4,
-        text: `Absolutely! I have several packages available. Let me know your budget and preferences, and I'll recommend the best option for you.`,
-        sender: 'vendor',
-        timestamp: new Date(Date.now() - 900000).toISOString(), // 15 min ago
-        isRead: true
-      },
-      {
-        id: 5,
-        text: `My wedding is on March 15th, 2024. I'm looking for something elegant but not too expensive.`,
-        sender: 'user',
-        timestamp: new Date(Date.now() - 600000).toISOString(), // 10 min ago
-        isRead: true
+    if (!token || !conversation?._id) return;
+
+    socketService.connect(token);
+    socketService.joinConversation(conversation._id);
+    socketService.markAsRead(conversation._id);
+
+    const unsubMsg = socketService.onMessage(({ message }) => {
+      if (message.conversationId?.toString() === conversation._id?.toString()) {
+        setMessages(prev => {
+          // Deduplicate if already present via clientMessageId or ID
+          if (prev.some(m => m._id === message._id || (message.clientMessageId && m.clientMessageId === message.clientMessageId))) {
+            return prev.map(m => (m._id === message._id || (message.clientMessageId && m.clientMessageId === message.clientMessageId)) ? message : m);
+          }
+          return [...prev, message];
+        });
+
+        // Automatically mark incoming messages as read if active
+        socketService.markAsRead(conversation._id);
       }
-    ];
-    
-    setMessages(initialMessages);
-    
-    // Simulate vendor online status
-    setIsVendorOnline(Math.random() > 0.3); // 70% chance of being online
-  }, [vendorId]); // Only depend on vendorId, not on changing objects
+    });
 
+    const unsubRead = socketService.onRead(({ conversationId }) => {
+      if (conversationId === conversation._id) {
+        setMessages(prev => prev.map(m => ({ ...m, isRead: true })));
+      }
+    });
+
+    const unsubTypingStart = socketService.onTypingStart(({ conversationId, sender }) => {
+      if (conversationId === conversation._id && sender.role === 'Vendor') {
+        setIsVendorTyping(true);
+      }
+    });
+
+    const unsubTypingStop = socketService.onTypingStop(({ conversationId, sender }) => {
+      if (conversationId === conversation._id && sender.role === 'Vendor') {
+        setIsVendorTyping(false);
+      }
+    });
+
+    const unsubOnline = socketService.onUserOnline(({ id, role }) => {
+      const vId = conversation.vendorId?._id ? conversation.vendorId._id.toString() : (conversation.vendorId || '');
+      if (role === 'Vendor' && id === vId) {
+        setIsVendorOnline(true);
+      }
+    });
+
+    const unsubOffline = socketService.onUserOffline(({ id, role }) => {
+      const vId = conversation.vendorId?._id ? conversation.vendorId._id.toString() : (conversation.vendorId || '');
+      if (role === 'Vendor' && id === vId) {
+        setIsVendorOnline(false);
+      }
+    });
+
+    return () => {
+      socketService.leaveConversation(conversation._id);
+      unsubMsg();
+      unsubRead();
+      unsubTypingStart();
+      unsubTypingStop();
+      unsubOnline();
+      unsubOffline();
+    };
+  }, [conversation?._id, token]);
+
+  // Scroll to bottom on messages change
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isVendorTyping]);
+
+  // Handle typing debounce
+  const handleInputChange = (e) => {
+    setNewMessage(e.target.value);
+    if (!conversation?._id) return;
+
+    socketService.startTyping(conversation._id);
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      socketService.stopTyping(conversation._id);
+    }, 1500);
   };
 
-  const handleSendMessage = () => {
-    if (!newMessage.trim()) return;
+  // Send Text Message
+  const handleSendMessage = (e) => {
+    e?.preventDefault();
+    const text = newMessage.trim();
+    if (!text || !conversation?._id) return;
 
-    const message = {
-      id: Date.now(),
-      text: newMessage,
-      sender: 'user',
-      timestamp: new Date().toISOString(),
-      isRead: false
+    const clientMessageId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    // Optimistic local message bubble
+    const optimisticMsg = {
+      _id: clientMessageId,
+      conversationId: conversation._id,
+      senderRole: 'User',
+      type: 'text',
+      text,
+      clientMessageId,
+      isRead: false,
+      createdAt: new Date().toISOString()
     };
 
-    setMessages(prev => [...prev, message]);
+    setMessages(prev => [...prev, optimisticMsg]);
     setNewMessage('');
+    socketService.stopTyping(conversation._id);
 
-    // Auto-focus input after sending
+    socketService.sendMessage({
+      conversationId: conversation._id,
+      text,
+      type: 'text',
+      clientMessageId
+    }, (res) => {
+      if (res && res.success) {
+        setMessages(prev => prev.map(m => m.clientMessageId === clientMessageId ? res.data : m));
+      }
+    });
+
     setTimeout(() => {
       inputRef.current?.focus();
-    }, 100);
-
-    // Simulate vendor typing and response
-    setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-      const vendorResponse = {
-        id: Date.now() + 1,
-        text: generateVendorResponse(),
-        sender: 'vendor',
-        timestamp: new Date().toISOString(),
-        isRead: false
-      };
-      setMessages(prev => [...prev, vendorResponse]);
-    }, 2000 + Math.random() * 2000); // Random delay between 2-4 seconds
+    }, 50);
   };
 
-  const generateVendorResponse = () => {
-    const responses = [
-      "Thank you for your message! I'll get back to you with all the details shortly.",
-      "That sounds wonderful! Let me prepare a customized quote for you.",
-      "I'd be happy to help with that. Let me check my availability for your date.",
-      "Great question! I have experience with similar requirements and would love to help.",
-      "I understand your needs perfectly. Let me share some options that would work well for you.",
-      "Perfect! I can definitely accommodate that for your special day. Let me send you some samples.",
-      "I'm excited to work with you! Your wedding sounds like it's going to be beautiful.",
-      "Let me put together a detailed proposal for you. I'll send it over within the next hour."
-    ];
-    
-    return responses[Math.floor(Math.random() * responses.length)];
-  };
+  // Upload Media / Document Attachment
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !conversation?._id) return;
 
-  const formatTime = (timestamp) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffInHours = (now - date) / (1000 * 60 * 60);
-    
-    if (diffInHours < 24) {
-      return date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      });
-    } else {
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      });
+    try {
+      setUploading(true);
+      const res = await chatApi.uploadAttachment(conversation._id, file);
+      if (res.success && res.data) {
+        setMessages(prev => [...prev, res.data]);
+      }
+    } catch (err) {
+      console.error('Failed to upload attachment:', err);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const handleWhatsAppRedirect = () => {
-    const message = encodeURIComponent(
-      `Hi! I found your ${vendorInfo.vendorCategory.toLowerCase()} service "${vendorInfo.vendorName}" on Utsavo and I'm interested in learning more about it for my wedding. Could you please share more details?`
-    );
-    const whatsappUrl = `https://wa.me/919876543210?text=${message}`;
-    window.open(whatsappUrl, '_blank');
+  // Submit Chat Report
+  const handleSubmitReport = async () => {
+    if (!conversation?._id) return;
+    try {
+      setSubmittingReport(true);
+      const res = await chatApi.reportChat(conversation._id, {
+        reason: reportReason,
+        description: reportDescription
+      });
+      if (res.success) {
+        setReportSuccess(true);
+        setTimeout(() => {
+          setShowReportModal(false);
+          setReportSuccess(false);
+          setReportDescription('');
+        }, 1500);
+      }
+    } catch (err) {
+      console.error('Failed to report conversation:', err);
+    } finally {
+      setSubmittingReport(false);
+    }
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
+  const formatMessageTime = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
-    <div className="chat-container" style={{ backgroundColor: '#e5ddd5' }}>
-      {/* Fixed Chat Header */}
-      <div className="chat-header" style={{ backgroundColor: theme.colors.primary[600] }}>
-        <div className="chat-header-content">
+    <div className="flex flex-col h-screen bg-slate-50">
+      {/* Header */}
+      <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-xs sticky top-0 z-20">
+        <div className="flex items-center space-x-3 min-w-0">
           <button
             onClick={() => navigate('/user/chats')}
-            className="chat-back-btn"
-            style={{ backgroundColor: 'transparent' }}
+            className="p-2 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+            aria-label="Back to chats"
           >
-            <Icon name="chevronDown" size="sm" className="rotate-90" style={{ color: 'white' }} />
+            <Icon name="chevronDown" size="sm" className="rotate-90 text-slate-700" />
           </button>
-          
-          <div className="chat-vendor-avatar">
+
+          <div className="relative flex-shrink-0">
             <img
-              src={vendorInfo.vendorImage}
-              alt={vendorInfo.vendorName}
-              className="chat-avatar-img"
+              src={vendorImage}
+              alt={vendorName}
+              className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-100"
               onError={(e) => {
-                e.target.src = 'https://via.placeholder.com/40x40?text=Vendor';
+                e.target.src = 'https://images.unsplash.com/photo-1519741497674-611481863552?w=150';
               }}
             />
             {isVendorOnline && (
-              <div 
-                className="chat-online-indicator"
-                style={{ 
-                  backgroundColor: '#10b981',
-                  borderColor: theme.colors.primary[600]
-                }}
-              />
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
             )}
           </div>
-          
-          <div className="chat-vendor-info">
-            <h1 
-              className="chat-vendor-name"
-              style={{ color: 'white' }}
-            >
-              {vendorInfo.vendorName}
+
+          <div className="min-w-0">
+            <h1 className="text-sm font-bold text-slate-900 truncate flex items-center gap-1.5">
+              {vendorName}
+              {conversation?.vendorId?.isVerified && (
+                <Icon name="check" size="xs" className="text-rose-600 inline" />
+              )}
             </h1>
-            <p 
-              className="chat-vendor-status"
-              style={{ color: 'rgba(255,255,255,0.8)' }}
-            >
-              {isVendorOnline ? 'Online' : 'Last seen recently'}
+            <p className="text-[11px] text-slate-500 truncate flex items-center gap-1.5">
+              {isVendorTyping ? (
+                <span className="text-rose-600 font-medium animate-pulse">typing...</span>
+              ) : isVendorOnline ? (
+                <span className="text-emerald-600 font-medium">Online</span>
+              ) : (
+                <span>{vendorCategory}</span>
+              )}
             </p>
           </div>
+        </div>
 
-          <div className="chat-header-actions">
-            <button
-              onClick={handleWhatsAppRedirect}
-              className="chat-action-btn"
-              style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
-            >
-              <Icon name="phone" size="sm" style={{ color: 'white' }} />
-            </button>
-          </div>
+        {/* Action icons */}
+        <div className="flex items-center space-x-1">
+          <button
+            onClick={() => setShowReportModal(true)}
+            className="p-2 rounded-full text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+            title="Report Conversation"
+            aria-label="Report"
+          >
+            <Icon name="shield" size="sm" />
+          </button>
         </div>
       </div>
 
       {/* Messages Area */}
-      <div className="chat-messages-container">
-        <div className="chat-messages-list">
-          {messages.map((message, index) => {
-            const showTimestamp = index === 0 || 
-              (new Date(message.timestamp) - new Date(messages[index - 1].timestamp)) > 300000; // 5 minutes
-            
-            return (
-              <div key={message.id} className="chat-message-wrapper">
-                {showTimestamp && (
-                  <div className="chat-timestamp-wrapper">
-                    <span 
-                      className="chat-timestamp"
-                      style={{ 
-                        backgroundColor: 'rgba(255,255,255,0.9)',
-                        color: '#667781',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                      }}
-                    >
-                      {formatTime(message.timestamp)}
-                    </span>
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center h-full space-y-3">
+            <div className="animate-spin h-7 w-7 border-3 border-rose-500 border-t-transparent rounded-full"></div>
+            <p className="text-xs text-slate-400 font-medium">Loading message history...</p>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-400">
+            <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 mb-3">
+              <Icon name="chat" size="md" />
+            </div>
+            <p className="text-sm font-semibold text-slate-700 mb-1">Direct Vendor Chat</p>
+            <p className="text-xs text-slate-500 max-w-xs">
+              Say hi to {vendorName} to discuss requirements, customize packages, and receive instant quotes.
+            </p>
+          </div>
+        ) : (
+          messages.map((msg, idx) => {
+            const isMe = msg.senderRole === 'User';
+            const isSystem = msg.type === 'system';
+
+            if (isSystem) {
+              return (
+                <div key={msg._id || idx} className="flex justify-center my-2">
+                  <div className="bg-slate-200 text-slate-700 text-xs px-3 py-1 rounded-full font-medium shadow-2xs">
+                    {msg.text}
                   </div>
-                )}
-                
-                <div className={`chat-message-row ${message.sender === 'user' ? 'chat-message-user' : 'chat-message-vendor'}`}>
-                  <div
-                    className={`chat-message-bubble ${message.sender === 'user' ? 'chat-bubble-user' : 'chat-bubble-vendor'}`}
-                    style={{
-                      backgroundColor: message.sender === 'user' 
-                        ? '#d9fdd3'
-                        : 'white',
-                      color: '#111b21',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                    }}
-                  >
-                    <p className="chat-message-text">{message.text}</p>
-                    <p 
-                      className="chat-message-time"
-                      style={{ color: '#667781' }}
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={msg._id || idx}
+                className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+              >
+                <div
+                  className={`max-w-[78%] sm:max-w-md rounded-2xl px-4 py-2.5 shadow-xs break-words ${
+                    isMe
+                      ? 'bg-rose-600 text-white rounded-tr-xs'
+                      : 'bg-white text-slate-900 border border-slate-100 rounded-tl-xs'
+                  }`}
+                >
+                  {/* QUOTE MESSAGE TYPE */}
+                  {msg.type === 'quote' && msg.quoteId && (
+                    <div className="bg-amber-50 text-slate-900 p-3 rounded-xl border border-amber-200 mb-1">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
+                          Custom Proposal
+                        </span>
+                        <span className="text-sm font-black text-amber-950">
+                          ₹{msg.quoteId.totalAmount?.toLocaleString()}
+                        </span>
+                      </div>
+                      {msg.quoteId.items && msg.quoteId.items.length > 0 && (
+                        <ul className="text-xs space-y-1 mb-3 text-slate-700">
+                          {msg.quoteId.items.map((it, i) => (
+                            <li key={i} className="flex justify-between">
+                              <span>• {it.name || it.service}</span>
+                              <span className="font-semibold">₹{it.price?.toLocaleString()}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <button
+                        onClick={() => navigate('/user/quotes')}
+                        className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-2 rounded-lg transition-colors shadow-xs cursor-pointer"
+                      >
+                        View & Accept Quote
+                      </button>
+                    </div>
+                  )}
+
+                  {/* IMAGE ATTACHMENTS */}
+                  {msg.attachments?.filter(a => a.type?.toLowerCase() === 'image').map((att, aIdx) => (
+                    <div key={aIdx} className="mb-2 rounded-lg overflow-hidden cursor-pointer">
+                      <img
+                        src={att.url}
+                        alt={att.name || 'attachment'}
+                        className="max-h-60 rounded-lg object-cover w-full hover:opacity-95"
+                        onClick={() => setPreviewImage(att.url)}
+                      />
+                    </div>
+                  ))}
+
+                  {/* DOCUMENT ATTACHMENTS */}
+                  {msg.attachments?.filter(a => a.type?.toLowerCase() === 'document').map((att, aIdx) => (
+                    <a
+                      key={aIdx}
+                      href={att.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`flex items-center space-x-2 p-2 rounded-lg text-xs font-semibold mb-1 ${
+                        isMe ? 'bg-rose-700 text-white' : 'bg-slate-100 text-slate-800'
+                      }`}
                     >
-                      {new Date(message.timestamp).toLocaleTimeString('en-US', { 
-                        hour: '2-digit', 
-                        minute: '2-digit',
-                        hour12: true 
-                      })}
-                    </p>
+                      <Icon name="document" size="sm" />
+                      <span className="truncate flex-1">{att.name || 'View Document'}</span>
+                      <Icon name="download" size="xs" />
+                    </a>
+                  ))}
+
+                  {/* TEXT CONTENT */}
+                  {msg.text && (
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                  )}
+
+                  {/* TIME & READ STATUS */}
+                  <div
+                    className={`flex items-center justify-end space-x-1 mt-1 text-[10px] ${
+                      isMe ? 'text-rose-200' : 'text-slate-400'
+                    }`}
+                  >
+                    <span>{formatMessageTime(msg.createdAt)}</span>
+                    {isMe && (
+                      <span>
+                        {msg.isRead ? (
+                          <span title="Read" className="font-bold">✓✓</span>
+                        ) : (
+                          <span title="Delivered">✓</span>
+                        )}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
             );
-          })}
+          })
+        )}
 
-          {/* Typing Indicator */}
-          {isTyping && (
-            <div className="chat-message-wrapper">
-              <div className="chat-message-row chat-message-vendor">
-                <div
-                  className="chat-message-bubble chat-bubble-vendor chat-typing-indicator"
-                  style={{ 
-                    backgroundColor: 'white',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                  }}
-                >
-                  <div className="chat-typing-dots">
-                    <div 
-                      className="chat-typing-dot"
-                      style={{ backgroundColor: '#667781' }}
-                    />
-                    <div 
-                      className="chat-typing-dot"
-                      style={{ backgroundColor: '#667781' }}
-                    />
-                    <div 
-                      className="chat-typing-dot"
-                      style={{ backgroundColor: '#667781' }}
-                    />
-                  </div>
+        {isVendorTyping && (
+          <div className="flex items-center space-x-2 text-slate-400 text-xs py-1">
+            <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce"></span>
+            <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce [animation-delay:0.2s]"></span>
+            <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce [animation-delay:0.4s]"></span>
+            <span className="text-[11px] font-medium">{vendorName} is typing...</span>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input Composer */}
+      <div className="bg-white border-t border-slate-200 p-3 sticky bottom-0 z-10">
+        <form onSubmit={handleSendMessage} className="flex items-center space-x-2 max-w-4xl mx-auto">
+          {/* Attachment button */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            className="hidden"
+            accept="image/*,.pdf,.doc,.docx"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading || !conversation}
+            className="p-2.5 rounded-full text-slate-500 hover:text-rose-600 hover:bg-slate-100 transition-colors disabled:opacity-50 cursor-pointer"
+            title="Attach file or photo"
+          >
+            {uploading ? (
+              <div className="w-5 h-5 border-2 border-rose-500 border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <Icon name="attachment" size="md" />
+            )}
+          </button>
+
+          {/* Text Input */}
+          <input
+            type="text"
+            ref={inputRef}
+            placeholder={conversation ? `Message ${vendorName}...` : 'Start a conversation...'}
+            value={newMessage}
+            onChange={handleInputChange}
+            disabled={!conversation}
+            className="flex-1 bg-slate-100 border border-slate-200 rounded-full px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500/30 focus:border-rose-500 transition-all"
+          />
+
+          {/* Send button */}
+          <button
+            type="submit"
+            disabled={!newMessage.trim() || !conversation}
+            className="p-2.5 rounded-full bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-40 transition-colors shadow-xs cursor-pointer"
+            aria-label="Send message"
+          >
+            <Icon name="send" size="md" />
+          </button>
+        </form>
+      </div>
+
+      {/* Lightbox Image Preview Modal */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <img
+            src={previewImage}
+            alt="Preview"
+            className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg"
+          />
+        </div>
+      )}
+
+      {/* Report Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
+            <h3 className="text-base font-bold text-slate-900 mb-1">Report Conversation</h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Help us keep the Utsavo marketplace safe. Let us know what happened.
+            </p>
+
+            {reportSuccess ? (
+              <div className="bg-emerald-50 text-emerald-700 p-4 rounded-xl text-center text-sm font-semibold">
+                ✓ Report submitted. Our trust & safety team will review this.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Reason</label>
+                  <select
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:outline-none focus:border-rose-500"
+                  >
+                    <option value="Inappropriate Content">Inappropriate Content</option>
+                    <option value="Harassment">Harassment / Abusive Behavior</option>
+                    <option value="Spam">Spam / Unsolicited Messages</option>
+                    <option value="Fraud">Fraud / Off-platform Payment Request</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Details (Optional)</label>
+                  <textarea
+                    rows={3}
+                    value={reportDescription}
+                    onChange={(e) => setReportDescription(e.target.value)}
+                    placeholder="Provide additional context for the moderation team..."
+                    className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+
+                <div className="flex space-x-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowReportModal(false)}
+                    className="flex-1 py-2 rounded-lg border border-slate-200 text-slate-600 font-semibold text-xs hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSubmitReport}
+                    disabled={submittingReport}
+                    className="flex-1 py-2 rounded-lg bg-rose-600 text-white font-semibold text-xs hover:bg-rose-700 disabled:opacity-50"
+                  >
+                    {submittingReport ? 'Submitting...' : 'Submit Report'}
+                  </button>
                 </div>
               </div>
-            </div>
-          )}
-          
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
-
-      {/* Fixed Input Area */}
-      <div 
-        className="chat-input-container"
-        style={{ 
-          backgroundColor: '#f0f2f5',
-          borderTopColor: 'transparent'
-        }}
-      >
-        <div className="chat-input-wrapper">
-          <div className="chat-input-field">
-            <textarea
-              ref={inputRef}
-              placeholder="Type a message..."
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              rows={1}
-              className="chat-textarea"
-              style={{
-                backgroundColor: 'white',
-                borderColor: 'transparent',
-                color: '#111b21'
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = theme.colors.primary[500];
-                e.target.style.boxShadow = `0 0 0 2px ${theme.colors.primary[500]}25`;
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = 'transparent';
-                e.target.style.boxShadow = 'none';
-              }}
-              onInput={(e) => {
-                e.target.style.height = 'auto';
-                e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
-              }}
-            />
+            )}
           </div>
-          
-          <button
-            onClick={handleSendMessage}
-            disabled={!newMessage.trim()}
-            className="chat-send-btn"
-            style={{
-              backgroundColor: newMessage.trim() 
-                ? theme.colors.primary[500] 
-                : '#d1d7db'
-            }}
-          >
-            <Icon 
-              name="send" 
-              size="sm" 
-              style={{ color: 'white' }} 
-            />
-          </button>
         </div>
-      </div>
+      )}
     </div>
   );
 };

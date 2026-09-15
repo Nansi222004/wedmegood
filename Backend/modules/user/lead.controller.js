@@ -145,6 +145,19 @@ exports.createLead = async (req, res, next) => {
             isRead: false
         });
 
+        // Auto-link canonical conversation for this user and vendor
+        try {
+            const chatService = require('../chat/chat.service');
+            await chatService.getOrCreateConversation({
+                userId: req.user._id,
+                vendorId: assignedVendorId,
+                leadId: lead._id,
+                initialMessage: message || 'Inquiry regarding wedding services'
+            });
+        } catch (chatErr) {
+            console.warn('Auto conversation creation notice:', chatErr.message);
+        }
+
         res.status(201).json({
             success: true,
             message: 'Inquiry submitted successfully',

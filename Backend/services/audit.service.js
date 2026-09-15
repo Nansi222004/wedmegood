@@ -96,6 +96,7 @@ async function logAdminAction({
             action,
             entityType,
             entityId: entityId ? entityId.toString() : null,
+            targetId: entityId ? entityId.toString() : null,
             before: sanitizeForAudit(before),
             after: sanitizeForAudit(after),
             reason,

@@ -67,7 +67,10 @@ const {
     getAllComplaints,
     updateComplaintStatus,
     getPlatformSettings,
-    updatePlatformSettings
+    updatePlatformSettings,
+    getChatReports,
+    getChatReportById,
+    updateChatReportStatus
 } = require('./adminController');
 const router = express.Router();
 
@@ -150,6 +153,12 @@ router.delete('/reviews/:id', deleteReview);
 // Admin Complaint Management
 router.get('/complaints', getAllComplaints);
 router.put('/complaints/:id/status', updateComplaintStatus);
+
+// Admin Chat Report Moderation
+router.get('/chat-reports', getChatReports);
+router.get('/chat-reports/:id', getChatReportById);
+router.put('/chat-reports/:id/status', updateChatReportStatus);
+router.patch('/chat-reports/:id/status', updateChatReportStatus);
 
 // Admin Platform Settings
 router.get('/settings', getPlatformSettings);

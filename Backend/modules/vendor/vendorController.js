@@ -8,6 +8,7 @@ const Quote = require('./Quote');
 const Conversation = require('./Conversation');
 const Message = require('./Message');
 const SupportTicket = require('./SupportTicket');
+const chatService = require('../chat/chat.service');
 const SubscriptionPlan = require('../admin/SubscriptionPlan');
 const Banner = require('../admin/Banner');
 const Service = require('./Service');
@@ -1119,12 +1120,12 @@ exports.updatePortfolio = async (req, res, next) => {
 // @access  Private
 exports.getConversations = async (req, res, next) => {
     try {
-        const conversations = await Conversation.find({
-            'participants.participantId': req.vendor.id
-        }).sort('-updatedAt');
+        const vendorId = req.vendor.id || req.vendor._id;
+        const conversations = await chatService.getVendorConversations(vendorId);
 
         res.status(200).json({
             success: true,
+            count: conversations.length,
             data: conversations
         });
     } catch (err) {
@@ -1137,13 +1138,20 @@ exports.getConversations = async (req, res, next) => {
 // @access  Private
 exports.getMessages = async (req, res, next) => {
     try {
-        const messages = await Message.find({
-            conversationId: req.params.conversationId
-        }).sort('createdAt');
+        const vendorId = req.vendor.id || req.vendor._id;
+        const result = await chatService.getConversationMessages({
+            conversationId: req.params.conversationId,
+            requesterId: vendorId,
+            requesterRole: 'Vendor',
+            limit: req.query.limit,
+            before: req.query.before
+        });
 
         res.status(200).json({
             success: true,
-            data: messages
+            count: result.messages.length,
+            hasMore: result.hasMore,
+            data: result.messages
         });
     } catch (err) {
         next(err);
@@ -1155,27 +1163,32 @@ exports.getMessages = async (req, res, next) => {
 // @access  Private
 exports.sendMessage = async (req, res, next) => {
     try {
-        const { conversationId, text, attachments } = req.body;
+        const vendorId = req.vendor.id || req.vendor._id;
+        const { conversationId, text, attachments, type = 'text', quoteId, clientMessageId } = req.body;
 
-        const message = await Message.create({
+        const result = await chatService.createMessage({
             conversationId,
-            senderId: req.vendor.id,
-            senderModel: 'Vendor',
+            senderId: vendorId,
+            senderRole: 'Vendor',
+            type,
             text,
-            attachments
+            attachments,
+            quoteId,
+            clientMessageId
         });
 
-        await Conversation.findByIdAndUpdate(conversationId, {
-            lastMessage: {
-                text,
-                senderId: req.vendor.id,
-                createdAt: new Date()
-            }
-        });
+        const io = req.app.get('io');
+        if (io && !result.isDuplicate) {
+            io.to(`conversation_${conversationId}`).emit('message:new', {
+                message: result.message,
+                conversation: result.conversation
+            });
+        }
 
         res.status(201).json({
             success: true,
-            data: message
+            data: result.message,
+            isDuplicate: result.isDuplicate
         });
     } catch (err) {
         next(err);

@@ -21,6 +21,7 @@ const SubCategory = require('./SubCategory');
 const FormTemplate = require('./FormTemplate');
 const VendorService = require('../vendor/VendorService');
 const Banner = require('./Banner');
+const ChatReport = require('../vendor/ChatReport');
 const { logAdminAction } = require('../../services/audit.service');
 const { getActiveCommissionPercent } = require('../../services/commission.service');
 const { invalidateMaintenanceCache } = require('../../middleware/maintenance.middleware');
@@ -2364,4 +2365,116 @@ exports.updatePlatformSettings = async (req, res, next) => {
         next(err);
     }
 };
+
+// @desc    Get all chat reports
+// @route   GET /api/admin/chat-reports
+// @access  Private (Admin)
+exports.getChatReports = async (req, res, next) => {
+    try {
+        const { status, page = 1, limit = 20 } = req.query;
+        const query = {};
+        if (status && status !== 'all') {
+            query.status = status;
+        }
+
+        const pageNum = Math.max(1, parseInt(page, 10) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+        const skip = (pageNum - 1) * limitNum;
+
+        const total = await ChatReport.countDocuments(query);
+        const reports = await ChatReport.find(query)
+            .populate('conversationId', 'userId vendorId status')
+            .populate('messageId', 'text type attachments senderId senderRole')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum)
+            .lean();
+
+        res.status(200).json({
+            success: true,
+            total,
+            page: pageNum,
+            limit: limitNum,
+            totalPages: Math.ceil(total / limitNum) || 1,
+            data: reports
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Get single chat report by ID
+// @route   GET /api/admin/chat-reports/:id
+// @access  Private (Admin)
+exports.getChatReportById = async (req, res, next) => {
+    try {
+        const report = await ChatReport.findById(req.params.id)
+            .populate('conversationId', 'userId vendorId status')
+            .populate('messageId', 'text type attachments senderId senderRole')
+            .populate('resolvedBy', 'name email')
+            .lean();
+
+        if (!report) {
+            return res.status(404).json({ success: false, message: 'Chat report not found' });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: report
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Update chat report status & record audit log
+// @route   PUT /api/admin/chat-reports/:id/status
+// @access  Private (Admin)
+exports.updateChatReportStatus = async (req, res, next) => {
+    try {
+        const { status, adminNotes } = req.body;
+        if (!['Pending', 'In-Review', 'Resolved', 'Dismissed'].includes(status)) {
+            return res.status(400).json({ success: false, message: 'Invalid status' });
+        }
+
+        const report = await ChatReport.findById(req.params.id);
+        if (!report) {
+            return res.status(404).json({ success: false, message: 'Chat report not found' });
+        }
+
+        const previousReport = report.toObject();
+
+        report.status = status;
+        if (adminNotes !== undefined) {
+            report.adminNotes = adminNotes;
+        }
+        if (['Resolved', 'Dismissed'].includes(status)) {
+            report.resolvedAt = new Date();
+            report.resolvedBy = req.user._id;
+        }
+
+        await report.save();
+
+        const actionName = status === 'Resolved' ? 'CHAT_REPORT_RESOLVED' : (status === 'Dismissed' ? 'CHAT_REPORT_DISMISSED' : `Updated chat report status to ${status}`);
+        await logAdminAction({
+            admin: req.user,
+            action: actionName,
+            entityType: 'ChatReport',
+            entityId: report._id.toString(),
+            before: previousReport,
+            after: report.toObject(),
+            reason: adminNotes || req.body.moderatorNotes || '',
+            req
+        });
+
+        res.status(200).json({
+            success: true,
+            data: report,
+            message: `Report status updated to ${status}`
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
 

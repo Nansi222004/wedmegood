@@ -178,6 +178,27 @@ exports.acceptQuote = async (req, res, next) => {
             isRead: false
         });
 
+        // 9. Link Booking to Conversation and record System message
+        try {
+            const chatService = require('../chat/chat.service');
+            const conv = await chatService.getOrCreateConversation({
+                userId: req.user._id,
+                vendorId: quote.vendorId,
+                bookingId: booking._id,
+                leadId: lead._id
+            });
+            await chatService.createMessage({
+                conversationId: conv._id,
+                senderId: req.user._id,
+                senderRole: 'System',
+                type: 'system',
+                text: `Quote accepted. Booking confirmed!`,
+                metadata: { bookingId: booking._id, quoteId: quote._id }
+            });
+        } catch (chatErr) {
+            console.warn('Booking conversation link notice:', chatErr.message);
+        }
+
         // 9. Create User Notification & Activity
         try {
             const { notifyAndLogActivity } = require('../../services/notification.service');
