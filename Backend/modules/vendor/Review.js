@@ -24,6 +24,18 @@ const reviewSchema = new mongoose.Schema({
     reply: {
         type: String
     },
+    bookingId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Booking'
+    },
+    photos: [{
+        type: String
+    }],
+    status: {
+        type: String,
+        enum: ['Pending', 'Approved', 'Rejected'],
+        default: 'Approved'
+    },
     createdAt: {
         type: Date,
         default: Date.now
@@ -31,5 +43,9 @@ const reviewSchema = new mongoose.Schema({
 }, {
     timestamps: true
 });
+
+// Indexes for query performance and review lookups
+reviewSchema.index({ vendorId: 1, status: 1, createdAt: -1 });
+reviewSchema.index({ bookingId: 1, userId: 1 });
 
 module.exports = mongoose.models.Review || mongoose.model('Review', reviewSchema);

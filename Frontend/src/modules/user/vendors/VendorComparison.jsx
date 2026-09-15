@@ -5,7 +5,7 @@ import { useCart } from '../../../contexts/CartContext';
 import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
 import Card from '../../../components/ui/Card';
-import { vendors } from '../../../data/vendors';
+import userApi from '../../../services/userApi';
 
 const VendorComparison = () => {
   const location = useLocation();
@@ -18,6 +18,40 @@ const VendorComparison = () => {
   const [availableCategories, setAvailableCategories] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddVendor, setShowAddVendor] = useState(false);
+  const [availablePool, setAvailablePool] = useState([]);
+  const [loadingAvailable, setLoadingAvailable] = useState(false);
+
+  useEffect(() => {
+    if (!selectedCategory) return;
+    const fetchCategoryVendors = async () => {
+      setLoadingAvailable(true);
+      try {
+        const catSlug = selectedCategory.toLowerCase().replace(/\s+/g, '-');
+        const res = await userApi.getVendors({ category: catSlug, limit: 50 });
+        if (res.success && Array.isArray(res.data)) {
+          const mapped = res.data.map(v => ({
+            id: v._id || v.id,
+            name: v.businessName || v.name,
+            category: v.category || selectedCategory,
+            price: v.pricing?.range ? (v.pricing.range.startsWith('₹') ? v.pricing.range : `₹${v.pricing.range}`) : (v.startingPrice ? `₹${v.startingPrice.toLocaleString()}` : 'Price on request'),
+            image: v.profileImage || v.portfolio?.[0]?.url || v.image || 'https://images.unsplash.com/photo-1519741497674-611481863552?w=800&h=600&fit=crop&q=80',
+            rating: typeof v.rating === 'number' && v.rating > 0 ? v.rating : 4.5,
+            reviews: v.reviewCount ?? v.reviews ?? 12,
+            location: v.city || v.location || 'Indore',
+            verified: Boolean(v.isVerified || v.verified),
+            phone: v.phone || '',
+            services: Array.isArray(v.services) ? v.services.map(s => typeof s === 'string' ? s : s.name || 'Service') : [selectedCategory]
+          }));
+          setAvailablePool(mapped);
+        }
+      } catch (err) {
+        console.error('Failed to load category vendors for comparison:', err);
+      } finally {
+        setLoadingAvailable(false);
+      }
+    };
+    fetchCategoryVendors();
+  }, [selectedCategory]);
 
   useEffect(() => {
     const state = location.state;
@@ -134,9 +168,8 @@ const VendorComparison = () => {
   };
 
   const getAvailableVendorsForCategory = () => {
-    return vendors.filter(vendor => 
-      vendor.category === selectedCategory.toLowerCase().replace(/\s+/g, '-') &&
-      !compareVendors.find(cv => cv.id === vendor.id)
+    return availablePool.filter(vendor => 
+      !compareVendors.find(cv => (cv.id || cv._id) === (vendor.id || vendor._id))
     );
   };
 
@@ -779,33 +812,44 @@ const VendorComparison = () => {
               </button>
             </div>
             
-            <div className="space-y-3">
-              {getAvailableVendorsForCategory().slice(0, 10).map((vendor) => (
-                <div 
-                  key={vendor.id}
-                  className="flex items-center p-3 rounded-lg cursor-pointer transition-colors active:scale-95"
-                  style={{ backgroundColor: theme.semantic.background.accent }}
-                  onClick={() => handleAddVendor(vendor)}
-                >
-                  <img src={vendor.image} alt={vendor.name} className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover mr-3 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-sm truncate" style={{ color: theme.semantic.text.primary }}>
-                      {vendor.name}
-                    </h4>
-                    <div className="flex items-center">
-                      <Icon name="star" size="xs" color="secondary" />
-                      <span className="text-xs ml-1 mr-2" style={{ color: theme.semantic.text.secondary }}>
-                        {vendor.rating} ({vendor.reviews})
-                      </span>
-                      <span className="text-xs font-medium truncate" style={{ color: theme.colors.primary[600] }}>
-                        {vendor.price}
-                      </span>
+            {loadingAvailable ? (
+              <div className="flex flex-col items-center justify-center py-8">
+                <div className="w-8 h-8 border-4 border-t-transparent rounded-full animate-spin mb-2" style={{ borderColor: theme.colors.primary[500], borderTopColor: 'transparent' }} />
+                <p className="text-xs" style={{ color: theme.semantic.text.secondary }}>Loading vendors...</p>
+              </div>
+            ) : getAvailableVendorsForCategory().length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-sm font-medium" style={{ color: theme.semantic.text.secondary }}>No additional vendors found in this category.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {getAvailableVendorsForCategory().slice(0, 10).map((vendor) => (
+                  <div 
+                    key={vendor.id}
+                    className="flex items-center p-3 rounded-lg cursor-pointer transition-colors active:scale-95"
+                    style={{ backgroundColor: theme.semantic.background.accent }}
+                    onClick={() => handleAddVendor(vendor)}
+                  >
+                    <img src={vendor.image} alt={vendor.name} className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover mr-3 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-sm truncate" style={{ color: theme.semantic.text.primary }}>
+                        {vendor.name}
+                      </h4>
+                      <div className="flex items-center">
+                        <Icon name="star" size="xs" color="secondary" />
+                        <span className="text-xs ml-1 mr-2" style={{ color: theme.semantic.text.secondary }}>
+                          {vendor.rating} ({vendor.reviews})
+                        </span>
+                        <span className="text-xs font-medium truncate" style={{ color: theme.colors.primary[600] }}>
+                          {vendor.price}
+                        </span>
+                      </div>
                     </div>
+                    <Icon name="plus" size="sm" className="flex-shrink-0" style={{ color: theme.colors.primary[600] }} />
                   </div>
-                  <Icon name="plus" size="sm" className="flex-shrink-0" style={{ color: theme.colors.primary[600] }} />
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

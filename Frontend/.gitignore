@@ -27,3 +27,15 @@ dist-ssr
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Test directories and files
+tests/
+tests
+test/
+test
+*.test.*
+*.spec.*
+
+# Markdown documentation files
+*.md
+**/*.md

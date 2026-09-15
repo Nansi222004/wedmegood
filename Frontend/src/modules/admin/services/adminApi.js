@@ -2,29 +2,56 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://wedmegood-u0n
 const API_URL = `${API_BASE_URL}/admin`;
 
 export const adminApi = {
-    getVendors: async (token) => {
-        const res = await fetch(`${API_URL}/vendors`, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
+    getVendors: async (token, params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/vendors${query ? `?${query}` : ''}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
     },
 
     getVendorsWithServices: async (token) => {
         const res = await fetch(`${API_URL}/vendors-services`, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
+            headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
     },
 
-    getUsers: async (token) => {
-        const res = await fetch(`${API_URL}/users`, {
+    getUsers: async (token, params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/users${query ? `?${query}` : ''}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    getUserById: async (id, token) => {
+        const res = await fetch(`${API_URL}/users/${id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    updateUserStatus: async (id, data, token) => {
+        const res = await fetch(`${API_URL}/users/${id}/status`, {
+            method: 'PUT',
             headers: {
+                'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
-            }
+            },
+            body: JSON.stringify(data)
+        });
+        return await res.json();
+    },
+
+    updateVendorFeatured: async (vendorId, isFeatured, token) => {
+        const res = await fetch(`${API_URL}/vendors/${vendorId}/featured`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ isFeatured })
         });
         return await res.json();
     },
@@ -155,9 +182,22 @@ export const adminApi = {
         return await res.json();
     },
 
-    getReviews: async (token) => {
-        const res = await fetch(`${API_URL}/reviews`, {
+    getReviews: async (token, params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/reviews${query ? `?${query}` : ''}`, {
             headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    updateReviewStatus: async (id, status, token) => {
+        const res = await fetch(`${API_URL}/reviews/${id}/status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ status })
         });
         return await res.json();
     },
@@ -177,8 +217,9 @@ export const adminApi = {
         return await res.json();
     },
 
-    getBookings: async (token) => {
-        const res = await fetch(`${API_URL}/bookings`, {
+    getBookings: async (token, params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/bookings${query ? `?${query}` : ''}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
@@ -186,13 +227,6 @@ export const adminApi = {
 
     getVendorLedger: async (token) => {
         const res = await fetch(`${API_URL}/vendor-ledger`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        return await res.json();
-    },
-
-    getPayments: async (token) => {
-        const res = await fetch(`${API_URL}/payments`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
@@ -413,5 +447,140 @@ export const adminApi = {
             }
         });
         return await res.json();
+    },
+
+    // Phase 5: Financial Management & Payouts
+    getPayments: async (token, params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/financial/payments${query ? `?${query}` : ''}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    getFinancialSummary: async (token) => {
+        const res = await fetch(`${API_URL}/financial/summary`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    getFinancialTransactions: async (token, params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/financial/transactions${query ? `?${query}` : ''}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    getWithdrawals: async (token, params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/financial/withdrawals${query ? `?${query}` : ''}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    updateWithdrawalStatus: async (id, data, token) => {
+        const res = await fetch(`${API_URL}/financial/withdrawals/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+        });
+        return await res.json();
+    },
+
+    processRefund: async (data, token) => {
+        const res = await fetch(`${API_URL}/financial/refund`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+        });
+        return await res.json();
+    },
+
+    getReconciliation: async (token) => {
+        const res = await fetch(`${API_URL}/financial/reconciliation`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    // Phase 6: Dashboard, Operations & Settings
+    getDashboardSummary: async (token) => {
+        const res = await fetch(`${API_URL}/dashboard/summary`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    getLeads: async (token, params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/leads${query ? `?${query}` : ''}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    getQuotes: async (token, params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/quotes${query ? `?${query}` : ''}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    getComplaints: async (token, params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/complaints${query ? `?${query}` : ''}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    updateComplaintStatus: async (id, data, token) => {
+        const res = await fetch(`${API_URL}/complaints/${id}/status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+        });
+        return await res.json();
+    },
+
+    getPlatformSettings: async (token) => {
+        const res = await fetch(`${API_URL}/settings`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    updatePlatformSettings: async (data, token) => {
+        const res = await fetch(`${API_URL}/settings`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+        });
+        return await res.json();
+    },
+
+    getAuditLogs: async (token, params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/logs${query ? `?${query}` : ''}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
     }
 };
+

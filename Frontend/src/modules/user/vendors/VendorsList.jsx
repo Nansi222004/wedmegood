@@ -6,7 +6,7 @@ import Button from '../../../components/ui/Button';
 import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import VendorCard from './VendorCardFixed';
-import { vendors } from '../../../data/vendors';
+import userApi from '../../../services/userApi';
 import { useTheme } from '../../../hooks/useTheme';
 
 const VendorsList = () => {
@@ -20,195 +20,125 @@ const VendorsList = () => {
   const lenis = useLenisContext();
 
   const categoryTitle = location.state?.categoryTitle || category || 'Vendors';
+  const [vendorsList, setVendorsList] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [sortBy, setSortBy] = useState('rating');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [savedVendors, setSavedVendors] = useState([]);
   const [showMap, setShowMap] = useState(false);
+  const [subCategories, setSubCategories] = useState([]);
+  const [selectedSubCategory, setSelectedSubCategory] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState({
+    total: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false
+  });
   const [filters, setFilters] = useState({
     priceRange: 'all',
     rating: 'all',
     availability: 'all',
     location: 'all',
-    services: 'all',
     experience: 'all',
-    responseTime: 'all'
+    eventDate: ''
   });
 
-  // Load saved vendors from localStorage
+  // Fetch subcategories for current category from database
   useEffect(() => {
-    const saved = localStorage.getItem('savedVendors');
-    if (saved) {
-      setSavedVendors(JSON.parse(saved));
-    }
-  }, []);
-
-  // Toggle save vendor
-  const toggleSaveVendor = (vendorId) => {
-    let updatedSavedVendors;
-    if (savedVendors.includes(vendorId)) {
-      updatedSavedVendors = savedVendors.filter(id => id !== vendorId);
-      showToast('Vendor removed from saved list', 'info', 2000);
-    } else {
-      updatedSavedVendors = [...savedVendors, vendorId];
-      showToast('Vendor saved to your list', 'success', 2000);
-    }
-    setSavedVendors(updatedSavedVendors);
-    localStorage.setItem('savedVendors', JSON.stringify(updatedSavedVendors));
-  };
-
-  // Toggle map view
-  const toggleMapView = () => {
-    setShowMap(!showMap);
-    showToast(showMap ? 'Map view hidden' : 'Map view enabled', 'info', 2000);
-  };
-
-  // Initialize scroll animations for vendor cards
-  useEffect(() => {
-    const initializeAnimations = async () => {
-      if (!lenis) return;
-
-      // Temporarily disable animations to test click functionality
-      console.log('Animations disabled for testing');
-      return;
-
-      const [{ gsap }, { ScrollTrigger }] = await Promise.all([
-        import('gsap'),
-        import('gsap/ScrollTrigger')
-      ]);
-
-      gsap.registerPlugin(ScrollTrigger);
-
-      // Animate vendor cards
-      const vendorCards = document.querySelectorAll('.vendor-list-card');
-
-      vendorCards.forEach((card, index) => {
-        gsap.set(card, {
-          opacity: 0,
-          y: 20,
-          scale: 0.98
-        });
-
-        ScrollTrigger.create({
-          trigger: card,
-          start: 'top 90%',
-          once: true,
-          onEnter: () => {
-            gsap.to(card, {
-              opacity: 1,
-              y: 0,
-              scale: 1,
-              duration: 0.5,
-              ease: 'power1.out',
-              delay: index * 0.03
-            });
+    const loadCategorySubs = async () => {
+      try {
+        const res = await userApi.getCategories();
+        if (res.success && Array.isArray(res.data)) {
+          const currentCat = res.data.find(c => 
+            (c.slug && c.slug.toLowerCase() === (category || '').toLowerCase()) ||
+            c.name.toLowerCase() === (category || '').toLowerCase().replace(/-/g, ' ')
+          );
+          if (currentCat && Array.isArray(currentCat.subCategories)) {
+            setSubCategories(currentCat.subCategories);
+          } else {
+            setSubCategories([]);
           }
-        });
-      });
+        }
+      } catch (err) {
+        console.warn('Could not load subcategories:', err);
+      }
     };
-
-    // Small delay to ensure DOM is ready
-    setTimeout(initializeAnimations, 100);
-  }, [lenis, sortBy]); // Re-run when sort changes
-
-  const filteredVendors = vendors.filter(vendor => {
-    // Category filter
-    const matchesCategory = category === 'all' || vendor.category === category;
-
-    // Search filter
-    const matchesSearch = searchQuery === '' ||
-      vendor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vendor.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vendor.specialties?.some(specialty =>
-        specialty.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-
-    // Price range filter
-    const matchesPriceRange = filters.priceRange === 'all' || (() => {
-      const price = vendor.price || vendor.priceRange;
-      if (!price) return true;
-
-      const priceNum = parseInt(price.replace(/[^\d]/g, ''));
-      switch (filters.priceRange) {
-        case 'budget': return priceNum < 50000;
-        case 'mid': return priceNum >= 50000 && priceNum < 150000;
-        case 'premium': return priceNum >= 150000;
-        default: return true;
-      }
-    })();
-
-    // Rating filter
-    const matchesRating = filters.rating === 'all' || (() => {
-      const rating = vendor.rating || 0;
-      switch (filters.rating) {
-        case '4+': return rating >= 4;
-        case '4.5+': return rating >= 4.5;
-        default: return true;
-      }
-    })();
-
-    // Availability filter
-    const matchesAvailability = filters.availability === 'all' ||
-      (filters.availability === 'available' && vendor.isAvailable !== false);
-
-    // Location filter
-    const matchesLocation = filters.location === 'all' ||
-      vendor.location?.toLowerCase().includes(filters.location.toLowerCase());
-
-    // Services filter
-    const matchesServices = filters.services === 'all' ||
-      vendor.services?.some(service =>
-        service.toLowerCase().includes(filters.services.toLowerCase())
-      );
-
-    // Experience filter
-    const matchesExperience = filters.experience === 'all' || (() => {
-      const experience = vendor.experience || 0;
-      switch (filters.experience) {
-        case '5+': return experience >= 5;
-        case '10+': return experience >= 10;
-        case '15+': return experience >= 15;
-        default: return true;
-      }
-    })();
-
-    // Response time filter
-    const matchesResponseTime = filters.responseTime === 'all' || (() => {
-      const responseTime = vendor.responseTime || '';
-      switch (filters.responseTime) {
-        case 'fast': return responseTime.toLowerCase().includes('hour') || responseTime.toLowerCase().includes('fast');
-        case 'normal': return responseTime.toLowerCase().includes('day') || responseTime.toLowerCase().includes('normal');
-        case 'slow': return responseTime.toLowerCase().includes('week') || responseTime.toLowerCase().includes('slow');
-        default: return true;
-      }
-    })();
-
-    return matchesCategory && matchesSearch && matchesPriceRange && matchesRating &&
-      matchesAvailability && matchesLocation && matchesServices && matchesExperience && matchesResponseTime;
-  });
-
-  const sortedVendors = [...filteredVendors].sort((a, b) => {
-    switch (sortBy) {
-      case 'rating':
-        return b.rating - a.rating;
-      case 'reviews':
-        return b.reviews - a.reviews;
-      case 'name':
-        return a.name.localeCompare(b.name);
-      case 'price-low':
-        const priceA = parseInt((a.price || a.priceRange || '0').replace(/[^\d]/g, ''));
-        const priceB = parseInt((b.price || b.priceRange || '0').replace(/[^\d]/g, ''));
-        return priceA - priceB;
-      case 'price-high':
-        const priceA2 = parseInt((a.price || a.priceRange || '0').replace(/[^\d]/g, ''));
-        const priceB2 = parseInt((b.price || b.priceRange || '0').replace(/[^\d]/g, ''));
-        return priceB2 - priceA2;
-      default:
-        return 0;
+    if (category && category !== 'all') {
+      loadCategorySubs();
+      setSelectedSubCategory('all');
+      setCurrentPage(1);
     }
-  });
+  }, [category]);
+
+  const fetchVendors = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      let minPrice = undefined;
+      let maxPrice = undefined;
+      if (filters.priceRange === 'budget') maxPrice = 50000;
+      else if (filters.priceRange === 'mid') { minPrice = 50000; maxPrice = 150000; }
+      else if (filters.priceRange === 'premium') minPrice = 150000;
+
+      let minRating = undefined;
+      if (filters.rating === '4+') minRating = 4;
+      else if (filters.rating === '4.5+') minRating = 4.5;
+
+      let minExperience = undefined;
+      if (filters.experience === '3+') minExperience = 3;
+      else if (filters.experience === '5+') minExperience = 5;
+      else if (filters.experience === '8+') minExperience = 8;
+
+      const res = await userApi.getVendors({
+        category: category && category !== 'all' ? category : undefined,
+        subCategory: selectedSubCategory !== 'all' ? selectedSubCategory : undefined,
+        city: filters.location !== 'all' ? filters.location : undefined,
+        search: searchQuery.trim() || undefined,
+        sort: sortBy,
+        minPrice,
+        maxPrice,
+        minRating,
+        minExperience,
+        date: filters.eventDate || undefined,
+        availability: filters.availability === 'available' ? 'available' : undefined,
+        page: currentPage,
+        limit: 12
+      });
+
+      if (res.success) {
+        setVendorsList(res.data || []);
+        setPagination({
+          total: res.total ?? res.count ?? (res.data || []).length,
+          totalPages: res.totalPages || 1,
+          hasNextPage: Boolean(res.hasNextPage),
+          hasPreviousPage: Boolean(res.hasPreviousPage)
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching vendors:', err);
+      setError(err.message || 'Failed to load vendors');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchVendors();
+  }, [category, selectedSubCategory, sortBy, filters.location, filters.priceRange, filters.rating, filters.experience, filters.availability, filters.eventDate, currentPage]);
+
+  const handleSearchSubmit = (e) => {
+    if (e) e.preventDefault();
+    setCurrentPage(1);
+    fetchVendors();
+  };
+
+  const sortedVendors = vendorsList;
 
   const handleFilterChange = (filterType, value) => {
+    setCurrentPage(1);
     setFilters(prev => ({
       ...prev,
       [filterType]: value
@@ -262,13 +192,13 @@ const VendorsList = () => {
         </div>
 
         {/* Search Bar (Pill Style) */}
-        <div className="relative group">
+        <form onSubmit={handleSearchSubmit} className="relative group">
           <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
             <Icon name="search" size="sm" className="text-[#3D2B2B]/40" />
           </div>
           <input
             type="text"
-            placeholder={`Search ${categoryTitle.toLowerCase()}...`}
+            placeholder={`Search ${categoryTitle.toLowerCase()} by name, service, or location...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-12 pr-4 py-3.5 rounded-full border-none text-sm shadow-sm transition-all focus:ring-2 focus:ring-[#3D2B2B]/20"
@@ -277,7 +207,36 @@ const VendorsList = () => {
               color: '#3D2B2B'
             }}
           />
-        </div>
+        </form>
+
+        {/* Dynamic Subcategories Pill Bar */}
+        {subCategories.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+            <button
+              onClick={() => { setSelectedSubCategory('all'); setCurrentPage(1); }}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold tracking-wide whitespace-nowrap transition-all shadow-xs ${
+                selectedSubCategory === 'all'
+                  ? 'bg-[#3D2B2B] text-white shadow-sm'
+                  : 'bg-white/80 text-[#3D2B2B] hover:bg-white'
+              }`}
+            >
+              All {categoryTitle}
+            </button>
+            {subCategories.map(sub => (
+              <button
+                key={sub._id || sub.name}
+                onClick={() => { setSelectedSubCategory(sub.name); setCurrentPage(1); }}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold tracking-wide whitespace-nowrap transition-all shadow-xs ${
+                  selectedSubCategory === sub.name
+                    ? 'bg-[#3D2B2B] text-white shadow-sm'
+                    : 'bg-white/80 text-[#3D2B2B] hover:bg-white'
+                }`}
+              >
+                {sub.name}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Destination Pricing Toggle (WedMeGood Signature) */}
         <div className="flex items-center justify-between px-2 mb-2">
@@ -445,26 +404,33 @@ const VendorsList = () => {
                 </select>
               </div>
 
-              {/* Response Time Filter */}
+              {/* Date & Availability Filter */}
               <div>
                 <label className="block text-xs font-medium mb-2" style={{ color: theme.semantic.text.secondary }}>
-                  Response Time
+                  Event Date
                 </label>
-                <select
-                  value={filters.responseTime}
-                  onChange={(e) => handleFilterChange('responseTime', e.target.value)}
+                <input
+                  type="date"
+                  value={filters.eventDate}
+                  onChange={(e) => handleFilterChange('eventDate', e.target.value)}
                   className="vendor-filter-select w-full px-3 py-2 border rounded-lg text-sm"
                   style={{
                     backgroundColor: theme.semantic.background.accent,
                     borderColor: theme.semantic.border.light,
                     color: theme.semantic.text.primary
                   }}
-                >
-                  <option value="all">All Response Times</option>
-                  <option value="fast">Within Hours</option>
-                  <option value="normal">Within Days</option>
-                  <option value="slow">Within Weeks</option>
-                </select>
+                />
+                {filters.eventDate && (
+                  <label className="flex items-center gap-2 mt-2 text-xs cursor-pointer font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={filters.availability === 'available'}
+                      onChange={(e) => handleFilterChange('availability', e.target.checked ? 'available' : 'all')}
+                      className="rounded text-[#BE185D]"
+                    />
+                    <span>Only available vendors</span>
+                  </label>
+                )}
               </div>
 
               {/* Sort By */}
@@ -474,7 +440,7 @@ const VendorsList = () => {
                 </label>
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  onChange={(e) => { setCurrentPage(1); setSortBy(e.target.value); }}
                   className="vendor-filter-select w-full px-3 py-2 border rounded-lg text-sm"
                   style={{
                     backgroundColor: theme.semantic.background.accent,
@@ -483,10 +449,11 @@ const VendorsList = () => {
                   }}
                 >
                   <option value="rating">Top Rated</option>
-                  <option value="reviews">Most Reviews</option>
-                  <option value="name">Name A-Z</option>
+                  <option value="popular">Most Popular</option>
                   <option value="price-low">Price: Low to High</option>
                   <option value="price-high">Price: High to Low</option>
+                  <option value="experience">Years Experience</option>
+                  <option value="newest">Newest</option>
                 </select>
               </div>
             </div>
@@ -507,7 +474,7 @@ const VendorsList = () => {
               className="text-sm font-medium"
               style={{ color: theme.semantic.text.primary }}
             >
-              {sortedVendors.length} vendor{sortedVendors.length !== 1 ? 's' : ''} found
+              {pagination.total} vendor{pagination.total !== 1 ? 's' : ''} found
               {searchQuery && (
                 <span className="text-xs ml-2" style={{ color: theme.semantic.text.secondary }}>
                   for "{searchQuery}"
@@ -541,61 +508,100 @@ const VendorsList = () => {
           )}
         </div>
 
-        {/* Responsive Vendors Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 pb-24">
-          {sortedVendors.map((vendor) => {
-            console.log('Rendering vendor:', vendor.id, vendor.name, vendor.category);
-            return (
-              <div key={vendor.id} className="vendor-list-card">
-                <VendorCard
-                  vendor={vendor}
-                  layout="responsive"
-                  onToggleSave={toggleSaveVendor}
-                />
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Enhanced Empty State */}
-        {sortedVendors.length === 0 && (
-          <div
-            className="text-center py-12 sm:py-16 mb-24 rounded-lg mx-auto max-w-md"
-            style={{
-              backgroundColor: theme.semantic.card.background,
-              borderColor: theme.semantic.card.border,
-              borderWidth: '1px',
-              borderStyle: 'solid'
-            }}
-          >
-            <div className="mb-6 flex justify-center">
-              <div
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: theme.colors.primary[50] }}
-              >
-                <Icon name="noResults" size="2xl" color="muted" />
-              </div>
-            </div>
-            <h3
-              className="text-lg sm:text-xl font-semibold mb-2"
-              style={{ color: theme.semantic.text.primary }}
-            >
-              No vendors found
-            </h3>
-            <p
-              className="text-sm sm:text-base mb-6 px-4"
-              style={{ color: theme.semantic.text.secondary }}
-            >
-              We couldn't find any {categoryTitle.toLowerCase()} in your area. Try browsing other categories.
+        {/* Content Area: Loading, Error, or Grid */}
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-24 mb-24">
+            <div className="w-12 h-12 border-4 border-[#E91E63] border-t-transparent animate-spin rounded-full mb-4"></div>
+            <p className="text-sm font-semibold text-slate-500">
+              Loading verified vendors from marketplace...
             </p>
-            <Button
-              onClick={() => navigate('/user/vendors')}
-              variant="primary"
-              className="px-6 py-2"
-            >
-              Browse All Categories
-            </Button>
           </div>
+        ) : error ? (
+          <div className="text-center py-16 px-4 bg-red-50 rounded-2xl border border-red-200 max-w-md mx-auto mb-24">
+            <Icon name="alertTriangle" size="lg" className="text-red-500 mx-auto mb-3" />
+            <h3 className="text-lg font-bold text-red-900 mb-1">Failed to load vendors</h3>
+            <p className="text-sm text-red-600 mb-4">{error}</p>
+            <Button size="sm" onClick={fetchVendors}>Try Again</Button>
+          </div>
+        ) : (
+          <>
+            {/* Responsive Vendors Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 pb-6">
+              {sortedVendors.map((vendor) => (
+                <div key={vendor._id || vendor.id} className="vendor-list-card">
+                  <VendorCard
+                    vendor={vendor}
+                    layout="responsive"
+                    onToggleSave={toggleSaveVendor}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Pagination Controls */}
+            {pagination.totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 pt-2 pb-24">
+                <button
+                  disabled={!pagination.hasPreviousPage}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  className="px-4 py-2 text-xs font-bold rounded-full bg-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 text-[#3D2B2B] transition-all"
+                >
+                  Previous
+                </button>
+                <span className="text-xs font-bold text-[#3D2B2B]/70 px-2">
+                  Page {currentPage} of {pagination.totalPages} ({pagination.total} total)
+                </span>
+                <button
+                  disabled={!pagination.hasNextPage}
+                  onClick={() => setCurrentPage(prev => Math.min(pagination.totalPages, prev + 1))}
+                  className="px-4 py-2 text-xs font-bold rounded-full bg-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 text-[#3D2B2B] transition-all"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+
+            {/* Enhanced Empty State */}
+            {sortedVendors.length === 0 && (
+              <div
+                className="text-center py-12 sm:py-16 mb-24 rounded-lg mx-auto max-w-md"
+                style={{
+                  backgroundColor: theme.semantic.card.background,
+                  borderColor: theme.semantic.card.border,
+                  borderWidth: '1px',
+                  borderStyle: 'solid'
+                }}
+              >
+                <div className="mb-6 flex justify-center">
+                  <div
+                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: theme.colors.primary[50] }}
+                  >
+                    <Icon name="noResults" size="2xl" color="muted" />
+                  </div>
+                </div>
+                <h3
+                  className="text-lg sm:text-xl font-semibold mb-2"
+                  style={{ color: theme.semantic.text.primary }}
+                >
+                  No vendors found
+                </h3>
+                <p
+                  className="text-sm sm:text-base mb-6 px-4"
+                  style={{ color: theme.semantic.text.secondary }}
+                >
+                  We couldn't find any {categoryTitle.toLowerCase()} in your area. Try browsing other categories.
+                </p>
+                <Button
+                  onClick={() => navigate('/user/vendors')}
+                  variant="primary"
+                  className="px-6 py-2"
+                >
+                  Browse All Categories
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
 

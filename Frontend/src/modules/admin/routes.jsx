@@ -26,6 +26,9 @@ import AdminVendorLedger from './pages/AdminVendorLedger';
 import AdminPolicies from './pages/AdminPolicies';
 import AdminSupport from './pages/AdminSupport';
 import AdminVendorInventory from './pages/AdminVendorInventory';
+import AdminLeads from './pages/AdminLeads';
+import AdminQuotes from './pages/AdminQuotes';
+import AdminComplaints from './pages/AdminComplaints';
 
 // Simple placeholder page component
 
@@ -53,6 +56,9 @@ const AdminRoutes = () => {
         <Route path="verification" element={<AdminVendorVerification />} />
         <Route path="vendor-ledger" element={<AdminVendorLedger />} />
         <Route path="users" element={<AdminUsers />} />
+        <Route path="leads" element={<AdminLeads />} />
+        <Route path="quotes" element={<AdminQuotes />} />
+        <Route path="complaints" element={<AdminComplaints />} />
         <Route path="subscriptions" element={<AdminSubscriptions />} />
         <Route path="bookings" element={<AdminBookings />} />
         <Route path="analytics" element={<AdminAnalytics />} />

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuth } from '../../contexts/AuthContext';
+import { userApi } from '../../services/userApi';
 import Button from '../ui/Button';
 import CartIcon from './CartIcon';
 import HamburgerMenu from './HamburgerMenu';
@@ -15,8 +16,32 @@ const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isHamburgerMenuOpen, setIsHamburgerMenuOpen] = useState(false);
 
-  // Mock notification count - replace with actual data from context/API
-  const [notificationCount] = useState(3);
+  // Dynamic notification unread count
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchUnreadCount = useCallback(async () => {
+    if (!isAuthenticated) {
+      setUnreadCount(0);
+      return;
+    }
+    try {
+      const res = await userApi.getUnreadNotificationCount();
+      if (res && typeof res.count === 'number') {
+        setUnreadCount(res.count);
+      }
+    } catch {
+      // Quiet fallback
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    fetchUnreadCount();
+    const handleUpdate = () => fetchUnreadCount();
+    window.addEventListener('user-notifications-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('user-notifications-updated', handleUpdate);
+    };
+  }, [fetchUnreadCount]);
 
   const handleNotificationsClick = () => {
     navigate('/user/notifications');
@@ -63,11 +88,45 @@ const Header = () => {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-4">
+            {/* Notifications Bell Icon */}
+            {isAuthenticated && (
+              <button
+                onClick={handleNotificationsClick}
+                className="relative p-2 rounded-lg transition-colors"
+                title="Notifications"
+                style={{
+                  color: theme.semantic.text.secondary,
+                  backgroundColor: 'transparent'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = theme.semantic.text.primary;
+                  e.currentTarget.style.backgroundColor = theme.semantic.background.accent;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = theme.semantic.text.secondary;
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <Icon name="bell" size="md" />
+                {unreadCount > 0 && (
+                  <div
+                    className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: theme.colors.accent[500] || '#BE185D' }}
+                  >
+                    <span className="text-[10px] font-bold text-white leading-none">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  </div>
+                )}
+              </button>
+            )}
+
             {/* Saved Items Icon */}
             {isAuthenticated && (
               <button
                 onClick={() => navigate('/user/favourites')}
                 className="relative p-2 rounded-lg transition-colors"
+                title="Favourites"
                 style={{
                   color: theme.semantic.text.secondary,
                   backgroundColor: 'transparent'
@@ -82,17 +141,6 @@ const Header = () => {
                 }}
               >
                 <Icon name="heart" size="md" />
-                {/* Saved Badge */}
-                {notificationCount > 0 && (
-                  <div
-                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: theme.colors.accent[500] }}
-                  >
-                    <span className="text-xs font-bold text-white">
-                      {notificationCount > 9 ? '9+' : notificationCount}
-                    </span>
-                  </div>
-                )}
               </button>
             )}
 
@@ -183,6 +231,38 @@ const Header = () => {
 
           {/* Mobile Menu Button */}
           <div className="md:hidden flex items-center space-x-2">
+            {/* Notification Bell for Mobile */}
+            {isAuthenticated && (
+              <button
+                onClick={handleNotificationsClick}
+                className="relative p-2 rounded-lg transition-colors"
+                style={{
+                  color: theme.semantic.navigation.text,
+                  backgroundColor: 'transparent'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = theme.semantic.text.accent;
+                  e.currentTarget.style.backgroundColor = theme.semantic.navigation.backgroundHover;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = theme.semantic.navigation.text;
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <Icon name="bell" size="sm" />
+                {unreadCount > 0 && (
+                  <div
+                    className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: theme.colors.accent[500] || '#BE185D' }}
+                  >
+                    <span className="text-[9px] font-bold text-white leading-none">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  </div>
+                )}
+              </button>
+            )}
+
             {/* Saved Items for Mobile */}
             {isAuthenticated && (
               <button
@@ -202,17 +282,6 @@ const Header = () => {
                 }}
               >
                 <Icon name="heart" size="sm" />
-                {/* Saved Badge */}
-                {notificationCount > 0 && (
-                  <div
-                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: theme.colors.accent[500] }}
-                  >
-                    <span className="text-xs font-bold text-white">
-                      {notificationCount > 9 ? '9+' : notificationCount}
-                    </span>
-                  </div>
-                )}
               </button>
             )}
 

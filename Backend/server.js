@@ -169,7 +169,18 @@ app.get('/api/seed-categories-secure-xyz', async (req, res) => {
     }
 });
 
+// Maintenance mode middleware (allows /health and /api/admin/*)
+const { maintenanceMiddleware } = require('./middleware/maintenance.middleware');
+app.use(maintenanceMiddleware);
+
 // API routes
+const publicVendorRoutes = require('./modules/vendor/publicVendor.routes');
+const publicRoutes = require('./modules/user/public.routes');
+const { getAllCategories } = require('./modules/admin/adminController');
+
+app.use('/api/public', publicRoutes);
+app.use('/api/vendors', publicVendorRoutes);
+app.get('/api/categories', getAllCategories);
 app.use('/api/user', userRoutes);
 app.use('/api/vendor', vendorRoutes);
 app.use('/api/upload', uploadRoutes);

@@ -2,17 +2,21 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import { useCart } from '../../../contexts/CartContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
-import { vendors } from '../../../data/vendors';
+import userApi from '../../../services/userApi';
 
 const VendorDetail = () => {
   const { vendorId } = useParams();
   const navigate = useNavigate();
   const { theme } = useTheme();
   const { addToCart, isInCart } = useCart();
+  const { user } = useAuth();
 
   const [vendor, setVendor] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
   const [activeTab, setActiveTab] = useState('pricing');
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isSticky, setIsSticky] = useState(false);
@@ -23,6 +27,8 @@ const VendorDetail = () => {
   // Modal states
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [requestStatus, setRequestStatus] = useState('idle'); // idle, sending, success
+  const [referencePhotos, setReferencePhotos] = useState([]);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -33,9 +39,96 @@ const VendorDetail = () => {
     message: ''
   });
 
+  // Favorite state
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [isFavoriteLoading, setIsFavoriteLoading] = useState(false);
+
+  // Complaint / Report modal state
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportCategory, setReportCategory] = useState('Unprofessional Behavior');
+  const [reportDescription, setReportDescription] = useState('');
+  const [reportEvidence, setReportEvidence] = useState([]);
+  const [isUploadingEvidence, setIsUploadingEvidence] = useState(false);
+  const [reportStatus, setReportStatus] = useState('idle'); // idle, sending, success
+
+  // Check favorite status on mount/change
+  useEffect(() => {
+    const id = vendor?._id || vendorId;
+    if (user && id) {
+      userApi.checkFavorite(id)
+        .then(res => {
+          if (res.success) {
+            setIsFavorite(Boolean(res.isFavorite));
+          }
+        })
+        .catch(err => console.error('Error checking favorite status:', err));
+    }
+  }, [user, vendor, vendorId]);
+
+  const handleToggleFavorite = async () => {
+    if (!user) {
+      alert('Please log in first to save vendors to your favorites.');
+      navigate('/login', { state: { from: `/user/vendor/${vendorId}` } });
+      return;
+    }
+    const id = vendor?._id || vendorId;
+    setIsFavoriteLoading(true);
+    try {
+      if (isFavorite) {
+        const res = await userApi.removeFavorite(id);
+        if (res.success) setIsFavorite(false);
+      } else {
+        const res = await userApi.addFavorite(id);
+        if (res.success) setIsFavorite(true);
+      }
+    } catch (err) {
+      console.error('Favorite update error:', err);
+      alert('Could not update favorites: ' + (err.message || ''));
+    } finally {
+      setIsFavoriteLoading(false);
+    }
+  };
+
+  const handleReportSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!user) {
+      alert('Please log in first to report a vendor.');
+      navigate('/login', { state: { from: `/user/vendor/${vendorId}` } });
+      return;
+    }
+    if (!reportDescription.trim()) {
+      alert('Please describe your issue with this vendor.');
+      return;
+    }
+    setReportStatus('sending');
+    try {
+      const res = await userApi.createComplaint({
+        vendorId: vendor?._id || vendorId,
+        category: reportCategory,
+        description: reportDescription.trim(),
+        evidence: reportEvidence
+      });
+      if (res.success) {
+        setReportStatus('success');
+        setTimeout(() => {
+          setIsReportModalOpen(false);
+          setReportStatus('idle');
+          setReportDescription('');
+          setReportEvidence([]);
+        }, 2000);
+      } else {
+        throw new Error(res.message || 'Failed to submit complaint');
+      }
+    } catch (err) {
+      console.error('Complaint submit error:', err);
+      alert('Could not submit complaint: ' + (err.message || 'Server error'));
+      setReportStatus('idle');
+    }
+  };
+
   // Handle Scroll Locking & Lenis toggling when modal is open
   useEffect(() => {
-    if (isRequestModalOpen) {
+    if (isRequestModalOpen || isReportModalOpen) {
       document.body.style.overflow = 'hidden';
       // Use window.lenis.stop() if available to pause smooth scroll
       if (window.lenis && typeof window.lenis.stop === 'function') {
@@ -55,7 +148,7 @@ const VendorDetail = () => {
         window.lenis.start();
       }
     };
-  }, [isRequestModalOpen]);
+  }, [isRequestModalOpen, isReportModalOpen]);
 
   // Pre-fill form from localStorage
   useEffect(() => {
@@ -77,146 +170,168 @@ const VendorDetail = () => {
     }
   }, [vendor]);
 
-  // Mock data for vendor details
-  const vendorImages = [
-    'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=800&h=600&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=800&h=600&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1519741497674-611481863552?w=800&h=600&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=800&h=600&fit=crop&q=80'
-  ];
+  // Dynamic data for vendor details derived strictly from MongoDB document (NO MOCKS)
+  const vendorImages = (vendor?.portfolio && vendor.portfolio.length > 0)
+    ? vendor.portfolio.filter(p => p.type === 'Photo' || !p.type).map(p => p.url).filter(Boolean)
+    : (vendor?.profileImage ? [vendor.profileImage] : []);
 
-  const pricingData = [
-    {
-      id: 1,
-      name: 'Photo Package',
-      description: 'Candid & Traditional',
-      price: '₹25,000',
-      unit: 'per day',
-      icon: 'camera'
-    },
-    {
-      id: 2,
-      name: 'Photo + Video',
-      description: 'Photo Package & Cinematic Video',
-      price: '₹35,000',
-      unit: 'per day',
-      icon: 'video'
-    },
-    {
-      id: 3,
-      name: 'Pre-Wedding Shoot',
-      description: '',
-      price: '₹15,000',
-      unit: 'per day',
-      icon: 'heart'
-    },
-    {
-      id: 4,
-      name: 'Albums',
-      description: '',
-      price: '₹5,000',
-      unit: 'per 40 pages',
-      icon: 'book'
+  const pricingData = (() => {
+    const list = [];
+    if (vendor?.services && vendor.services.length > 0) {
+      vendor.services.forEach((srv, srvIdx) => {
+        if (srv.packages && srv.packages.length > 0) {
+          srv.packages.forEach((pkg, pkgIdx) => {
+            list.push({
+              id: `${srvIdx}-${pkgIdx}`,
+              name: pkg.name || srv.name,
+              description: (pkg.features || []).join(' • ') || srv.category || '',
+              price: pkg.price ? `₹${pkg.price.toLocaleString()}` : (vendor.pricing?.range ? `₹${vendor.pricing.range}` : 'Contact for price'),
+              unit: 'per event',
+              icon: 'camera'
+            });
+          });
+        } else {
+          list.push({
+            id: srvIdx,
+            name: srv.name || 'Service Package',
+            description: (srv.features || []).join(' • ') || srv.category || '',
+            price: vendor.pricing?.range ? `₹${vendor.pricing.range}` : (vendor.startingPrice ? `Starting ₹${vendor.startingPrice.toLocaleString()}` : 'Contact for price'),
+            unit: 'per event',
+            icon: 'camera'
+          });
+        }
+      });
     }
-  ];
+    return list;
+  })();
 
-  const albumsData = [
-    {
-      id: 1,
-      name: 'Portfolio',
-      imageCount: 67,
-      coverImage: 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=400&h=300&fit=crop&q=80'
-    },
-    {
-      id: 2,
-      name: 'Sayali',
-      imageCount: 45,
-      coverImage: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=400&h=300&fit=crop&q=80'
-    },
-    {
-      id: 3,
-      name: 'Wedding Collection',
-      imageCount: 89,
-      coverImage: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=300&fit=crop&q=80'
-    },
-    {
-      id: 4,
-      name: 'Pre-Wedding',
-      imageCount: 23,
-      coverImage: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400&h=300&fit=crop&q=80'
-    },
-    {
-      id: 5,
-      name: 'Reception',
-      imageCount: 56,
-      coverImage: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=400&h=300&fit=crop&q=80'
-    },
-    {
-      id: 6,
-      name: 'Engagement',
-      imageCount: 34,
-      coverImage: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=400&h=300&fit=crop&q=80'
-    }
-  ];
+  const albumsData = (vendor?.portfolio && vendor.portfolio.length > 0)
+    ? [{
+        id: 'portfolio-main',
+        name: `${vendor.businessName || 'Vendor'} Portfolio`,
+        imageCount: vendor.portfolio.filter(p => p.type === 'Photo' || !p.type).length,
+        coverImage: vendor.portfolio[0]?.url || vendor.profileImage
+      }]
+    : [];
 
-  const videoStories = [
-    {
-      id: 1,
-      thumbnail: 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=400&h=600&fit=crop&q=80',
-      duration: '2:45'
-    },
-    {
-      id: 2,
-      thumbnail: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=400&h=600&fit=crop&q=80',
-      duration: '1:30'
-    }
-  ];
+  const videoStories = (vendor?.portfolio && vendor.portfolio.some(p => p.type === 'Video'))
+    ? vendor.portfolio.filter(p => p.type === 'Video').map((v, i) => ({
+        id: i + 1,
+        thumbnail: v.url || vendor.profileImage,
+        duration: 'HD Video'
+      }))
+    : [];
 
-  const reviewsData = [
-    {
-      id: 1,
-      name: 'Priya Sharma',
-      rating: 5,
-      review: 'Honestly at start I was bit skeptical. But as the time passed and I overlooked their work, my skepticism faded. Genuinely they are the feeling makers, truly astonishing work. Keep working hard!',
-      timeAgo: '2 months ago',
-      initial: 'P'
-    },
-    {
-      id: 2,
-      name: 'Anshika Sinha',
-      rating: 1,
-      review: 'This photographer took our money 10 months ago and never delivered anything. Ignored all our calls. This is fraud! We are going to file a police complaint.',
-      timeAgo: '2 months ago',
-      initial: 'A'
-    }
-  ];
+  const reviewsData = (vendor?.reviews && vendor.reviews.length > 0)
+    ? vendor.reviews.map((r, idx) => ({
+        id: r._id || idx,
+        name: r.userId?.name || 'Verified Couple',
+        rating: r.rating || 5,
+        review: r.comment || '',
+        timeAgo: r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'Recently',
+        initial: (r.userId?.name || 'U')[0].toUpperCase(),
+        reply: r.reply,
+        photos: r.photos || []
+      }))
+    : [];
 
-  const faqData = [
-    {
-      id: 1,
-      question: 'What all services does The Feeling Makers offer?',
-      answer: 'The Feeling Makers offers Maternity Shoots, Pre wedding Films, Drone Photography'
-    },
-    {
-      id: 2,
-      question: 'What is the cost of wedding photography & video package by The Feeling Makers?',
-      answer: '35,000 - per day wedding photography & video package including Candid photo shoot, traditional photography, cinematic videography'
-    },
-    {
-      id: 3,
-      question: 'What is the cost of Wedding Photography package by The Feeling Makers',
-      answer: '25,000 - cost of Candid Photography and Traditional Photography'
+  // Dynamically generated FAQs based on real vendor fields
+  const faqData = (() => {
+    const faqs = [];
+    if (vendor?.businessName) {
+      const srvs = Array.isArray(vendor?.services) && vendor.services.length > 0
+        ? vendor.services.map(s => s.name || s.category).filter(Boolean).join(', ')
+        : (vendor?.selectedCategories?.map(c => c.categoryName).join(', ') || vendor?.category);
+      if (srvs) {
+        faqs.push({
+          id: 1,
+          question: `What services does ${vendor.businessName} offer?`,
+          answer: `${vendor.businessName} provides ${srvs}.`
+        });
+      }
+      if (vendor.pricing?.range || vendor.startingPrice) {
+        const pr = vendor.pricing?.range ? `₹${vendor.pricing.range}` : `Starting from ₹${vendor.startingPrice.toLocaleString()}`;
+        faqs.push({
+          id: 2,
+          question: `What is the estimated pricing for ${vendor.businessName}?`,
+          answer: `Estimated pricing is ${pr}${vendor.pricing?.notes ? ` (${vendor.pricing.notes})` : ''}. Custom quotes can be requested via Send Inquiry.`
+        });
+      }
+      if (vendor.city || (vendor.businessDetails?.serviceCities && vendor.businessDetails.serviceCities.length > 0)) {
+        const cities = [vendor.city, ...(vendor.businessDetails?.serviceCities || [])].filter(Boolean).join(', ');
+        faqs.push({
+          id: 3,
+          question: `Which locations does ${vendor.businessName} cover?`,
+          answer: `${vendor.businessName} primarily serves ${cities}. Destination events are available upon inquiry.`
+        });
+      }
+      if (vendor.businessDetails?.years) {
+        faqs.push({
+          id: 4,
+          question: `How many years of experience does ${vendor.businessName} have?`,
+          answer: `${vendor.businessName} has over ${vendor.businessDetails.years} years of professional experience in wedding services.`
+        });
+      }
     }
-  ];
+    return faqs;
+  })();
+
+  // Real date availability state
+  const [selectedEventDate, setSelectedEventDate] = useState('');
+  const [availabilityStatus, setAvailabilityStatus] = useState(null); // null, { available: bool, message: string }
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+
+  const handleCheckAvailability = async (targetDate) => {
+    const checkDate = targetDate || selectedEventDate;
+    if (!checkDate) {
+      alert('Please select an event date to check availability.');
+      return;
+    }
+    setIsCheckingAvailability(true);
+    try {
+      const res = await userApi.getVendorAvailability(vendor?._id || vendorId, { date: checkDate });
+      if (res.success) {
+        setAvailabilityStatus({
+          available: res.isAvailable,
+          message: res.isAvailable 
+            ? `Available on ${checkDate}! You can proceed to send inquiry or book.`
+            : `Unavailable on ${checkDate} (${res.reason || 'Existing Confirmed Booking'}). You can still inquire for nearby dates.`
+        });
+      }
+    } catch (err) {
+      console.error('Error checking availability:', err);
+      setAvailabilityStatus({
+        available: false,
+        message: 'Could not verify date availability. Please submit an inquiry.'
+      });
+    } finally {
+      setIsCheckingAvailability(false);
+    }
+  };
 
   useEffect(() => {
-    const foundVendor = vendors.find(v => v.id === parseInt(vendorId));
-    if (foundVendor) {
-      setVendor(foundVendor);
-    } else {
-      navigate('/user/vendors');
+    const loadVendor = async () => {
+      setIsLoading(true);
+      setFetchError(null);
+      try {
+        const res = await userApi.getVendorById(vendorId);
+        if (res.success && res.data) {
+          setVendor(res.data);
+        } else {
+          setFetchError('Vendor not found or inactive');
+        }
+      } catch (err) {
+        console.error('Error fetching vendor:', err);
+        setFetchError(err.message || 'Vendor not found');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (vendorId) {
+      loadVendor();
     }
-  }, [vendorId, navigate]);
+  }, [vendorId]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -246,84 +361,87 @@ const VendorDetail = () => {
 
   const handleWhatsAppContact = () => {
     const phoneNumber = vendor?.phone || '919876543210';
-    const message = `Hi! I'm interested in your ${vendor?.services?.join(', ')} services for my wedding. Can you please share more details?`;
-    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    const srvNames = Array.isArray(vendor?.services) ? vendor.services.map(s => s.name || s).join(', ') : 'services';
+    const message = `Hi! I'm interested in your ${srvNames} services for my wedding. Can you please share more details?`;
+    const whatsappUrl = `https://wa.me/${phoneNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
   };
 
   const handleCall = () => {
     const phoneNumber = vendor?.phone || '919876543210';
-    window.open(`tel:${phoneNumber}`, '_self');
+    window.open(`tel:${phoneNumber.replace(/[^0-9]/g, '')}`, '_self');
   };
 
   const handleMessage = () => {
     navigate(`/user/chats/${vendorId}`);
   };
 
-  const handleSendRequest = () => {
-    setRequestStatus('sending');
-    
-    // Connectivity: Save to vendor leads in LocalStorage
-    try {
-      console.log('Sending inquiry for vendor:', vendorId);
-      const STORAGE_KEY = 'vendor-panel-state';
-      const raw = localStorage.getItem(STORAGE_KEY);
-      let vendorState = {};
-      
-      if (raw) {
-        vendorState = JSON.parse(raw);
-        console.log('Existing vendor state found');
-      }
-      
-      const newLead = {
-        id: `lead-${Date.now()}`,
-        vendorId: vendorId,
-        vendorName: vendor?.name || 'Wedding Vendor',
-        customerName: formData.name || 'John Doe',
-        email: formData.email,
-        phone: formData.phone,
-        eventDate: formData.date || new Date().toISOString().split('T')[0],
-        eventLocation: vendor?.location || 'Indore',
-        guestCount: formData.guestCount,
-        message: formData.message || 'I am interested in your services.',
-        status: 'New',
-        createdAt: new Date().toISOString()
-      };
-
-      console.log('New lead object:', newLead);
-
-      vendorState.leads = vendorState.leads || [];
-      vendorState.leads.unshift(newLead);
-      
-      vendorState.notifications = vendorState.notifications || [];
-      vendorState.notifications.unshift({
-        id: `nt-${Date.now()}`,
-        message: `New inquiry from ${newLead.customerName}`,
-        time: 'Just now'
-      });
-
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(vendorState));
-      console.log('Successfully saved to LocalStorage');
-      alert('Inquiry sent! Now check the Vendor Panel -> Leads section.');
-    } catch (e) {
-      console.error('CRITICAL: Error saving inquiry connectivity', e);
-      alert('Error saving to LocalStorage: ' + e.message);
+  const handleSendRequest = async () => {
+    if (!user) {
+      alert('Please log in first to submit an inquiry to this vendor');
+      navigate('/login', { state: { from: `/user/vendor/${vendorId}` } });
+      return;
     }
 
-    // Success UI Flow
-    setTimeout(() => {
-      setRequestStatus('success');
-      setTimeout(() => {
-        setIsRequestModalOpen(false);
-        setRequestStatus('idle');
-      }, 2000);
-    }, 1500);
+    if (!formData.phone || !formData.date) {
+      alert('Please enter your phone number and event date');
+      return;
+    }
+
+    setRequestStatus('sending');
+
+    try {
+      const guestNum = parseInt(formData.guestCount) || 150;
+      const res = await userApi.createLead({
+        vendorId: vendor?._id || vendorId,
+        customerName: formData.name || user?.name || 'Valued Customer',
+        phone: formData.phone || user?.phone,
+        eventDate: formData.date,
+        eventLocation: vendor?.city || 'Indore',
+        guestCount: guestNum,
+        budget: 0,
+        requirements: formData.guestCount ? `Approx ${formData.guestCount} guests` : '',
+        message: formData.message || `Inquiry for ${vendor?.businessName || 'wedding services'}`,
+        referencePhotos: referencePhotos
+      });
+
+      if (res.success) {
+        setRequestStatus('success');
+        setTimeout(() => {
+          setIsRequestModalOpen(false);
+          setRequestStatus('idle');
+          setReferencePhotos([]);
+        }, 2000);
+      } else {
+        throw new Error(res.message || 'Failed to submit inquiry');
+      }
+    } catch (e) {
+      console.error('Error submitting inquiry to backend:', e);
+      alert('Failed to send inquiry: ' + (e.message || 'Server error'));
+      setRequestStatus('idle');
+    }
   };
 
-  if (!vendor) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50">
+        <div className="w-12 h-12 border-4 border-[#E91E63] border-t-transparent animate-spin rounded-full mb-3"></div>
+        <p className="text-sm font-semibold text-slate-500">Loading vendor details...</p>
+      </div>
+    );
+  }
+
+  if (fetchError || !vendor) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen px-4 text-center bg-slate-50">
+        <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
+          <Icon name="alertTriangle" size="lg" className="text-red-500" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-800 mb-2">Vendor Not Found</h2>
+        <p className="text-sm text-slate-500 mb-6 max-w-sm">
+          {fetchError || 'The vendor you are looking for does not exist or has not yet been approved.'}
+        </p>
+        <Button onClick={() => navigate('/user/vendors')}>Return to Vendors Marketplace</Button>
       </div>
     );
   }
@@ -356,6 +474,13 @@ const VendorDetail = () => {
           </button>
 
           <div className="flex gap-2">
+            <button
+              onClick={() => setIsReportModalOpen(true)}
+              title="Report Vendor"
+              className="w-10 h-10 bg-black/30 backdrop-blur-md text-white hover:text-red-400 rounded-full flex items-center justify-center border border-white/20 transition-colors"
+            >
+              <Icon name="alertTriangle" size="sm" />
+            </button>
             <button className="w-10 h-10 bg-black/30 backdrop-blur-md text-white rounded-full flex items-center justify-center border border-white/20">
               <Icon name="share" size="sm" />
             </button>
@@ -368,8 +493,19 @@ const VendorDetail = () => {
             <Icon name="verified" size="xs" color="primary" />
             <span className="text-[10px] font-bold text-gray-800">Hired?</span>
           </button>
-          <button className="w-9 h-9 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg border border-gray-100">
-            <Icon name="heart" size="sm" color="primary" />
+          <button
+            onClick={handleToggleFavorite}
+            disabled={isFavoriteLoading}
+            title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+            className={`w-9 h-9 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg border border-gray-100 transition-all ${
+              isFavorite ? 'bg-red-50 text-red-500 scale-105' : 'bg-white/90 text-gray-400 hover:text-red-500'
+            }`}
+          >
+            {isFavoriteLoading ? (
+              <div className="w-4 h-4 border-2 border-red-500 border-t-transparent animate-spin rounded-full" />
+            ) : (
+              <Icon name="heart" size="sm" style={{ color: isFavorite ? '#ef4444' : undefined }} />
+            )}
           </button>
         </div>
 
@@ -397,45 +533,49 @@ const VendorDetail = () => {
           className="text-2xl font-bold mb-3"
           style={{ color: theme.semantic.text.primary }}
         >
-          {vendor.name}
+          {vendor?.businessName || vendor?.name}
         </h1>
 
         <div className="flex flex-col gap-3">
           {/* Rating Section */}
-          <div className="flex items-center gap-4">
-            <div className="flex gap-1">
-              {[...Array(5)].map((_, i) => (
-                <Icon key={i} name="star" size="xs" color={i < 4 ? "secondary" : "muted"} />
-              ))}
-            </div>
-            <span className="text-xs font-medium" style={{ color: theme.semantic.text.secondary }}>No reviews yet. <button className="underline text-primary-600">Write a review</button></span>
+          <div className="flex items-center gap-2">
+            <span className="text-[#E91E63] text-sm font-black">
+              {vendor?.rating && vendor.rating > 0 ? `★ ${vendor.rating}` : '★ New'}
+            </span>
+            <span className="text-xs font-semibold" style={{ color: theme.semantic.text.secondary }}>
+              ({vendor?.reviewCount ?? vendor?.reviews?.length ?? 0} verified reviews)
+            </span>
           </div>
 
           {/* Location Section */}
           <div className="flex items-center gap-2">
             <Icon name="location" size="sm" style={{ color: theme.semantic.text.tertiary }} />
-            <span className="text-sm underline cursor-pointer" style={{ color: theme.semantic.text.secondary }}>
-              {vendor.location}
+            <span className="text-sm font-medium" style={{ color: theme.semantic.text.secondary }}>
+              {vendor?.city || vendor?.location || 'Indore'}
             </span>
           </div>
 
           {/* Promotion Section */}
-          <div className="flex items-center gap-2">
-            <Icon name="sparkles" size="sm" style={{ color: theme.colors.primary[500] }} />
-            <span className="text-xs font-bold uppercase tracking-wide" style={{ color: theme.colors.primary[600] }}>
-              1 promotion <span className="ml-2 font-black">10% discount</span>
-            </span>
-          </div>
+          {vendor?.pricing?.notes && (
+            <div className="flex items-center gap-2">
+              <Icon name="sparkles" size="sm" style={{ color: theme.colors.primary[500] }} />
+              <span className="text-xs font-bold tracking-wide" style={{ color: theme.colors.primary[600] }}>
+                {vendor.pricing.notes}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Highlight Cards */}
-        <div className="grid grid-cols-1 gap-3 mt-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
           <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-white shadow-sm">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center">
                 <Icon name="money" size="sm" style={{ color: theme.semantic.text.secondary }} />
               </div>
-              <p className="text-sm font-medium" style={{ color: theme.semantic.text.primary }}>Price per plate ₹1,000</p>
+              <p className="text-sm font-medium" style={{ color: theme.semantic.text.primary }}>
+                {vendor?.pricing?.range ? `₹${vendor.pricing.range}` : (vendor?.startingPrice ? `Starting ₹${vendor.startingPrice.toLocaleString()}` : (vendor?.price || 'Contact for price'))}
+              </p>
             </div>
           </div>
 
@@ -444,7 +584,9 @@ const VendorDetail = () => {
               <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center">
                 <Icon name="users" size="sm" style={{ color: theme.semantic.text.secondary }} />
               </div>
-              <p className="text-sm font-medium" style={{ color: theme.semantic.text.primary }}>20 to 2000 guests</p>
+              <p className="text-sm font-medium" style={{ color: theme.semantic.text.primary }}>
+                {vendor?.businessDetails?.teamSize ? `${vendor.businessDetails.teamSize} team members` : (vendor?.experience ? `${vendor.experience} experience` : 'Verified Vendor')}
+              </p>
             </div>
           </div>
         </div>
@@ -506,49 +648,58 @@ const VendorDetail = () => {
             className="rounded-2xl p-4 sm:p-6 space-y-3 sm:space-y-4"
             style={{ backgroundColor: theme.semantic.card.background }}
           >
-            {pricingData.map((item) => (
-              <div key={item.id} className="flex items-center justify-between py-2 sm:py-3 border-b border-gray-100 last:border-b-0">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div
-                    className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: theme.colors.primary[100] }}
-                  >
-                    <Icon name={item.icon} size="sm" color="primary" />
+            {pricingData.length === 0 ? (
+              <div className="text-center py-6">
+                <p className="text-sm font-medium text-slate-500">
+                  {vendor?.startingPrice ? `Starting from ₹${vendor.startingPrice.toLocaleString()}` : 'No fixed packages listed. Custom pricing available.'}
+                </p>
+                <p className="text-xs text-slate-400 mt-1">Submit an inquiry or contact vendor for a customized proposal.</p>
+              </div>
+            ) : (
+              pricingData.map((item) => (
+                <div key={item.id} className="flex items-center justify-between py-2 sm:py-3 border-b border-gray-100 last:border-b-0">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div
+                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: theme.colors.primary[100] }}
+                    >
+                      <Icon name={item.icon} size="sm" color="primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3
+                        className="font-medium text-sm sm:text-base line-clamp-1"
+                        style={{ color: theme.semantic.text.primary }}
+                      >
+                        {item.name}
+                      </h3>
+                      {item.description && (
+                        <p
+                          className="text-xs sm:text-sm line-clamp-1"
+                          style={{ color: theme.semantic.text.secondary }}
+                        >
+                          {item.description}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <h3
-                      className="font-medium text-sm sm:text-base line-clamp-1"
+
+                  <div className="text-right flex-shrink-0">
+                    <div
+                      className="font-bold text-sm sm:text-lg"
                       style={{ color: theme.semantic.text.primary }}
                     >
-                      {item.name}
-                    </h3>
-                    {item.description && (
-                      <p
-                        className="text-xs sm:text-sm line-clamp-1"
-                        style={{ color: theme.semantic.text.secondary }}
-                      >
-                        {item.description}
-                      </p>
-                    )}
+                      {item.price}
+                    </div>
+                    <div
+                      className="text-xs sm:text-sm"
+                      style={{ color: theme.semantic.text.secondary }}
+                    >
+                      {item.unit}
+                    </div>
                   </div>
                 </div>
-
-                <div className="text-right flex-shrink-0">
-                  <div
-                    className="font-bold text-sm sm:text-lg"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    {item.price}
-                  </div>
-                  <div
-                    className="text-xs sm:text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    {item.unit}
-                  </div>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
 
           {/* Check Availability */}
@@ -560,14 +711,16 @@ const VendorDetail = () => {
               className="text-base sm:text-lg font-semibold mb-3 sm:mb-4"
               style={{ color: theme.semantic.text.primary }}
             >
-              Check Availability
+              Check Date Availability
             </h3>
 
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
                 <input
                   type="date"
-                  defaultValue="2028-04-08"
+                  value={selectedEventDate}
+                  min={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setSelectedEventDate(e.target.value)}
                   className="w-full p-2 sm:p-3 border rounded-lg text-sm sm:text-base"
                   style={{
                     borderColor: theme.semantic.card.border,
@@ -577,15 +730,34 @@ const VendorDetail = () => {
               </div>
               <Button
                 variant="outline"
+                onClick={() => handleCheckAvailability()}
+                disabled={isCheckingAvailability || !selectedEventDate}
                 className="px-4 sm:px-6 text-sm sm:text-base"
                 style={{
                   borderColor: theme.colors.primary[500],
                   color: theme.colors.primary[600]
                 }}
               >
-                Check Dates
+                {isCheckingAvailability ? 'Checking...' : 'Check Availability'}
               </Button>
             </div>
+
+            {availabilityStatus && (
+              <div
+                className={`mt-4 p-3 rounded-xl text-xs sm:text-sm font-medium border flex items-center gap-2 ${
+                  availabilityStatus.available
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                }`}
+              >
+                <Icon
+                  name={availabilityStatus.available ? 'check' : 'alertTriangle'}
+                  size="xs"
+                  className={availabilityStatus.available ? 'text-emerald-600' : 'text-amber-600'}
+                />
+                <span>{availabilityStatus.message}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -599,36 +771,47 @@ const VendorDetail = () => {
               className="text-lg sm:text-xl font-semibold"
               style={{ color: theme.semantic.text.primary }}
             >
-              Albums <span className="text-sm font-normal">3 nos.</span>
+              Albums {albumsData.length > 0 && <span className="text-sm font-normal">({albumsData.length} items)</span>}
             </h2>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-4 sm:mb-6">
-            {albumsData.map((album) => (
-              <div key={album.id} className="relative">
-                <div className="aspect-square rounded-xl overflow-hidden">
-                  <img
-                    src={album.coverImage}
-                    alt={album.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
+          {albumsData.length === 0 ? (
+            <div
+              className="rounded-2xl p-6 text-center border border-dashed border-slate-200 mb-6"
+              style={{ backgroundColor: theme.semantic.card.background }}
+            >
+              <Icon name="image" size="md" color="gray" className="mx-auto mb-2" />
+              <p className="text-sm font-medium text-slate-500">No portfolio albums uploaded yet.</p>
+              <p className="text-xs text-slate-400 mt-1">Vendor will upload past wedding photography and media soon.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-4 sm:mb-6">
+              {albumsData.map((album) => (
+                <div key={album.id} className="relative">
+                  <div className="aspect-square rounded-xl overflow-hidden">
+                    <img
+                      src={album.coverImage}
+                      alt={album.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
 
-                {/* Image Count Badge */}
-                <div className="absolute top-2 right-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-xs flex items-center gap-1">
-                  <Icon name="image" size="xs" />
-                  {album.imageCount}
-                </div>
+                  {/* Image Count Badge */}
+                  <div className="absolute top-2 right-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-xs flex items-center gap-1">
+                    <Icon name="image" size="xs" />
+                    {album.imageCount}
+                  </div>
 
-                {/* Album Name */}
-                <div className="absolute bottom-2 left-2">
-                  <span className="text-white font-medium text-xs sm:text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
-                    {album.name}
-                  </span>
+                  {/* Album Name */}
+                  <div className="absolute bottom-2 left-2">
+                    <span className="text-white font-medium text-xs sm:text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
+                      {album.name}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           <Button
             variant="outline"
@@ -719,38 +902,43 @@ const VendorDetail = () => {
             <p className="mb-3 sm:mb-4 text-sm sm:text-base">
               <span className="font-medium">Been on </span>
               <span style={{ color: theme.colors.primary[600] }}>Utsavo</span>
-              <span className="font-medium"> Since {vendor.experience || '2 years'}</span>
+              <span className="font-medium"> Since {vendor?.businessDetails?.years ? `${vendor.businessDetails.years} years` : (vendor?.experience || 'Verified Partner')}</span>
             </p>
 
             <p
               className="text-sm sm:text-base leading-relaxed mb-3 sm:mb-4"
               style={{ color: theme.semantic.text.secondary }}
             >
-              {vendor.description || `${vendor.name} is a professional ${vendor.category} service provider in ${vendor.location}. We are committed to making your wedding day special with our exceptional services and attention to detail.`}
+              {vendor?.description || `${vendor?.businessName || vendor?.name || 'This vendor'} is a professional wedding service provider in ${vendor?.city || vendor?.location || 'Indore'}. Dedicated to making your wedding memorable.`}
             </p>
 
-            <div>
-              <h4
-                className="font-medium mb-2 text-sm sm:text-base"
-                style={{ color: theme.semantic.text.primary }}
-              >
-                Services provided by {vendor.name}
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {vendor.services?.map((service, index) => (
-                  <span
-                    key={index}
-                    className="px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-full"
-                    style={{
-                      backgroundColor: theme.colors.primary[100],
-                      color: theme.colors.primary[700]
-                    }}
-                  >
-                    {service}
-                  </span>
-                ))}
+            {vendor?.services && vendor.services.length > 0 && (
+              <div>
+                <h4
+                  className="font-medium mb-2 text-sm sm:text-base"
+                  style={{ color: theme.semantic.text.primary }}
+                >
+                  Services provided by {vendor?.businessName || vendor?.name}
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {vendor.services.map((service, index) => {
+                    const label = typeof service === 'object' ? (service?.name || service?.category || 'Service') : service;
+                    return (
+                      <span
+                        key={index}
+                        className="px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-full"
+                        style={{
+                          backgroundColor: theme.colors.primary[100],
+                          color: theme.colors.primary[700]
+                        }}
+                      >
+                        {label}
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -766,80 +954,103 @@ const VendorDetail = () => {
             Reviews
           </h2>
 
-          <div className="space-y-3 sm:space-y-4">
-            {reviewsData.map((review) => (
-              <div
-                key={review.id}
-                className="rounded-2xl p-4 sm:p-6"
-                style={{ backgroundColor: theme.semantic.card.background }}
-              >
-                <div className="flex items-start gap-3 mb-3">
-                  <div
-                    className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white font-medium text-sm flex-shrink-0"
-                    style={{ backgroundColor: theme.colors.primary[500] }}
-                  >
-                    {review.initial}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span
-                        className="font-medium text-sm sm:text-base truncate"
-                        style={{ color: theme.semantic.text.primary }}
-                      >
-                        {review.name}
-                      </span>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        {[...Array(5)].map((_, i) => (
-                          <Icon
-                            key={i}
-                            name="star"
-                            size="xs"
-                            color={i < review.rating ? "secondary" : "gray"}
-                          />
-                        ))}
-                        <span className="text-xs sm:text-sm ml-1">{review.rating}</span>
-                      </div>
+          {reviewsData.length === 0 ? (
+            <div
+              className="rounded-2xl p-6 text-center border border-dashed border-slate-200"
+              style={{ backgroundColor: theme.semantic.card.background }}
+            >
+              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                <Icon name="star" size="md" color="gray" />
+              </div>
+              <h3 className="font-semibold text-sm mb-1" style={{ color: theme.semantic.text.primary }}>
+                No Reviews Yet
+              </h3>
+              <p className="text-xs max-w-xs mx-auto" style={{ color: theme.semantic.text.secondary }}>
+                Book this vendor through Utsavo to be the first couple to share verified feedback!
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3 sm:space-y-4">
+              {reviewsData.map((review) => (
+                <div
+                  key={review.id}
+                  className="rounded-2xl p-4 sm:p-6"
+                  style={{ backgroundColor: theme.semantic.card.background }}
+                >
+                  <div className="flex items-start gap-3 mb-3">
+                    <div
+                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white font-medium text-sm flex-shrink-0"
+                      style={{ backgroundColor: theme.colors.primary[500] }}
+                    >
+                      {review.initial}
                     </div>
 
-                    <p
-                      className="text-xs sm:text-sm mb-2"
-                      style={{ color: theme.semantic.text.secondary }}
-                    >
-                      Reviewed {review.timeAgo}
-                    </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span
+                          className="font-medium text-sm sm:text-base truncate"
+                          style={{ color: theme.semantic.text.primary }}
+                        >
+                          {review.name}
+                        </span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {[...Array(5)].map((_, i) => (
+                            <Icon
+                              key={i}
+                              name="star"
+                              size="xs"
+                              color={i < review.rating ? "secondary" : "gray"}
+                            />
+                          ))}
+                          <span className="text-xs sm:text-sm ml-1">{review.rating}</span>
+                        </div>
+                      </div>
+
+                      <p
+                        className="text-xs sm:text-sm mb-2"
+                        style={{ color: theme.semantic.text.secondary }}
+                      >
+                        Reviewed {review.timeAgo}
+                      </p>
+                    </div>
+
+                    <button className="flex-shrink-0">
+                      <Icon name="share" size="sm" />
+                    </button>
                   </div>
 
-                  <button className="flex-shrink-0">
-                    <Icon name="share" size="sm" />
-                  </button>
-                </div>
-
-                <p
-                  className="text-sm sm:text-base leading-relaxed"
-                  style={{ color: theme.semantic.text.primary }}
-                >
-                  {review.review}
-                </p>
-
-                {review.review.length > 100 && (
-                  <button
-                    className="text-sm mt-2"
-                    style={{ color: theme.colors.primary[600] }}
+                  <p
+                    className="text-sm sm:text-base leading-relaxed"
+                    style={{ color: theme.semantic.text.primary }}
                   >
-                    Read More
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
+                    {review.review}
+                  </p>
 
-          <Button
-            variant="outline"
-            className="w-full mt-3 sm:mt-4 text-sm sm:text-base"
-          >
-            View All Reviews
-          </Button>
+                  {review.photos?.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {review.photos.map((p, pIdx) => (
+                        <img
+                          key={pIdx}
+                          src={p}
+                          alt="Review attachment"
+                          className="w-16 h-16 rounded-xl object-cover border border-slate-200"
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {review.review.length > 100 && (
+                    <button
+                      className="text-sm mt-2"
+                      style={{ color: theme.colors.primary[600] }}
+                    >
+                      Read More
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* FAQ Section */}
@@ -1040,9 +1251,65 @@ const VendorDetail = () => {
                       <textarea
                         value={formData.message}
                         onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                        className="w-full bg-gray-50/20 rounded-[28px] border border-gray-100 focus:border-primary-500 focus:bg-white outline-none p-7 transition-all text-base font-bold text-gray-700 min-h-[140px] resize-none leading-relaxed"
+                        className="w-full bg-gray-50/20 rounded-[28px] border border-gray-100 focus:border-primary-500 focus:bg-white outline-none p-7 transition-all text-base font-bold text-gray-700 min-h-[120px] resize-none leading-relaxed"
                         placeholder="Tell them more about your dream wedding..."
                       />
+                    </div>
+
+                    <div className="relative">
+                      <label className="text-[11px] uppercase font-bold text-gray-400 mb-2 block tracking-widest px-1">
+                        Inspiration / Reference Photos (Optional)
+                      </label>
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
+                        {referencePhotos.map((url, idx) => (
+                          <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border border-gray-200">
+                            <img src={url} alt="Reference" className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setReferencePhotos(prev => prev.filter((_, i) => i !== idx))}
+                              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center text-xs shadow"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                        <label className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-300 hover:border-primary-500 flex flex-col items-center justify-center cursor-pointer transition-colors bg-gray-50/50">
+                          {isUploadingPhoto ? (
+                            <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent animate-spin rounded-full" />
+                          ) : (
+                            <>
+                              <Icon name="camera" size="xs" className="text-gray-400" />
+                              <span className="text-[9px] font-bold text-gray-500 mt-1">+ Photo</span>
+                            </>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            disabled={isUploadingPhoto}
+                            onChange={async (e) => {
+                              const files = e.target.files;
+                              if (!files || files.length === 0) return;
+                              setIsUploadingPhoto(true);
+                              try {
+                                for (const file of Array.from(files)) {
+                                  const res = await userApi.uploadImage(file);
+                                  if (res.success && res.data?.url) {
+                                    setReferencePhotos(prev => [...prev, res.data.url]);
+                                  }
+                                }
+                              } catch (err) {
+                                console.error('Photo upload failed:', err);
+                                alert('Photo upload failed: ' + err.message);
+                              } finally {
+                                setIsUploadingPhoto(false);
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <span className="text-[11px] text-gray-400 px-1">Upload reference outfits, decor themes, or venue style</span>
                     </div>
 
                     {/* Button moved to footer */}
@@ -1072,6 +1339,165 @@ const VendorDetail = () => {
                   )}
                 </button>
               </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Report / Complaint Modal */}
+      {isReportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-100 animate-scale-up">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-slate-50/80">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center shadow-sm">
+                  <Icon name="alertTriangle" size="sm" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">Report Vendor</h3>
+                  <p className="text-xs text-slate-500">Official dispute submission to Utsavo Trust & Safety</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsReportModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-200/60 hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {reportStatus === 'success' ? (
+              <div className="p-8 text-center">
+                <div className="w-16 h-16 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-4">
+                  <Icon name="check" size="md" />
+                </div>
+                <h4 className="text-xl font-bold text-slate-800 mb-2">Complaint Submitted</h4>
+                <p className="text-sm text-slate-600 mb-6">
+                  Your grievance against <span className="font-semibold">{vendor?.businessName || vendor?.name}</span> has been logged under ID review. Our grievance officer will review and update your account.
+                </p>
+                <button
+                  onClick={() => {
+                    setIsReportModalOpen(false);
+                    setReportStatus('idle');
+                  }}
+                  className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleReportSubmit} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+                    Complaint Category <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={reportCategory}
+                    onChange={(e) => setReportCategory(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 outline-none focus:border-red-500 focus:bg-white transition-all"
+                  >
+                    <option value="Unprofessional Behavior">Unprofessional Behavior</option>
+                    <option value="Pricing Dispute">Pricing Dispute / Overcharging</option>
+                    <option value="Service Delivery Issue">Service Delivery Issue</option>
+                    <option value="Communication Failure">Communication Failure / Ghosting</option>
+                    <option value="Breach of Agreement">Breach of Agreement</option>
+                    <option value="Other">Other Grievance</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+                    Detailed Explanation <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={reportDescription}
+                    onChange={(e) => setReportDescription(e.target.value)}
+                    placeholder="Describe what occurred, including dates, missed commitments, or financial discrepancies..."
+                    rows={4}
+                    required
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 outline-none focus:border-red-500 focus:bg-white transition-all resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+                    Evidence / Proof (Screenshots, Receipts)
+                  </label>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {reportEvidence.map((url, idx) => (
+                      <div key={idx} className="relative w-14 h-14 rounded-xl overflow-hidden border border-slate-200 group">
+                        <img src={url} alt="Evidence" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setReportEvidence(prev => prev.filter((_, i) => i !== idx))}
+                          className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    <label className="w-14 h-14 rounded-xl border-2 border-dashed border-slate-300 hover:border-red-500 flex flex-col items-center justify-center cursor-pointer transition-colors bg-slate-50">
+                      {isUploadingEvidence ? (
+                        <div className="w-4 h-4 border-2 border-red-500 border-t-transparent animate-spin rounded-full" />
+                      ) : (
+                        <>
+                          <Icon name="camera" size="xs" className="text-slate-400" />
+                          <span className="text-[9px] font-bold text-slate-500 mt-0.5">+ Add</span>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        disabled={isUploadingEvidence}
+                        onChange={async (e) => {
+                          const files = e.target.files;
+                          if (!files || files.length === 0) return;
+                          setIsUploadingEvidence(true);
+                          try {
+                            for (const file of Array.from(files)) {
+                              const res = await userApi.uploadImage(file);
+                              if (res.success && res.data?.url) {
+                                setReportEvidence(prev => [...prev, res.data.url]);
+                              }
+                            }
+                          } catch (err) {
+                            console.error('Evidence upload failed:', err);
+                            alert('Evidence upload failed: ' + err.message);
+                          } finally {
+                            setIsUploadingEvidence(false);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsReportModalOpen(false)}
+                    className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={reportStatus === 'sending'}
+                    className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 shadow-md shadow-red-200 transition-all flex items-center gap-2"
+                  >
+                    {reportStatus === 'sending' ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Submitting...</span>
+                      </>
+                    ) : (
+                      <span>Submit Grievance</span>
+                    )}
+                  </button>
+                </div>
+              </form>
             )}
           </div>
         </div>

@@ -6,13 +6,15 @@ import Button from '../../../components/ui/Button';
 import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import VendorCard from '../vendors/VendorCardFixed';
-import { vendors } from '../../../data/vendors';
+import userApi from '../../../services/userApi';
 
 const Photographers = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const { showToast, ToastComponent } = useToast();
   
+  const [allPhotographers, setAllPhotographers] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [sortBy, setSortBy] = useState('rating');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -24,8 +26,16 @@ const Photographers = () => {
     location: 'all'
   });
 
-  // Get all photographers
-  const allPhotographers = vendors.filter(vendor => vendor.category === 'photographers');
+  useEffect(() => {
+    userApi.getVendors({ category: 'Photography', limit: 50 })
+      .then(res => {
+        if (res.success && res.data) {
+          setAllPhotographers(res.data);
+        }
+      })
+      .catch(err => console.error('Error fetching photographers:', err))
+      .finally(() => setIsLoading(false));
+  }, []);
 
   // Collections
   const collections = [
@@ -460,7 +470,7 @@ const Photographers = () => {
         {/* Photographers Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 pb-24">
           {sortedPhotographers.map((photographer) => (
-            <div key={photographer.id} className="photographer-card">
+            <div key={photographer._id || photographer.id} className="photographer-card">
               <VendorCard vendor={photographer} layout="responsive" />
             </div>
           ))}

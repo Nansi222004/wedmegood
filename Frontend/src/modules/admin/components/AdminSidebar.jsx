@@ -26,8 +26,11 @@ const navigation = [
             { path: '/admin/vendor-services', icon: 'sparkles', label: 'Service Index' },
             { path: '/admin/vendor-inventory', icon: 'package', label: 'Vendor Inventory' },
             { path: '/admin/users', icon: 'users', label: 'Client Directory' },
+            { path: '/admin/leads', icon: 'users', label: 'Leads Dispatcher' },
+            { path: '/admin/quotes', icon: 'money', label: 'Vendor Quotes' },
             { path: '/admin/bookings', icon: 'calendar', label: 'Global Bookings' },
             { path: '/admin/reviews', icon: 'shield', label: 'Review Hub' },
+            { path: '/admin/complaints', icon: 'shield', label: 'Complaints Care' },
         ]
     },
     {

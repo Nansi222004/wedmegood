@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
+import { userApi } from '../../../services/userApi';
 
 const WeddingChecklist = () => {
   const navigate = useNavigate();
@@ -50,59 +51,76 @@ const WeddingChecklist = () => {
   ];
 
   useEffect(() => {
-    const savedTasks = localStorage.getItem('weddingChecklistTasks_v2');
-    if (savedTasks) {
-      setTasks(JSON.parse(savedTasks));
-    } else {
-      setTasks(defaultTasks);
-      localStorage.setItem('weddingChecklistTasks_v2', JSON.stringify(defaultTasks));
-    }
-    const timer = setTimeout(() => setIsLoading(false), 800);
-    return () => clearTimeout(timer);
+    let isMounted = true;
+    const loadTasks = async () => {
+      try {
+        setIsLoading(true);
+        const res = await userApi.getChecklist();
+        if (isMounted && res.success && res.data?.tasks) {
+          setTasks(res.data.tasks.map(t => ({ ...t, id: t._id })));
+        }
+      } catch (err) {
+        console.error('Failed to load checklist from backend:', err);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    loadTasks();
+    return () => { isMounted = false; };
   }, []);
 
-  const saveTasks = (updatedTasks) => {
-    setTasks(updatedTasks);
-    localStorage.setItem('weddingChecklistTasks_v2', JSON.stringify(updatedTasks));
-    // Sync selected task if it's being viewed
-    if (selectedTask) {
-      const updated = updatedTasks.find(t => t.id === selectedTask.id);
-      if (updated) setSelectedTask(updated);
+  const toggleTask = async (taskId) => {
+    try {
+      const res = await userApi.toggleChecklistTask(taskId);
+      if (res.success && res.data?.task) {
+        const updated = { ...res.data.task, id: res.data.task._id };
+        setTasks(prev => prev.map(t => (t._id === taskId || t.id === taskId ? updated : t)));
+        if (selectedTask && (selectedTask._id === taskId || selectedTask.id === taskId)) {
+          setSelectedTask(updated);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to toggle task:', err);
     }
   };
 
-  const toggleTask = (taskId) => {
-    const updatedTasks = tasks.map(task =>
-      task.id === taskId ? { ...task, completed: !task.completed } : task
-    );
-    saveTasks(updatedTasks);
-  };
-
-  const deleteTask = (taskId) => {
+  const deleteTask = async (taskId) => {
     if (window.confirm('Are you sure you want to delete this task?')) {
-      const updatedTasks = tasks.filter(task => task.id !== taskId);
-      saveTasks(updatedTasks);
-      setSelectedTask(null);
+      try {
+        await userApi.deleteChecklistTask(taskId);
+        setTasks(prev => prev.filter(t => t._id !== taskId && t.id !== taskId));
+        setSelectedTask(null);
+      } catch (err) {
+        console.error('Failed to delete task:', err);
+      }
     }
   };
 
-  const addTask = () => {
+  const addTask = async () => {
     if (!newTask.task) return;
-    const taskToAdd = {
-      ...newTask,
-      id: Date.now(),
-      completed: false,
-      color: getCategoryColor(newTask.category)
-    };
-    const updatedTasks = [taskToAdd, ...tasks];
-    saveTasks(updatedTasks);
-    setShowAddModal(false);
-    setNewTask({
-      task: '',
-      category: 'Planning',
-      timeframe: '12 months before',
-      description: ''
-    });
+    try {
+      const res = await userApi.createChecklistTask({
+        task: newTask.task,
+        category: newTask.category,
+        timeframe: newTask.timeframe,
+        description: newTask.description,
+        color: getCategoryColor(newTask.category)
+      });
+      if (res.success && res.data?.task) {
+        const created = { ...res.data.task, id: res.data.task._id };
+        setTasks(prev => [created, ...prev]);
+        setShowAddModal(false);
+        setNewTask({
+          task: '',
+          category: 'Planning',
+          timeframe: '12 months before',
+          description: ''
+        });
+      }
+    } catch (err) {
+      console.error('Failed to create task:', err);
+      alert(err.message || 'Failed to create task');
+    }
   };
 
   const getCategoryColor = (category) => {

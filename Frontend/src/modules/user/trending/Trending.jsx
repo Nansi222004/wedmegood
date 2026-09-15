@@ -1,19 +1,30 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import VendorCard from '../vendors/VendorCardFixed';
-import { vendors } from '../../../data/vendors';
+import userApi from '../../../services/userApi';
 
 const Trending = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
   
   const [selectedTab, setSelectedTab] = useState('all');
+  const [trendingVendors, setTrendingVendors] = useState([]);
+  const [isLoadingVendors, setIsLoadingVendors] = useState(true);
 
-  // Get trending vendors
-  const trendingVendors = vendors.filter(vendor => vendor.isTrending);
+  // Fetch real trending vendors from backend
+  useEffect(() => {
+    userApi.getTrendingVendors({ limit: 12 })
+      .then(res => {
+        if (res.success && res.data) {
+          setTrendingVendors(res.data);
+        }
+      })
+      .catch(err => console.error('Error fetching trending vendors:', err))
+      .finally(() => setIsLoadingVendors(false));
+  }, []);
 
   // Trending content data
   const trendingIdeas = [
@@ -275,7 +286,7 @@ const Trending = () => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredContent.vendors.map((vendor) => (
-                <VendorCard key={vendor.id} vendor={vendor} layout="responsive" />
+                <VendorCard key={vendor._id || vendor.id} vendor={vendor} layout="responsive" />
               ))}
             </div>
           </div>

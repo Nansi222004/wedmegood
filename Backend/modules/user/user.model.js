@@ -189,6 +189,51 @@ const userSchema = new mongoose.Schema({
     linkedin: String
   },
 
+  // Wedding & Event planning details (Phase 2 persistence)
+  weddingDetails: {
+    category: {
+      type: String,
+      default: 'wedding'
+    },
+    subcategories: [{
+      type: String
+    }],
+    subcategoryLabels: [{
+      type: String
+    }],
+    brideName: {
+      type: String,
+      trim: true
+    },
+    groomName: {
+      type: String,
+      trim: true
+    },
+    weddingDate: {
+      type: Date
+    },
+    venue: {
+      type: String,
+      trim: true
+    },
+    budget: {
+      type: Number,
+      default: 0
+    },
+    guestCount: {
+      type: Number,
+      default: 0
+    },
+    planningPreferences: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {}
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now
+    }
+  },
+
   // Additional metadata
   metadata: {
     source: {
@@ -364,6 +409,7 @@ userSchema.methods.toAPIResponse = function () {
     checklistProgress: this.checklistProgress,
     weddingProgress: this.weddingProgress,
     preferences: this.preferences,
+    weddingDetails: this.weddingDetails,
     familyMembers: this.familyMembers,
     lastLogin: this.lastLogin,
     loginCount: this.loginCount,

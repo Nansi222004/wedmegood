@@ -13,12 +13,6 @@ export default defineConfig({
     port: 5173,
     strictPort: false,
     proxy: {
-      '/api/astrology': {
-        target: 'https://api.vedicastroapi.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/astrology/, ''),
-        secure: false,
-      },
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,

@@ -5,427 +5,345 @@ import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 import { useToast } from '../../../components/ui/Toast';
+import { userApi } from '../../../services/userApi';
 
 const Notifications = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
-  
+  const { showToast, ToastComponent } = useToast();
+
+  const [activeTab, setActiveTab] = useState('inbox'); // 'inbox' | 'preferences'
+
+  // Notifications Inbox State
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [inboxLoading, setInboxLoading] = useState(true);
+  const [filterType, setFilterType] = useState('all');
+
+  // Preferences State
   const [settings, setSettings] = useState({
-    // Push Notifications
     pushEnabled: true,
+    emailEnabled: true,
+    smsEnabled: true,
+    inAppEnabled: true,
     bookingUpdates: true,
     vendorMessages: true,
     paymentReminders: true,
-    weddingReminders: true,
-    
-    // Email Notifications
-    emailEnabled: true,
-    weeklyDigest: true,
-    promotionalEmails: false,
-    vendorRecommendations: true,
-    
-    // SMS Notifications
-    smsEnabled: true,
-    urgentUpdates: true,
-    bookingConfirmations: true,
-    
-    // In-App Notifications
-    inAppEnabled: true,
-    soundEnabled: true,
-    vibrationEnabled: true
+    weddingReminders: true
   });
-  
-  const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const { showToast, ToastComponent } = useToast();
+  const [prefLoading, setPrefLoading] = useState(false);
 
-  // Load saved notification preferences
-  useEffect(() => {
-    const savedSettings = localStorage.getItem('notificationSettings');
-    if (savedSettings) {
-      setSettings(JSON.parse(savedSettings));
+  // Fetch Notifications
+  const loadNotifications = async () => {
+    try {
+      setInboxLoading(true);
+      const [notifsRes, countRes] = await Promise.all([
+        userApi.getNotifications({ type: filterType, limit: 50 }),
+        userApi.getUnreadNotificationCount()
+      ]);
+
+      if (notifsRes.success && Array.isArray(notifsRes.data)) {
+        setNotifications(notifsRes.data);
+      }
+      if (countRes.success && typeof countRes.count === 'number') {
+        setUnreadCount(countRes.count);
+      }
+    } catch (err) {
+      console.warn('Failed to load notifications:', err.message);
+    } finally {
+      setInboxLoading(false);
     }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'inbox') {
+      loadNotifications();
+    }
+  }, [activeTab, filterType]);
+
+  // Load Preferences
+  useEffect(() => {
+    let isMounted = true;
+    userApi.getUserPreferences()
+      .then(res => {
+        if (isMounted && res.success && res.data?.preferences?.notifications) {
+          setSettings(prev => ({
+            ...prev,
+            ...res.data.preferences.notifications
+          }));
+        }
+      })
+      .catch(e => console.warn('Preferences load error:', e.message));
+    return () => { isMounted = false; };
   }, []);
 
-  const handleToggle = (key, label) => {
-    const newValue = !settings[key];
-    setSettings(prev => ({
-      ...prev,
-      [key]: newValue
-    }));
+  const handleMarkOneRead = async (notification) => {
+    try {
+      if (!notification.isRead) {
+        await userApi.markNotificationRead(notification._id);
+        setNotifications(prev =>
+          prev.map(n => (n._id === notification._id ? { ...n, isRead: true } : n))
+        );
+        setUnreadCount(prev => Math.max(0, prev - 1));
+        window.dispatchEvent(new CustomEvent('user-notifications-updated'));
+      }
 
-    // Show toast notification
-    if (newValue) {
-      showToast(`${label} enabled`, 'success', 2000);
-    } else {
-      showToast(`${label} disabled`, 'info', 2000);
+      if (notification.link && notification.link.startsWith('/user/')) {
+        navigate(notification.link);
+      }
+    } catch (err) {
+      console.warn('Mark read failed:', err.message);
     }
-
-    // Auto-save after a short delay
-    setTimeout(() => {
-      const updatedSettings = { ...settings, [key]: newValue };
-      localStorage.setItem('notificationSettings', JSON.stringify(updatedSettings));
-    }, 500);
   };
 
-  const handleSaveSettings = async () => {
-    setIsLoading(true);
-    setMessage('');
+  const handleMarkAllRead = async () => {
+    try {
+      await userApi.markAllNotificationsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+      window.dispatchEvent(new CustomEvent('user-notifications-updated'));
+      showToast('All notifications marked as read', 'success', 2000);
+    } catch (err) {
+      showToast('Failed to mark all as read', 'error', 2000);
+    }
+  };
+
+  const handleTogglePreference = async (key, label) => {
+    const newValue = !settings[key];
+    const updated = { ...settings, [key]: newValue };
+    setSettings(updated);
+
+    showToast(`${label} ${newValue ? 'enabled' : 'disabled'}`, 'info', 1500);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Save to localStorage
-      localStorage.setItem('notificationSettings', JSON.stringify(settings));
-      
-      setMessage('Notification preferences saved successfully!');
-      showToast('All notification preferences saved!', 'success');
-      
-      // Auto-hide message after 3 seconds
-      setTimeout(() => {
-        setMessage('');
-      }, 3000);
-      
-    } catch (error) {
-      setMessage('Failed to save notification preferences. Please try again.');
-      showToast('Failed to save preferences', 'error');
-    } finally {
-      setIsLoading(false);
+      await userApi.updateUserPreferences({ notifications: updated });
+    } catch (e) {
+      console.warn('Failed to save preference to backend:', e.message);
     }
   };
 
-  const CheckboxButton = ({ enabled, onToggle, disabled = false }) => (
-    <button
-      onClick={onToggle}
-      disabled={disabled}
-      className={`checkbox-button ${enabled ? 'enabled' : ''} ${disabled ? 'disabled' : ''}`}
-      style={{
-        '--primary-color': theme.colors.primary[500],
-        '--primary-dark': theme.colors.primary[600],
-        '--accent-color': theme.colors.accent[500],
-        '--accent-dark': theme.colors.accent[600]
-      }}
-    >
-      {enabled && (
-        <Icon name="check" size="xs" style={{ color: 'white' }} />
-      )}
-    </button>
-  );
+  return (
+    <div className="min-h-screen px-4 sm:px-6 py-6 pb-28" style={{ backgroundColor: '#EAE1D8' }}>
+      <div className="max-w-2xl mx-auto space-y-6">
 
-  const NotificationSection = ({ title, description, children }) => (
-    <Card className="mb-4">
-      <div className="p-4">
-        <div className="mb-4">
-          <h3 className="font-semibold text-base" style={{ color: theme.semantic.text.primary }}>
-            {title}
-          </h3>
-          {description && (
-            <p className="text-sm mt-1" style={{ color: theme.semantic.text.secondary }}>
-              {description}
-            </p>
+        {/* Top Bar */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2.5 rounded-xl bg-white shadow-sm border border-white active:scale-95 transition-all text-[#3D2B2B]"
+            >
+              <Icon name="chevronLeft" size="sm" />
+            </button>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-[#3D2B2B]" style={{ fontFamily: '"Playfair Display", serif' }}>
+                Notifications
+              </h1>
+              <p className="text-[10px] font-black uppercase text-[#3D2B2B]/40 tracking-wider">
+                {unreadCount > 0 ? `${unreadCount} unread message${unreadCount > 1 ? 's' : ''}` : 'All caught up'}
+              </p>
+            </div>
+          </div>
+
+          {activeTab === 'inbox' && unreadCount > 0 && (
+            <button
+              onClick={handleMarkAllRead}
+              className="text-xs font-bold text-[#BE185D] hover:underline"
+            >
+              Mark all as read
+            </button>
           )}
         </div>
-        <div className="space-y-2">
-          {children}
-        </div>
-      </div>
-    </Card>
-  );
 
-  const NotificationItem = ({ label, description, enabled, onToggle, disabled = false }) => (
-    <div className={`notification-item flex items-center justify-between p-3 rounded-lg ${disabled ? 'disabled' : ''}`}>
-      <div className="flex-1 pr-4">
-        <p className="font-medium text-sm leading-tight" style={{ color: theme.semantic.text.primary }}>
-          {label}
-        </p>
-        {description && (
-          <p className="text-xs mt-1 leading-tight" style={{ color: theme.semantic.text.secondary }}>
-            {description}
-          </p>
-        )}
-      </div>
-      <div className="flex-shrink-0">
-        <CheckboxButton 
-          enabled={enabled} 
-          onToggle={() => onToggle(label)} 
-          disabled={disabled} 
-        />
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="min-h-screen pb-20" style={{ backgroundColor: theme.semantic.background.primary }}>
-      {/* Header */}
-      <div 
-        className="sticky top-0 z-10 px-4 py-4 border-b backdrop-blur-sm"
-        style={{ 
-          backgroundColor: `${theme.semantic.background.primary}95`,
-          borderBottomColor: theme.semantic.border.light 
-        }}
-      >
-        <div className="flex items-center">
+        {/* Tab Switcher */}
+        <div className="grid grid-cols-2 p-1 bg-white/70 backdrop-blur-md rounded-2xl border border-white shadow-sm">
           <button
-            onClick={() => navigate(-1)}
-            className="mr-3 p-2 rounded-full"
-            style={{ backgroundColor: theme.semantic.background.accent }}
-          >
-            <Icon name="chevronDown" size="sm" className="rotate-90" style={{ color: theme.semantic.text.primary }} />
-          </button>
-          <div>
-            <h1 className="text-lg font-bold" style={{ color: theme.semantic.text.primary }}>
-              Notification Settings
-            </h1>
-            <p className="text-xs" style={{ color: theme.semantic.text.secondary }}>
-              Manage your notification preferences
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="px-4 py-6">
-        {message && (
-          <div 
-            className={`mb-4 p-3 rounded-lg text-sm ${
-              message.includes('successfully') 
-                ? 'bg-green-50 text-green-700 border border-green-200' 
-                : 'bg-red-50 text-red-700 border border-red-200'
+            onClick={() => setActiveTab('inbox')}
+            className={`py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'inbox'
+                ? 'bg-[#3D2B2B] text-white shadow-sm'
+                : 'text-[#3D2B2B]/60 hover:text-[#3D2B2B]'
             }`}
           >
-            {message}
+            <Icon name="bell" size="xs" />
+            Inbox {unreadCount > 0 && <span className="px-1.5 py-0.2 bg-pink-500 text-white rounded-full text-[10px]">{unreadCount}</span>}
+          </button>
+          <button
+            onClick={() => setActiveTab('preferences')}
+            className={`py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'preferences'
+                ? 'bg-[#3D2B2B] text-white shadow-sm'
+                : 'text-[#3D2B2B]/60 hover:text-[#3D2B2B]'
+            }`}
+          >
+            <Icon name="settings" size="xs" />
+            Preferences
+          </button>
+        </div>
+
+        {/* Tab 1: Inbox */}
+        {activeTab === 'inbox' && (
+          <div className="space-y-4">
+            {/* Filter Pills */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'booking', label: 'Bookings' },
+                { id: 'quote', label: 'Quotes' },
+                { id: 'payment', label: 'Payments' },
+                { id: 'planning', label: 'Planning' },
+                { id: 'family', label: 'Family' }
+              ].map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setFilterType(f.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all border ${
+                    filterType === f.id
+                      ? 'bg-white text-[#3D2B2B] border-white shadow-sm'
+                      : 'bg-white/40 text-[#3D2B2B]/60 border-transparent hover:bg-white/70'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Notification List */}
+            {inboxLoading ? (
+              <div className="p-8 text-center text-xs font-bold text-[#3D2B2B]/40">
+                Loading notifications...
+              </div>
+            ) : notifications.length === 0 ? (
+              <div className="p-12 text-center bg-white rounded-3xl shadow-sm border border-white space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#EAE1D8] flex items-center justify-center mx-auto text-[#3D2B2B]">
+                  <Icon name="bell" size="md" />
+                </div>
+                <h3 className="text-sm font-bold text-[#3D2B2B]">No Notifications Found</h3>
+                <p className="text-xs text-[#3D2B2B]/50 max-w-xs mx-auto">
+                  You'll receive updates on your quotes, bookings, payments, and wedding reminders here.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {notifications.map((notif) => (
+                  <div
+                    key={notif._id}
+                    onClick={() => handleMarkOneRead(notif)}
+                    className={`p-4 rounded-3xl bg-white shadow-sm border transition-all cursor-pointer hover:shadow-md active:scale-[0.99] flex items-start gap-3.5 relative overflow-hidden ${
+                      !notif.isRead ? 'border-pink-300 ring-1 ring-pink-200' : 'border-white'
+                    }`}
+                  >
+                    {!notif.isRead && (
+                      <div className="absolute top-0 left-0 bottom-0 w-1 bg-pink-500" />
+                    )}
+                    <div className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${
+                      notif.type === 'booking' ? 'bg-pink-100 text-pink-600' :
+                      notif.type === 'payment' ? 'bg-emerald-100 text-emerald-600' :
+                      notif.type === 'quote' ? 'bg-amber-100 text-amber-600' :
+                      'bg-purple-100 text-purple-600'
+                    }`}>
+                      <Icon name={
+                        notif.type === 'booking' ? 'calendar' :
+                        notif.type === 'payment' ? 'money' :
+                        notif.type === 'quote' ? 'money' : 'bell'
+                      } size="xs" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-baseline gap-2">
+                        <h4 className="text-xs font-bold text-[#3D2B2B] leading-tight truncate">
+                          {notif.title}
+                        </h4>
+                        <span className="text-[9px] text-[#3D2B2B]/40 whitespace-nowrap">
+                          {new Date(notif.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#3D2B2B]/70 mt-1 leading-relaxed">
+                        {notif.message}
+                      </p>
+                      {notif.link && (
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-[#BE185D] mt-2">
+                          <span>View Details</span>
+                          <Icon name="chevronRight" size="xs" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Push Notifications */}
-        <NotificationSection
-          title="Push Notifications"
-          description="Receive instant notifications on your device"
-        >
-          <NotificationItem
-            label="Enable Push Notifications"
-            description="Allow the app to send push notifications"
-            enabled={settings.pushEnabled}
-            onToggle={(label) => handleToggle('pushEnabled', label)}
-          />
-          
-          <NotificationItem
-            label="Booking Updates"
-            description="Get notified about booking confirmations and changes"
-            enabled={settings.bookingUpdates}
-            onToggle={(label) => handleToggle('bookingUpdates', label)}
-            disabled={!settings.pushEnabled}
-          />
-          
-          <NotificationItem
-            label="Vendor Messages"
-            description="Receive notifications when vendors message you"
-            enabled={settings.vendorMessages}
-            onToggle={(label) => handleToggle('vendorMessages', label)}
-            disabled={!settings.pushEnabled}
-          />
-          
-          <NotificationItem
-            label="Payment Reminders"
-            description="Get reminded about upcoming payments"
-            enabled={settings.paymentReminders}
-            onToggle={(label) => handleToggle('paymentReminders', label)}
-            disabled={!settings.pushEnabled}
-          />
-          
-          <NotificationItem
-            label="Wedding Reminders"
-            description="Important reminders about your wedding timeline"
-            enabled={settings.weddingReminders}
-            onToggle={(label) => handleToggle('weddingReminders', label)}
-            disabled={!settings.pushEnabled}
-          />
-        </NotificationSection>
-
-        {/* Email Notifications */}
-        <NotificationSection
-          title="Email Notifications"
-          description="Receive updates and information via email"
-        >
-          <NotificationItem
-            label="Enable Email Notifications"
-            description="Allow us to send you emails"
-            enabled={settings.emailEnabled}
-            onToggle={(label) => handleToggle('emailEnabled', label)}
-          />
-          
-          <NotificationItem
-            label="Weekly Digest"
-            description="Weekly summary of your wedding planning progress"
-            enabled={settings.weeklyDigest}
-            onToggle={(label) => handleToggle('weeklyDigest', label)}
-            disabled={!settings.emailEnabled}
-          />
-          
-          <NotificationItem
-            label="Promotional Emails"
-            description="Special offers and deals from vendors"
-            enabled={settings.promotionalEmails}
-            onToggle={(label) => handleToggle('promotionalEmails', label)}
-            disabled={!settings.emailEnabled}
-          />
-          
-          <NotificationItem
-            label="Vendor Recommendations"
-            description="Personalized vendor suggestions based on your preferences"
-            enabled={settings.vendorRecommendations}
-            onToggle={(label) => handleToggle('vendorRecommendations', label)}
-            disabled={!settings.emailEnabled}
-          />
-        </NotificationSection>
-
-        {/* SMS Notifications */}
-        <NotificationSection
-          title="SMS Notifications"
-          description="Receive important updates via text message"
-        >
-          <NotificationItem
-            label="Enable SMS Notifications"
-            description="Allow us to send you text messages"
-            enabled={settings.smsEnabled}
-            onToggle={(label) => handleToggle('smsEnabled', label)}
-          />
-          
-          <NotificationItem
-            label="Urgent Updates"
-            description="Critical updates that need immediate attention"
-            enabled={settings.urgentUpdates}
-            onToggle={(label) => handleToggle('urgentUpdates', label)}
-            disabled={!settings.smsEnabled}
-          />
-          
-          <NotificationItem
-            label="Booking Confirmations"
-            description="SMS confirmation for all your bookings"
-            enabled={settings.bookingConfirmations}
-            onToggle={(label) => handleToggle('bookingConfirmations', label)}
-            disabled={!settings.smsEnabled}
-          />
-        </NotificationSection>
-
-        {/* In-App Settings */}
-        <NotificationSection
-          title="In-App Settings"
-          description="Customize how notifications appear in the app"
-        >
-          <NotificationItem
-            label="In-App Notifications"
-            description="Show notifications within the app"
-            enabled={settings.inAppEnabled}
-            onToggle={(label) => handleToggle('inAppEnabled', label)}
-          />
-          
-          <NotificationItem
-            label="Sound"
-            description="Play sound for notifications"
-            enabled={settings.soundEnabled}
-            onToggle={(label) => handleToggle('soundEnabled', label)}
-            disabled={!settings.inAppEnabled}
-          />
-          
-          <NotificationItem
-            label="Vibration"
-            description="Vibrate device for notifications"
-            enabled={settings.vibrationEnabled}
-            onToggle={(label) => handleToggle('vibrationEnabled', label)}
-            disabled={!settings.inAppEnabled}
-          />
-        </NotificationSection>
-
-        {/* Quick Actions */}
-        <div className="space-y-3 mb-6">
-          <Button
-            onClick={() => {
-              // Enable all notifications
-              setSettings(prev => ({
-                ...prev,
-                pushEnabled: true,
-                bookingUpdates: true,
-                vendorMessages: true,
-                paymentReminders: true,
-                weddingReminders: true,
-                emailEnabled: true,
-                weeklyDigest: true,
-                vendorRecommendations: true,
-                smsEnabled: true,
-                urgentUpdates: true,
-                bookingConfirmations: true,
-                inAppEnabled: true,
-                soundEnabled: true,
-                vibrationEnabled: true
-              }));
-              showToast('All notifications enabled!', 'success');
-            }}
-            variant="outline"
-            className="w-full"
-          >
-            <Icon name="bell" size="sm" className="mr-2" />
-            Enable All Notifications
-          </Button>
-          
-          <Button
-            onClick={() => {
-              // Disable all non-essential notifications
-              setSettings(prev => ({
-                ...prev,
-                pushEnabled: true,
-                bookingUpdates: true,
-                vendorMessages: false,
-                paymentReminders: true,
-                weddingReminders: true,
-                emailEnabled: true,
-                weeklyDigest: false,
-                promotionalEmails: false,
-                vendorRecommendations: false,
-                smsEnabled: true,
-                urgentUpdates: true,
-                bookingConfirmations: true,
-                inAppEnabled: true,
-                soundEnabled: false,
-                vibrationEnabled: false
-              }));
-              showToast('Essential notifications only!', 'info');
-            }}
-            variant="outline"
-            className="w-full"
-          >
-            <Icon name="settings" size="sm" className="mr-2" />
-            Essential Only
-          </Button>
-        </div>
-
-        {/* Save Button */}
-        <Button
-          onClick={handleSaveSettings}
-          disabled={isLoading}
-          className="w-full py-4 rounded-xl font-bold text-base"
-          style={{
-            backgroundColor: theme.colors.primary[500],
-            color: 'white',
-            minHeight: '56px'
-          }}
-        >
-          {isLoading ? (
-            <div className="flex items-center justify-center space-x-2">
-              <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-              <span>Saving...</span>
+        {/* Tab 2: Preferences */}
+        {activeTab === 'preferences' && (
+          <div className="space-y-4 animate-in fade-in duration-300">
+            <div className="p-5 rounded-3xl bg-white shadow-sm border border-white space-y-4">
+              <h3 className="text-xs font-black uppercase tracking-wider text-[#3D2B2B]/60">
+                Delivery Channels
+              </h3>
+              <div className="space-y-3">
+                {[
+                  { key: 'pushEnabled', label: 'Push Notifications', desc: 'Receive instant alerts on your device' },
+                  { key: 'emailEnabled', label: 'Email Notifications', desc: 'Receive booking confirmations and invoices' },
+                  { key: 'smsEnabled', label: 'SMS Notifications', desc: 'Receive critical booking updates via text' },
+                  { key: 'inAppEnabled', label: 'In-App Alerts', desc: 'Show toast notifications while using the portal' }
+                ].map(item => (
+                  <div key={item.key} className="flex items-center justify-between py-2 border-b border-[#3D2B2B]/5 last:border-0">
+                    <div>
+                      <div className="text-xs font-bold text-[#3D2B2B]">{item.label}</div>
+                      <div className="text-[11px] text-[#3D2B2B]/50">{item.desc}</div>
+                    </div>
+                    <button
+                      onClick={() => handleTogglePreference(item.key, item.label)}
+                      className={`w-11 h-6 rounded-full transition-colors relative ${
+                        settings[item.key] ? 'bg-[#BE185D]' : 'bg-[#EAE1D8]'
+                      }`}
+                    >
+                      <div className={`w-4 h-4 rounded-full bg-white transition-transform absolute top-1 ${
+                        settings[item.key] ? 'right-1' : 'left-1'
+                      }`} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
-          ) : (
-            <div className="flex items-center justify-center space-x-2">
-              <Icon name="check" size="sm" />
-              <span>Save Notification Settings</span>
+
+            <div className="p-5 rounded-3xl bg-white shadow-sm border border-white space-y-4">
+              <h3 className="text-xs font-black uppercase tracking-wider text-[#3D2B2B]/60">
+                Event Subscriptions
+              </h3>
+              <div className="space-y-3">
+                {[
+                  { key: 'bookingUpdates', label: 'Booking & Status Updates', desc: 'Confirmation, cancellations, vendor assignments' },
+                  { key: 'vendorMessages', label: 'Vendor Quote Updates', desc: 'New proposals and quote expiry notices' },
+                  { key: 'paymentReminders', label: 'Payment Reminders', desc: 'Advance payment notices and refund confirmations' },
+                  { key: 'weddingReminders', label: 'Planning Milestones', desc: 'Upcoming checklist tasks and timeline alarms' }
+                ].map(item => (
+                  <div key={item.key} className="flex items-center justify-between py-2 border-b border-[#3D2B2B]/5 last:border-0">
+                    <div>
+                      <div className="text-xs font-bold text-[#3D2B2B]">{item.label}</div>
+                      <div className="text-[11px] text-[#3D2B2B]/50">{item.desc}</div>
+                    </div>
+                    <button
+                      onClick={() => handleTogglePreference(item.key, item.label)}
+                      className={`w-11 h-6 rounded-full transition-colors relative ${
+                        settings[item.key] ? 'bg-[#BE185D]' : 'bg-[#EAE1D8]'
+                      }`}
+                    >
+                      <div className={`w-4 h-4 rounded-full bg-white transition-transform absolute top-1 ${
+                        settings[item.key] ? 'right-1' : 'left-1'
+                      }`} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
-        </Button>
+          </div>
+        )}
+
       </div>
-      
-      {/* Toast Component */}
-      <ToastComponent />
+      {ToastComponent}
     </div>
   );
 };

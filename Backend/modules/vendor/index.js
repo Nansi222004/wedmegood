@@ -13,6 +13,7 @@ const {
     uploadPublicMultipleMedia,
     getStats,
     getLeads,
+    getLeadById,
     updateLeadStatus,
     getBookings,
     getReviews,
@@ -103,10 +104,14 @@ router.post('/dynamic-services', protectVendor, upload.fields([
 
 // Stats & Analytics
 router.get('/stats', protectVendor, requireSubscription, requireVendorApproval, getStats);
-router.get('/earnings', protectVendor, requireSubscription, requireVendorApproval, getEarningsSummary);
+
+// Financials, Wallet, Earnings & Withdrawals
+const withdrawalRoutes = require('./withdrawal.routes');
+router.use('/', withdrawalRoutes);
 
 // Leads
 router.get('/leads', protectVendor, requireSubscription, requireVendorApproval, getLeads);
+router.get('/leads/:id', protectVendor, requireSubscription, requireVendorApproval, getLeadById);
 router.put('/leads/:id', protectVendor, requireSubscription, requireVendorApproval, updateLeadStatus);
 
 // Quotes

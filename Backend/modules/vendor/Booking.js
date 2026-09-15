@@ -17,6 +17,10 @@ const bookingSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Lead'
     },
+    quoteId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Quote'
+    },
     eventDate: {
         type: Date,
         required: [true, 'Please provide event date']
@@ -49,6 +53,41 @@ const bookingSchema = new mongoose.Schema({
         type: String,
         enum: ['Confirmed', 'Completed', 'Cancelled'],
         default: 'Confirmed'
+    },
+    paymentStatus: {
+        type: String,
+        enum: ['Pending', 'Partial', 'Paid', 'Refunded'],
+        default: 'Pending'
+    },
+    commission: {
+        type: Number,
+        default: 0
+    },
+    vendorEarning: {
+        type: Number,
+        default: 0
+    },
+    settlementStatus: {
+        type: String,
+        enum: ['Pending', 'Eligible', 'Settled', 'Refunded'],
+        default: 'Pending'
+    },
+    refundAmount: {
+        type: Number,
+        default: 0
+    },
+    refundedAt: {
+        type: Date
+    },
+    cancellationReason: {
+        type: String
+    },
+    cancelledBy: {
+        type: String,
+        enum: ['User', 'Vendor', 'Admin']
+    },
+    cancelledAt: {
+        type: Date
     },
     createdAt: {
         type: Date,

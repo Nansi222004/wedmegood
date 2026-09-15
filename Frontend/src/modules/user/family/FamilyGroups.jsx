@@ -4,53 +4,100 @@ import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
-import { familyGroups, familyContacts } from '../../../data/contacts';
+import userApi from '../../../services/userApi';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const FamilyGroups = () => {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [groups, setGroups] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Check if current user is admin of a group
+  // Check if current user is admin/owner of a group with real RBAC
   const isCurrentUserAdmin = (group) => {
-    const currentUserId = 1; // Current user ID
-    return group.createdBy === currentUserId;
+    if (!group || !user) return false;
+    const currentUserId = String(user._id || user.id || '');
+    const currentUserEmail = (user.email || '').toLowerCase();
+
+    // 1. Group Creator / Owner
+    const ownerId = String(group.userId?._id || group.userId || '');
+    if (ownerId && currentUserId && ownerId === currentUserId) {
+      return true;
+    }
+
+    // 2. Accepted member with admin role
+    if (Array.isArray(group.members)) {
+      const myMembership = group.members.find(m => {
+        const memberUserId = String(m.userId?._id || m.userId || '');
+        const memberEmail = (m.email || '').toLowerCase();
+        return (memberUserId && memberUserId === currentUserId) ||
+               (memberEmail && currentUserEmail && memberEmail === currentUserEmail);
+      });
+
+      if (myMembership && myMembership.status === 'accepted' && myMembership.role === 'admin') {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  const fetchGroups = async () => {
+    try {
+      setIsLoading(true);
+      const res = await userApi.getFamilyGroups();
+      if (res.success && Array.isArray(res.data)) {
+        const formatted = res.data.map(g => ({
+          ...g,
+          id: g._id,
+          members: Array.isArray(g.members) ? g.members : []
+        }));
+        setGroups(formatted);
+      } else {
+        setGroups([]);
+      }
+    } catch (err) {
+      console.error('Error loading family groups from MongoDB:', err);
+      setGroups([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
-    // Load groups from localStorage and merge with default groups
-    const savedGroups = JSON.parse(localStorage.getItem('familyGroups') || '[]');
-    const allGroups = [...familyGroups, ...savedGroups];
-    setGroups(allGroups);
+    fetchGroups();
   }, []);
 
   const filteredGroups = groups.filter(group =>
-    group.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    group.description.toLowerCase().includes(searchQuery.toLowerCase())
+    (group.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (group.description || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleGroupClick = (group) => {
-    navigate(`/user/family/group/${group.id}`, { state: { group } });
+    navigate(`/user/family/group/${group.id || group._id}`, { state: { group } });
   };
 
   const handleCreateNewGroup = () => {
     navigate('/user/family/contacts');
   };
 
-  const handleDeleteGroup = (groupId) => {
-    const updatedGroups = groups.filter(g => g.id !== groupId);
-    setGroups(updatedGroups);
-    
-    // Update localStorage
-    const savedGroups = JSON.parse(localStorage.getItem('familyGroups') || '[]');
-    const updatedSavedGroups = savedGroups.filter(g => g.id !== groupId);
-    localStorage.setItem('familyGroups', JSON.stringify(updatedSavedGroups));
-    
-    setShowDeleteConfirm(false);
-    setGroupToDelete(null);
+  const handleDeleteGroup = async (groupId) => {
+    try {
+      if (typeof groupId === 'string' && groupId.length === 24) {
+        await userApi.deleteFamilyGroup(groupId);
+      }
+      const updatedGroups = groups.filter(g => (g._id !== groupId && g.id !== groupId));
+      setGroups(updatedGroups);
+    } catch (err) {
+      console.error('Error deleting group from MongoDB:', err);
+    } finally {
+      setShowDeleteConfirm(false);
+      setGroupToDelete(null);
+    }
   };
 
   const confirmDeleteGroup = (group) => {

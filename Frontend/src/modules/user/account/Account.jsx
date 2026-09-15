@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import { useCart } from '../../../contexts/CartContext';
@@ -8,6 +8,7 @@ import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import EmptyState from '../../../components/ui/EmptyState';
+import { userApi } from '../../../services/userApi';
 
 const Account = () => {
   const { theme } = useTheme();
@@ -176,22 +177,49 @@ const Account = () => {
     remaining: 680000 // ₹6,80,000
   });
 
-  // Mock activity data
-  const [activityData] = useState({
+  // Activity data backed by real MongoDB statistics
+  const [activityData, setActivityData] = useState({
     cartItems: cartState.totalItems,
-    bookings: 2,
-    shortlistedVendors: 8,
-    favouriteVendors: 5,
-    unreadMessages: 3,
-    reviewsGiven: 1
+    bookings: 0,
+    shortlistedVendors: 0,
+    favouriteVendors: 0,
+    unreadMessages: 0,
+    reviewsGiven: 0
   });
 
-  // Mock payments data
-  const [paymentsData] = useState({
-    totalPayments: 5,
-    pendingPayments: 2,
-    lastPaymentAmount: 25000
+  // Payments data backed by real MongoDB statistics
+  const [paymentsData, setPaymentsData] = useState({
+    totalPayments: 0,
+    pendingPayments: 0,
+    lastPaymentAmount: 0
   });
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let isMounted = true;
+    const loadStats = async () => {
+      try {
+        const res = await userApi.getUserStats();
+        if (isMounted && res.success && res.data?.stats) {
+          const s = res.data.stats;
+          setActivityData(prev => ({
+            ...prev,
+            bookings: s.bookingsCount || 0,
+            reviewsGiven: s.reviewsCount || 0
+          }));
+          setPaymentsData(prev => ({
+            ...prev,
+            totalPayments: s.paymentsCount || 0
+          }));
+        }
+      } catch (err) {
+        console.warn('Could not fetch real user stats in Account:', err.message);
+      }
+    };
+
+    loadStats();
+    return () => { isMounted = false; };
+  }, [isAuthenticated]);
 
   const formatCurrency = (amount) => {
     if (amount >= 100000) {

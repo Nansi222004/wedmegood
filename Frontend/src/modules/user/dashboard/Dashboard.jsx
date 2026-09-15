@@ -1,84 +1,77 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import { useAuth } from '../../../contexts/AuthContext';
 import Icon from '../../../components/ui/Icon';
+import { userApi } from '../../../services/userApi';
 
 const Dashboard = () => {
   const { theme } = useTheme();
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const dashboardOptions = [
-    {
-      id: 'news',
-      title: 'News & Updates',
-      subtitle: 'Latest wedding trends',
-      icon: 'news',
-      route: '/user/news',
-      image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=300&fit=crop&q=80',
-      gradient: 'linear-gradient(135deg, rgba(236, 72, 153, 0.75) 0%, rgba(244, 114, 182, 0.75) 100%)',
-      shadowColor: 'rgba(236, 72, 153, 0.4)',
-      stats: '50+ Articles'
+  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState({
+    wedding: {
+      brideName: '',
+      groomName: '',
+      weddingDate: null,
+      daysRemaining: null,
+      venue: '',
+      location: '',
+      budget: 0,
+      guestCount: 0,
+      category: 'Wedding'
     },
-    {
-      id: 'plan',
-      title: 'Plan',
-      subtitle: 'Plan your event',
-      icon: 'plan',
-      route: '/user/requirements',
-      image: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=400&h=300&fit=crop&q=80',
-      gradient: 'linear-gradient(135deg, rgba(245, 158, 11, 0.75) 0%, rgba(251, 191, 36, 0.75) 100%)',
-      shadowColor: 'rgba(245, 158, 11, 0.4)',
-      stats: 'Event Planning'
+    bookings: {
+      total: 0,
+      confirmed: 0,
+      upcomingCount: 0,
+      upcomingList: []
     },
-    {
-      id: 'horoscope',
-      title: 'Horoscope',
-      subtitle: 'Check your horoscope',
-      icon: 'star',
-      route: '/user/horoscope',
-      image: 'https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?w=400&h=300&fit=crop&q=80',
-      gradient: 'linear-gradient(135deg, rgba(16, 185, 129, 0.75) 0%, rgba(52, 211, 153, 0.75) 100%)',
-      shadowColor: 'rgba(16, 185, 129, 0.4)',
-      stats: 'Daily Predictions'
+    quotes: {
+      total: 0,
+      pending: 0,
+      expiringSoon: 0,
+      recent: []
     },
-    {
-      id: 'home',
-      title: 'Explore Home',
-      subtitle: 'Browse all services',
-      icon: 'sparkles',
-      route: '/user/home',
-      image: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400&h=300&fit=crop&q=80',
-      gradient: 'linear-gradient(135deg, rgba(139, 92, 246, 0.75) 0%, rgba(167, 139, 250, 0.75) 100%)',
-      shadowColor: 'rgba(139, 92, 246, 0.4)',
-      stats: 'All Categories'
+    planning: {
+      checklist: { total: 0, completed: 0, progressPercentage: 0 },
+      budget: { totalBudget: 0, spent: 0, remaining: 0, percentSpent: 0 },
+      timeline: { totalEvents: 0, upcomingEvents: 0 },
+      guests: { totalInvited: 0, confirmed: 0, pending: 0 }
+    },
+    vendors: {
+      favoritesCount: 0,
+      recommended: []
+    },
+    upcomingActions: [],
+    recentActivities: [],
+    notifications: {
+      unreadCount: 0
     }
-  ];
+  });
 
-  const handleCardClick = (option) => {
-    if (option.id === 'plan') {
-      const saved = localStorage.getItem('eventDetails');
-      let hasRequirements = false;
+  useEffect(() => {
+    let isMounted = true;
+    const loadDashboard = async () => {
       try {
-        if (saved && saved !== 'null' && saved !== 'undefined') {
-          const parsed = JSON.parse(saved);
-          hasRequirements = parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0;
+        setLoading(true);
+        const res = await userApi.getDashboardSummary();
+        if (isMounted && res.success && res.data) {
+          setSummary(res.data);
         }
-      } catch (e) {
-        hasRequirements = false;
+      } catch (err) {
+        console.warn('Dashboard summary load error:', err.message);
+      } finally {
+        if (isMounted) setLoading(false);
       }
+    };
 
-      if (hasRequirements) {
-        navigate('/user/planning-dashboard');
-      } else {
-        navigate('/user/requirements');
-      }
-      return;
-    }
-    navigate(option.route);
-  };
+    loadDashboard();
+    return () => { isMounted = false; };
+  }, []);
 
-  // Get user's first name or default greeting
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good Morning';
@@ -87,120 +80,315 @@ const Dashboard = () => {
   };
 
   const userName = user?.name?.split(' ')[0] || 'There';
+  const wedding = summary.wedding || {};
+  const planning = summary.planning || {};
+  const bookings = summary.bookings || {};
+  const quotes = summary.quotes || {};
 
   return (
     <div
-      className="min-h-screen px-6 py-2 pb-32"
+      className="min-h-screen px-4 sm:px-6 py-4 pb-32"
       style={{ backgroundColor: '#EAE1D8' }}
     >
-      <div className="w-full max-w-md mx-auto space-y-6">
-        {/* Editorial Header - Compact */}
+      <div className="w-full max-w-lg mx-auto space-y-6">
+
+        {/* Editorial Header */}
         <div className="flex justify-between items-center pt-2">
           <div className="space-y-0.5">
-             <h1 className="text-[#3D2B2B] text-2xl font-bold leading-tight" style={{ fontFamily: '"Playfair Display", serif' }}>
-                {getGreeting()},<br />{userName}
-             </h1>
-             <p className="text-[#3D2B2B]/40 text-[8px] font-black uppercase tracking-[0.2em]" style={{ fontFamily: '"Outfit", sans-serif' }}>
-                Curation in progress
-             </p>
+            <h1
+              className="text-[#3D2B2B] text-2xl sm:text-3xl font-bold leading-tight tracking-tight"
+              style={{ fontFamily: '"Playfair Display", serif' }}
+            >
+              {getGreeting()},<br />{userName}
+            </h1>
+            <p className="text-[#3D2B2B]/50 text-[10px] font-black uppercase tracking-[0.2em]" style={{ fontFamily: '"Outfit", sans-serif' }}>
+              {wedding.brideName && wedding.groomName
+                ? `${wedding.brideName} & ${wedding.groomName}'s Celebration`
+                : 'Wedding Planning Dashboard'}
+            </p>
           </div>
-          <button
-            onClick={() => navigate('/user/account')}
-            className="w-11 h-11 rounded-xl overflow-hidden shadow-sm group active:scale-95 transition-transform"
-            style={{ 
-               backgroundColor: 'white',
-               border: '1px solid white' 
-            }}
-          >
-             <div className="w-full h-full flex items-center justify-center bg-[#EAE1D8]/20 backdrop-blur-sm">
-                <Icon name="account" size="md" style={{ color: '#3D2B2B' }} />
-             </div>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/user/calendar')}
+              className="w-10 h-10 rounded-xl overflow-hidden shadow-sm flex items-center justify-center bg-white border border-white hover:shadow-md transition-all active:scale-95"
+              title="Wedding Calendar"
+            >
+              <Icon name="calendar" size="sm" style={{ color: '#3D2B2B' }} />
+            </button>
+            <button
+              onClick={() => navigate('/user/notifications')}
+              className="w-10 h-10 rounded-xl overflow-hidden shadow-sm flex items-center justify-center bg-white border border-white relative hover:shadow-md transition-all active:scale-95"
+              title="Notifications"
+            >
+              <Icon name="bell" size="sm" style={{ color: '#3D2B2B' }} />
+              {summary.notifications?.unreadCount > 0 && (
+                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-pink-500 rounded-full ring-2 ring-white animate-pulse" />
+              )}
+            </button>
+            <button
+              onClick={() => navigate('/user/account')}
+              className="w-10 h-10 rounded-xl overflow-hidden shadow-sm flex items-center justify-center bg-white border border-white hover:shadow-md transition-all active:scale-95"
+              title="Account"
+            >
+              <Icon name="account" size="sm" style={{ color: '#3D2B2B' }} />
+            </button>
+          </div>
         </div>
 
-        {/* High-Density Quick Stats - Compact */}
-        <div className="grid grid-cols-3 gap-4 py-4 border-y border-[#3D2B2B]/10">
-            {[
-              { val: '12', label: 'Tasks Left', color: '#B45309' },
-              { val: '08', label: 'Shortlisted', color: '#BE185D' },
-              { val: '45', label: 'To Your Day', color: '#15803D' }
-            ].map((stat, i) => (
-              <div key={i} className="text-center space-y-0">
-                 <div className="text-xl font-black text-[#3D2B2B] tracking-tight">{stat.val}</div>
-                 <div className="text-[8px] font-black uppercase text-[#3D2B2B]/40 tracking-wider whitespace-nowrap">{stat.label}</div>
+        {/* Actionable Urgent Alerts Banner (Rule 20) */}
+        {summary.upcomingActions && summary.upcomingActions.length > 0 && (
+          <div className="space-y-2">
+            {summary.upcomingActions.slice(0, 2).map((act, idx) => (
+              <div
+                key={idx}
+                onClick={() => navigate(act.route || '/user/dashboard')}
+                className={`p-3.5 rounded-2xl flex items-center justify-between cursor-pointer shadow-sm transition-all hover:shadow-md active:scale-[0.99] border ${
+                  act.priority === 'high'
+                    ? 'bg-amber-50 border-amber-200/80 text-amber-900'
+                    : 'bg-white border-white/80 text-[#3D2B2B]'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                    act.priority === 'high' ? 'bg-amber-500 text-white' : 'bg-[#EAE1D8] text-[#3D2B2B]'
+                  }`}>
+                    <Icon name={act.type === 'quote' ? 'money' : (act.type === 'booking' ? 'calendar' : 'checkList')} size="xs" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold leading-tight">{act.title}</h4>
+                    <p className="text-[11px] opacity-75 line-clamp-1">{act.description}</p>
+                  </div>
+                </div>
+                <Icon name="chevronRight" size="xs" className="opacity-40" />
               </div>
             ))}
-        </div>
+          </div>
+        )}
 
-        {/* Premium Action Grid - High Density */}
-        <div className="grid grid-cols-2 gap-x-5 gap-y-6">
-          {dashboardOptions.map((option) => (
+        {/* High-Density Quick Stats */}
+        <div className="grid grid-cols-4 gap-2.5 py-3 border-y border-[#3D2B2B]/10">
+          {[
+            { val: bookings.total ?? 0, label: 'Bookings', color: '#BE185D', route: '/user/bookings' },
+            { val: quotes.pending ?? 0, label: 'Quotes', color: '#B45309', route: '/user/dashboard' },
+            { val: planning.checklist?.total ?? 0, label: 'Tasks', color: '#047857', route: '/user/tools/checklist' },
+            {
+              val: wedding.daysRemaining !== null && wedding.daysRemaining !== undefined ? wedding.daysRemaining : '--',
+              label: 'Days Left',
+              color: '#4338CA',
+              route: '/user/calendar'
+            }
+          ].map((stat, i) => (
             <button
-              key={option.id}
-              onClick={() => handleCardClick(option)}
-              className="flex flex-col text-left group active:scale-[0.98] transition-transform"
+              key={i}
+              onClick={() => navigate(stat.route)}
+              className="text-center space-y-0.5 p-2 rounded-xl hover:bg-white/40 transition-colors"
             >
-              <div 
-                className="w-full aspect-[4/5] rounded-t-[4rem] rounded-b-[1.5rem] overflow-hidden shadow-md border border-white mb-2 relative"
-              >
-                 <img
-                   src={option.image}
-                   alt={option.title}
-                   className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
-                   loading="lazy"
-                 />
-                 <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
-                    <div className="w-8 h-8 rounded-full bg-white/30 backdrop-blur-md border border-white/40 flex items-center justify-center text-white">
-                        <Icon name={option.icon} size="xs" />
-                    </div>
-                 </div>
-              </div>
-              <div className="px-1">
-                 <h3 className="text-[#3D2B2B] text-sm font-bold leading-tight" style={{ fontFamily: '"Playfair Display", serif' }}>
-                    {option.title}
-                 </h3>
-                 <p className="text-[#3D2B2B]/30 text-[8px] font-black uppercase tracking-widest leading-none mt-0.5">
-                    {option.stats}
-                 </p>
-              </div>
+              <div className="text-lg sm:text-xl font-black text-[#3D2B2B] tracking-tight">{stat.val}</div>
+              <div className="text-[9px] font-black uppercase text-[#3D2B2B]/40 tracking-wider whitespace-nowrap">{stat.label}</div>
             </button>
           ))}
         </div>
 
-        {/* Editorial Sub-Sections */}
-        <div className="space-y-6 pt-6">
-           <h4 className="text-[#3D2B2B]/30 text-[10px] font-black uppercase tracking-[0.3em] flex items-center gap-4 text-center justify-center">
-              <span className="w-8 h-[1px] bg-[#3D2B2B]/10" />
-              Planning Toolkit
-              <span className="w-8 h-[1px] bg-[#3D2B2B]/10" />
-           </h4>
-           <div className="grid grid-cols-3 gap-4">
-              {[
-                { icon: 'search', label: 'Explore', route: '/user/search' },
-                { icon: 'heart', label: 'Saved', route: '/user/favourites' },
-                { icon: 'settings', label: 'Account', route: '/user/account' }
-              ].map((action) => (
-                <button
-                  key={action.label}
-                  onClick={() => navigate(action.route)}
-                  className="flex flex-col items-center gap-3 p-5 rounded-[2rem] bg-white shadow-sm border border-white transition-all hover:shadow-md active:scale-95"
-                >
-                  <div className="w-10 h-10 rounded-2xl bg-[#EAE1D8] flex items-center justify-center text-[#3D2B2B]">
-                    <Icon name={action.icon} size="sm" />
-                  </div>
-                  <span className="text-[10px] font-black uppercase text-[#3D2B2B]/60 tracking-wider">
-                    {action.label}
-                  </span>
-                </button>
-              ))}
-           </div>
+        {/* Planning Progress Meter (Rule 19) */}
+        <div className="p-5 rounded-3xl bg-white shadow-sm border border-white space-y-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-sm font-bold text-[#3D2B2B]" style={{ fontFamily: '"Playfair Display", serif' }}>
+                Planning Completion
+              </h3>
+              <p className="text-[10px] font-semibold text-[#3D2B2B]/40 uppercase tracking-wider">
+                Real-time Checklist & Budget Metrics
+              </p>
+            </div>
+            <span className="text-base font-black text-[#BE185D]">
+              {planning.checklist?.progressPercentage || 0}%
+            </span>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="w-full bg-[#EAE1D8]/60 rounded-full h-2.5 overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-700 ease-out"
+              style={{
+                width: `${planning.checklist?.progressPercentage || 0}%`,
+                background: 'linear-gradient(90deg, #BE185D 0%, #F43F5E 100%)'
+              }}
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 pt-1 border-t border-[#3D2B2B]/5 text-center">
+            <div onClick={() => navigate('/user/tools/checklist')} className="cursor-pointer hover:opacity-80">
+              <div className="text-xs font-bold text-[#3D2B2B]">{planning.checklist?.completed || 0}/{planning.checklist?.total || 0}</div>
+              <div className="text-[9px] text-[#3D2B2B]/40 uppercase font-black">Tasks Done</div>
+            </div>
+            <div onClick={() => navigate('/user/tools/budget')} className="cursor-pointer hover:opacity-80">
+              <div className="text-xs font-bold text-[#3D2B2B]">₹{(planning.budget?.spent || 0).toLocaleString()}</div>
+              <div className="text-[9px] text-[#3D2B2B]/40 uppercase font-black">Budget Spent</div>
+            </div>
+            <div onClick={() => navigate('/user/tools/guests')} className="cursor-pointer hover:opacity-80">
+              <div className="text-xs font-bold text-[#3D2B2B]">{planning.guests?.confirmed || 0}/{planning.guests?.totalInvited || 0}</div>
+              <div className="text-[9px] text-[#3D2B2B]/40 uppercase font-black">RSVP Confirmed</div>
+            </div>
+          </div>
         </div>
 
-        {/* Divine Footer Quote */}
-        <div className="text-center pt-8 border-t border-[#3D2B2B]/5">
-           <p className="text-[#3D2B2B]/40 text-[11px] italic font-medium leading-relaxed" style={{ fontFamily: '"Outfit", sans-serif' }}>
-              "Every great love story deserves a<br />perfectly curated celebration" ✨
-           </p>
+        {/* Upcoming Bookings Spotlight */}
+        {bookings.upcomingList && bookings.upcomingList.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex justify-between items-center px-1">
+              <h3 className="text-xs font-black uppercase tracking-widest text-[#3D2B2B]/60">
+                Next Upcoming Booking
+              </h3>
+              <button
+                onClick={() => navigate('/user/bookings')}
+                className="text-xs font-bold text-[#BE185D] hover:underline"
+              >
+                View All ({bookings.total})
+              </button>
+            </div>
+
+            {bookings.upcomingList.slice(0, 1).map((b) => (
+              <div
+                key={b._id}
+                onClick={() => navigate('/user/bookings')}
+                className="p-4 rounded-3xl bg-white shadow-sm border border-white flex items-center justify-between cursor-pointer hover:shadow-md transition-all active:scale-[0.99]"
+              >
+                <div className="flex items-center gap-3">
+                  <img
+                    src={b.vendorId?.profileImage || 'https://images.unsplash.com/photo-1519741497674-611481863552?w=120&h=120&fit=crop'}
+                    alt={b.vendorId?.businessName}
+                    className="w-12 h-12 rounded-2xl object-cover border border-[#EAE1D8]"
+                  />
+                  <div>
+                    <h4 className="text-sm font-bold text-[#3D2B2B] leading-tight">
+                      {b.vendorId?.businessName || 'Wedding Vendor'}
+                    </h4>
+                    <p className="text-xs text-[#3D2B2B]/50 line-clamp-1">
+                      {b.services?.join(', ') || 'Event Service'} • {b.eventDate ? new Date(b.eventDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Scheduled'}
+                    </p>
+                    <span className="inline-block px-2 py-0.5 text-[9px] font-bold uppercase rounded-md bg-emerald-50 text-emerald-700 mt-1">
+                      {b.status}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-black text-[#3D2B2B]">₹{(b.totalPrice || 0).toLocaleString()}</div>
+                  <div className="text-[10px] text-[#3D2B2B]/40 font-bold uppercase">{b.paymentStatus}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Recommended Vendors Carousel (Rule 5 & Phase 4 Engine) */}
+        {summary.vendors?.recommended && summary.vendors.recommended.length > 0 && (
+          <div className="space-y-3 pt-2">
+            <div className="flex justify-between items-center px-1">
+              <h3 className="text-xs font-black uppercase tracking-widest text-[#3D2B2B]/60">
+                Recommended For You
+              </h3>
+              <button
+                onClick={() => navigate('/user/vendors')}
+                className="text-xs font-bold text-[#BE185D] hover:underline"
+              >
+                Explore Marketplace
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {summary.vendors.recommended.slice(0, 2).map((v) => (
+                <div
+                  key={v._id}
+                  onClick={() => navigate(`/user/vendor/${v._id}`)}
+                  className="rounded-3xl bg-white p-3 shadow-sm border border-white cursor-pointer hover:shadow-md transition-all active:scale-[0.98] flex flex-col justify-between"
+                >
+                  <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-2 relative">
+                    <img
+                      src={v.profileImage || 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=300&h=200&fit=crop'}
+                      alt={v.businessName}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    <div className="absolute top-2 right-2 px-1.5 py-0.5 bg-black/60 backdrop-blur-sm rounded-lg text-white text-[10px] font-bold flex items-center gap-1">
+                      ⭐ {v.rating || '5.0'}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-[#3D2B2B] leading-tight line-clamp-1">
+                      {v.businessName}
+                    </h4>
+                    <p className="text-[10px] text-[#3D2B2B]/50 line-clamp-1">
+                      {v.city} • Starts ₹{(v.startingPrice || 15000).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Planning Toolkit Navigation */}
+        <div className="space-y-3 pt-2">
+          <h4 className="text-[#3D2B2B]/40 text-[10px] font-black uppercase tracking-[0.25em] text-center">
+            Wedding Planning Suite
+          </h4>
+          <div className="grid grid-cols-4 gap-2.5">
+            {[
+              { icon: 'calendar', label: 'Calendar', route: '/user/calendar' },
+              { icon: 'checkList', label: 'Checklist', route: '/user/tools/checklist' },
+              { icon: 'money', label: 'Budget', route: '/user/tools/budget' },
+              { icon: 'users', label: 'Guests', route: '/user/tools/guests' },
+              { icon: 'users', label: 'Family', route: '/user/family/groups' },
+              { icon: 'share', label: 'E-Invites', route: '/user/e-invites' },
+              { icon: 'star', label: 'Inspiration', route: '/user/inspirations' },
+              { icon: 'heart', label: 'Saved', route: '/user/favourites' }
+            ].map((tool, idx) => (
+              <button
+                key={idx}
+                onClick={() => navigate(tool.route)}
+                className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-white shadow-sm border border-white hover:shadow-md transition-all active:scale-95"
+              >
+                <div className="w-8 h-8 rounded-xl bg-[#EAE1D8] flex items-center justify-center text-[#3D2B2B]">
+                  <Icon name={tool.icon} size="xs" />
+                </div>
+                <span className="text-[9px] font-black uppercase text-[#3D2B2B]/70 tracking-wider">
+                  {tool.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Recent User Activity Feed (Rule 4) */}
+        {summary.recentActivities && summary.recentActivities.length > 0 && (
+          <div className="space-y-3 pt-2">
+            <h3 className="text-xs font-black uppercase tracking-widest text-[#3D2B2B]/60 px-1">
+              Recent Activity
+            </h3>
+            <div className="bg-white rounded-3xl p-4 shadow-sm border border-white space-y-3">
+              {summary.recentActivities.slice(0, 4).map((act) => (
+                <div key={act._id} className="flex items-start gap-3 text-xs">
+                  <div className="w-6 h-6 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center shrink-0 mt-0.5">
+                    <Icon name="sparkles" size="xs" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold text-[#3D2B2B] leading-tight">{act.title}</p>
+                    <p className="text-[#3D2B2B]/60 text-[11px] mt-0.5">{act.message}</p>
+                    <span className="text-[9px] text-[#3D2B2B]/40 mt-1 block">
+                      {new Date(act.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Footer Editorial Quote */}
+        <div className="text-center pt-6 border-t border-[#3D2B2B]/10">
+          <p className="text-[#3D2B2B]/40 text-[11px] italic font-medium leading-relaxed" style={{ fontFamily: '"Outfit", sans-serif' }}>
+            "Every great love story deserves a<br />perfectly curated celebration" ✨
+          </p>
         </div>
       </div>
     </div>

@@ -306,6 +306,36 @@ export const vendorApi = {
         return response.json();
     },
 
+    getTransactions: async (token, params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const url = `${BASE_URL}/transactions${query ? `?${query}` : ''}`;
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+    },
+
+    getWithdrawals: async (token) => {
+        const response = await fetch(`${BASE_URL}/withdrawals`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+    },
+
+    requestWithdrawal: async (data, token) => {
+        const response = await fetch(`${BASE_URL}/withdrawals`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+        });
+        return response.json();
+    },
+
     updatePortfolio: async (data, token) => {
         const response = await fetch(`${BASE_URL}/portfolio`, {
             method: 'PUT',

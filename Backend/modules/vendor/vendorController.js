@@ -484,7 +484,26 @@ exports.getDashboardBanners = async (req, res, next) => {
     }
 };
 
-// @desc    Get vendor leads
+// Helper: Mask sensitive customer contact info until permitted stage ('Booked')
+const maskCustomerPhone = (phone) => {
+    if (!phone || typeof phone !== 'string') return '******';
+    const clean = phone.trim();
+    if (clean.length <= 4) return '****';
+    if (clean.length <= 7) return clean.slice(0, 2) + '****' + clean.slice(-2);
+    return clean.slice(0, 3) + '****' + clean.slice(-4);
+};
+
+const sanitizeLeadForVendor = (leadDoc) => {
+    if (!leadDoc) return null;
+    const lead = leadDoc.toObject ? leadDoc.toObject() : { ...leadDoc };
+    const isPermitted = lead.status === 'Booked';
+    if (!isPermitted && lead.phone) {
+        lead.phone = maskCustomerPhone(lead.phone);
+    }
+    return lead;
+};
+
+// @desc    Get vendor leads (with privacy masking for early stage leads)
 // @route   GET /api/vendor/leads
 // @access  Private
 exports.getLeads = async (req, res, next) => {
@@ -493,7 +512,30 @@ exports.getLeads = async (req, res, next) => {
 
         res.status(200).json({
             success: true,
-            data: leads
+            data: leads.map(sanitizeLeadForVendor)
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Get single vendor lead by ID (with privacy masking)
+// @route   GET /api/vendor/leads/:id
+// @access  Private
+exports.getLeadById = async (req, res, next) => {
+    try {
+        const lead = await Lead.findOne({ _id: req.params.id, vendorId: req.vendor.id });
+
+        if (!lead) {
+            return res.status(404).json({
+                success: false,
+                message: 'Lead not found'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: sanitizeLeadForVendor(lead)
         });
     } catch (err) {
         next(err);
@@ -521,7 +563,7 @@ exports.updateLeadStatus = async (req, res, next) => {
 
         res.status(200).json({
             success: true,
-            data: lead
+            data: sanitizeLeadForVendor(lead)
         });
     } catch (err) {
         next(err);
@@ -561,6 +603,12 @@ exports.updateBookingStatus = async (req, res, next) => {
                 success: false,
                 message: 'Booking not found'
             });
+        }
+
+        // Auto-settle earnings to available balance when booking is marked Completed
+        if (status === 'Completed') {
+            const { settleBookingEarnings } = require('../../services/settlement.service');
+            await settleBookingEarnings(booking._id);
         }
 
         res.status(200).json({
@@ -786,46 +834,93 @@ exports.verifySubscriptionPayment = async (req, res, next) => {
     try {
         const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
+        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+            return res.status(400).json({
+                success: false,
+                message: 'Payment verification failed: Missing required payment details'
+            });
+        }
+
+        const vendor = await Vendor.findById(req.vendor.id);
+        if (!vendor) {
+            return res.status(404).json({
+                success: false,
+                message: 'Vendor not found'
+            });
+        }
+
+        // Idempotency: Check if subscription is already active with this payment
+        if (vendor.subscription?.status === 'Active' && vendor.subscription?.paymentId === razorpay_payment_id) {
+            return res.status(200).json({
+                success: true,
+                message: 'Payment already verified',
+                data: vendor
+            });
+        }
+
+        // Tamper check: If vendor has a recorded subscription orderId, ensure it matches
+        if (vendor.subscription?.orderId && vendor.subscription.orderId !== razorpay_order_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'Payment verification failed: Order ID mismatch'
+            });
+        }
+
+        const razorpaySecret = process.env.RAZORPAY_KEY_SECRET;
+        if (!razorpaySecret) {
+            return res.status(500).json({
+                success: false,
+                message: 'Payment gateway configuration error'
+            });
+        }
+
         const sign = razorpay_order_id + "|" + razorpay_payment_id;
         const expectedSign = crypto
-            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+            .createHmac("sha256", razorpaySecret)
             .update(sign.toString())
             .digest("hex");
 
-        if (razorpay_signature === expectedSign || req.body.isMock === true) {
-            // Fetch plan to get duration
-            const plan = await SubscriptionPlan.findOne({ isActive: true });
-            const durationValue = plan?.durationValue || 1;
-            const durationUnit = plan?.durationUnit || 'year';
-
-            const startDate = new Date();
-            const endDate = new Date();
-
-            if (durationUnit === 'year') {
-                endDate.setFullYear(startDate.getFullYear() + durationValue);
-            } else {
-                endDate.setMonth(startDate.getMonth() + durationValue);
-            }
-
-            // Payment success
-            const vendor = await Vendor.findByIdAndUpdate(req.vendor.id, {
-                'subscription.status': 'Active',
-                'subscription.paymentId': razorpay_payment_id,
-                'subscription.startDate': startDate,
-                'subscription.endDate': endDate
-            }, { new: true });
-
-            res.status(200).json({
-                success: true,
-                message: 'Payment verified successfully',
-                data: vendor
-            });
-        } else {
-            res.status(400).json({
+        if (razorpay_signature !== expectedSign) {
+            return res.status(400).json({
                 success: false,
                 message: 'Invalid signature'
             });
         }
+
+        // Fetch plan to get duration
+        let plan = null;
+        if (vendor.subscription?.planId) {
+            plan = await SubscriptionPlan.findById(vendor.subscription.planId);
+        }
+        if (!plan) {
+            plan = await SubscriptionPlan.findOne({ isActive: true });
+        }
+        const durationValue = plan?.durationValue || 1;
+        const durationUnit = plan?.durationUnit || 'year';
+
+        const startDate = new Date();
+        const endDate = new Date();
+
+        if (durationUnit === 'year') {
+            endDate.setFullYear(startDate.getFullYear() + durationValue);
+        } else {
+            endDate.setMonth(startDate.getMonth() + durationValue);
+        }
+
+        // Payment success - activate subscription
+        const updatedVendor = await Vendor.findByIdAndUpdate(req.vendor.id, {
+            'subscription.status': 'Active',
+            'subscription.paymentId': razorpay_payment_id,
+            'subscription.orderId': razorpay_order_id,
+            'subscription.startDate': startDate,
+            'subscription.endDate': endDate
+        }, { new: true });
+
+        res.status(200).json({
+            success: true,
+            message: 'Payment verified successfully',
+            data: updatedVendor
+        });
     } catch (err) {
         next(err);
     }

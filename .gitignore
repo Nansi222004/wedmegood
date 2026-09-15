@@ -1,3 +1,31 @@
 branch_structure.json
 temp_auto_push.bat
 temp_interactive_push.bat
+
+# Environment variables
+.env
+.env.*
+*.env
+
+# Dependencies
+node_modules/
+
+# Test directories and files (do not push to GitHub)
+test/
+test
+tests/
+tests
+Backend/tests/
+Backend/tests
+Backend/test/
+Backend/test
+Backend/scratch/
+scratch/
+*.test.js
+*.spec.js
+check_*.js
+benchmark_*.js
+
+# Markdown documentation files (do not push to GitHub)
+*.md
+**/*.md

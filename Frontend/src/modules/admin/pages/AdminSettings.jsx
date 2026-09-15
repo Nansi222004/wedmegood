@@ -1,75 +1,252 @@
+import { useState, useEffect } from 'react';
 import Icon from '../../../components/ui/Icon';
+import { adminApi } from '../services/adminApi';
 
 const AdminSettings = () => {
+    const [settings, setSettings] = useState({
+        platformCommissionPercent: 10,
+        serviceGstPercent: '',
+        minWithdrawalAmount: '',
+        maintenanceMode: false,
+        autoPayouts: false
+    });
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [statusMsg, setStatusMsg] = useState({ text: '', type: '' });
+
+    const token = localStorage.getItem('adminToken');
+
+    const fetchSettings = async () => {
+        try {
+            setLoading(true);
+            const res = await adminApi.getPlatformSettings(token);
+            if (res.success && res.data) {
+                setSettings({
+                    platformCommissionPercent: res.data.platformCommissionPercent ?? 10,
+                    serviceGstPercent: res.data.serviceGstPercent ?? '',
+                    minWithdrawalAmount: res.data.minWithdrawalAmount ?? '',
+                    maintenanceMode: !!res.data.maintenanceMode,
+                    autoPayouts: !!res.data.autoPayouts
+                });
+            } else {
+                setStatusMsg({ text: res.message || 'Failed to fetch platform settings', type: 'error' });
+            }
+        } catch (err) {
+            console.error('Error fetching settings:', err);
+            setStatusMsg({ text: 'A network error occurred while loading settings', type: 'error' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchSettings();
+    }, []);
+
+    const handleSave = async (e) => {
+        e.preventDefault();
+        setStatusMsg({ text: '', type: '' });
+
+        // Client-side validation
+        const commission = Number(settings.platformCommissionPercent);
+        if (isNaN(commission) || commission < 0 || commission > 100) {
+            setStatusMsg({ text: 'Platform commission must be between 0% and 100%', type: 'error' });
+            return;
+        }
+
+        let gst = null;
+        if (settings.serviceGstPercent !== '' && settings.serviceGstPercent !== null) {
+            gst = Number(settings.serviceGstPercent);
+            if (isNaN(gst) || gst < 0 || gst > 100) {
+                setStatusMsg({ text: 'Service GST rate must be between 0% and 100%', type: 'error' });
+                return;
+            }
+        }
+
+        let minWithdrawal = null;
+        if (settings.minWithdrawalAmount !== '' && settings.minWithdrawalAmount !== null) {
+            minWithdrawal = Number(settings.minWithdrawalAmount);
+            if (isNaN(minWithdrawal) || minWithdrawal < 0) {
+                setStatusMsg({ text: 'Minimum withdrawal cannot be negative', type: 'error' });
+                return;
+            }
+        }
+
+        const payload = {
+            platformCommissionPercent: commission,
+            serviceGstPercent: gst,
+            minWithdrawalAmount: minWithdrawal,
+            maintenanceMode: settings.maintenanceMode,
+            autoPayouts: settings.autoPayouts
+        };
+
+        try {
+            setSaving(true);
+            const res = await adminApi.updatePlatformSettings(payload, token);
+            if (res.success && res.data) {
+                setSettings({
+                    platformCommissionPercent: res.data.platformCommissionPercent ?? 10,
+                    serviceGstPercent: res.data.serviceGstPercent ?? '',
+                    minWithdrawalAmount: res.data.minWithdrawalAmount ?? '',
+                    maintenanceMode: !!res.data.maintenanceMode,
+                    autoPayouts: !!res.data.autoPayouts
+                });
+                setStatusMsg({ text: 'Platform configurations updated and logged successfully!', type: 'success' });
+            } else {
+                setStatusMsg({ text: res.message || 'Failed to update settings', type: 'error' });
+            }
+        } catch (err) {
+            console.error('Error saving settings:', err);
+            setStatusMsg({ text: 'Failed to communicate with server', type: 'error' });
+        } finally {
+            setSaving(false);
+        }
+    };
+
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
-            <div className="flex items-center justify-between">
+        <form onSubmit={handleSave} className="space-y-6 animate-in fade-in duration-500">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-xl font-black text-slate-900 tracking-tight leading-none">Global Configurations</h1>
-                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2">Platform Master Variables</p>
+                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2">Platform Master Variables & Safeguards</p>
                 </div>
-                <button className="h-8 px-4 rounded-lg bg-primary-400 text-white text-[9px] font-black uppercase tracking-widest shadow-md hover:bg-primary-500 transition-all active:scale-95">
-                    Deploy Changes
+                <button 
+                    type="submit"
+                    disabled={saving || loading}
+                    className="h-9 px-6 rounded-xl bg-[#4F35C3] text-white text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-[#3f2aa6] transition-all disabled:opacity-50"
+                >
+                    {saving ? 'Updating...' : 'Deploy Changes'}
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {statusMsg.text && (
+                <div className={`p-4 rounded-2xl text-xs font-bold ${
+                    statusMsg.type === 'error' ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                }`}>
+                    {statusMsg.text}
+                </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Finance Logic */}
-                <div className="bg-white p-5 rounded-2xl border border-slate-200">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center">
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+                    <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
                             <Icon name="money" size="xs" />
                         </div>
-                        <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Finance & Tax</h3>
+                        <div>
+                            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Financial Policy</h3>
+                            <p className="text-[10px] text-slate-400 font-medium">Affects subsequent payments & settlements</p>
+                        </div>
                     </div>
 
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-bold text-slate-500">Platform Commission</span>
-                            <div className="flex items-center gap-2">
-                                <input type="text" defaultValue="15%" className="w-16 h-7 text-right px-2 bg-slate-50 border border-slate-100 rounded text-[11px] font-black text-slate-900 outline-none focus:border-primary-400" />
+                    <div className="space-y-4 pt-2">
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <span className="text-xs font-bold text-slate-700 block">Platform Commission (%)</span>
+                                <span className="text-[10px] text-slate-400">Percentage deducted from gross booking amount</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <input 
+                                    type="number" 
+                                    step="0.1"
+                                    min="0"
+                                    max="100"
+                                    required
+                                    value={settings.platformCommissionPercent}
+                                    onChange={(e) => setSettings({ ...settings, platformCommissionPercent: e.target.value })}
+                                    className="w-24 h-9 text-right px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-900 outline-none focus:border-[#4F35C3]" 
+                                />
+                                <span className="text-xs font-bold text-slate-500">%</span>
                             </div>
                         </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-bold text-slate-500">Service GST Rate</span>
-                            <input type="text" defaultValue="18%" className="w-16 h-7 text-right px-2 bg-slate-50 border border-slate-100 rounded text-[11px] font-black text-slate-900 outline-none" />
+
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <span className="text-xs font-bold text-slate-700 block">Service GST Rate (%)</span>
+                                <span className="text-[10px] text-slate-400">Nullable / tax configuration if applicable</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <input 
+                                    type="number" 
+                                    step="0.1"
+                                    min="0"
+                                    max="100"
+                                    placeholder="Unset"
+                                    value={settings.serviceGstPercent}
+                                    onChange={(e) => setSettings({ ...settings, serviceGstPercent: e.target.value })}
+                                    className="w-24 h-9 text-right px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-900 outline-none focus:border-[#4F35C3]" 
+                                />
+                                <span className="text-xs font-bold text-slate-500">%</span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <span className="text-xs font-bold text-slate-700 block">Min Withdrawal Threshold (₹)</span>
+                                <span className="text-[10px] text-slate-400">Configurable floor for vendor payouts</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <span className="text-xs font-bold text-slate-500">₹</span>
+                                <input 
+                                    type="number" 
+                                    min="0"
+                                    placeholder="Unset"
+                                    value={settings.minWithdrawalAmount}
+                                    onChange={(e) => setSettings({ ...settings, minWithdrawalAmount: e.target.value })}
+                                    className="w-24 h-9 text-right px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-900 outline-none focus:border-[#4F35C3]" 
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Operational Flow */}
-                <div className="bg-white p-5 rounded-2xl border border-slate-200">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="h-8 w-8 rounded-lg bg-primary-50 text-primary-400 flex items-center justify-center">
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+                    <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-xl bg-purple-50 text-[#4F35C3] flex items-center justify-center">
                             <Icon name="chart" size="xs" />
                         </div>
-                        <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Platform Status</h3>
+                        <div>
+                            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Operational Switches</h3>
+                            <p className="text-[10px] text-slate-400 font-medium">Platform availability and automation gates</p>
+                        </div>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="space-y-6 pt-2">
                         <div className="flex items-center justify-between">
                             <div className="flex flex-col">
-                                <span className="text-[11px] font-bold text-slate-900 leading-none">Maintenance Mode</span>
-                                <span className="text-[9px] text-slate-400 mt-1 uppercase font-bold">Redirect all traffic</span>
+                                <span className="text-xs font-bold text-slate-900 leading-tight">Maintenance Mode</span>
+                                <span className="text-[10px] text-slate-400 mt-0.5">Flag platform maintenance state</span>
                             </div>
-                            <div className="w-10 h-5 bg-slate-100 rounded-full relative cursor-pointer group">
-                                <div className="absolute left-1 top-1 w-3 h-3 bg-white rounded-full shadow-sm shadow-slate-300 group-hover:bg-slate-200 transition-all" />
-                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSettings({ ...settings, maintenanceMode: !settings.maintenanceMode })}
+                                className={`w-12 h-6 rounded-full transition-colors relative ${settings.maintenanceMode ? 'bg-amber-500' : 'bg-slate-200'}`}
+                            >
+                                <div className={`w-4 h-4 rounded-full bg-white transition-transform absolute top-1 ${settings.maintenanceMode ? 'right-1' : 'left-1'}`} />
+                            </button>
                         </div>
+
                         <div className="flex items-center justify-between">
                             <div className="flex flex-col">
-                                <span className="text-[11px] font-bold text-slate-900 leading-none">Automatic Payouts</span>
-                                <span className="text-[9px] text-slate-400 mt-1 uppercase font-bold">Settlement frequency: 24h</span>
+                                <span className="text-xs font-bold text-slate-900 leading-tight">Automatic Payouts</span>
+                                <span className="text-[10px] text-slate-400 mt-0.5">Toggle automated withdrawal batching</span>
                             </div>
-                            <div className="w-10 h-5 bg-primary-400 rounded-full relative cursor-pointer">
-                                <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full" />
-                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSettings({ ...settings, autoPayouts: !settings.autoPayouts })}
+                                className={`w-12 h-6 rounded-full transition-colors relative ${settings.autoPayouts ? 'bg-[#4F35C3]' : 'bg-slate-200'}`}
+                            >
+                                <div className={`w-4 h-4 rounded-full bg-white transition-transform absolute top-1 ${settings.autoPayouts ? 'right-1' : 'left-1'}`} />
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </form>
     );
 };
 
 export default AdminSettings;
+

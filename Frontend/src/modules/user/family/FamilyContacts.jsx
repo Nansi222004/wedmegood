@@ -4,14 +4,47 @@ import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
-import { familyContacts } from '../../../data/contacts';
+import userApi from '../../../services/userApi';
 
 const FamilyContacts = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
+  const [contacts, setContacts] = useState([]);
   const [selectedContacts, setSelectedContacts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch real wedding guests to use as contacts
+  useEffect(() => {
+    const fetchGuests = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const res = await userApi.getGuests();
+        if (res.success && Array.isArray(res.data)) {
+          const mapped = res.data.map(g => ({
+            id: g._id,
+            name: g.name || 'Guest',
+            phone: g.phone || '',
+            email: g.email || '',
+            relation: g.side === 'bride' ? 'Bride Side' : (g.side === 'groom' ? 'Groom Side' : (g.category || 'Family')),
+            avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face'
+          }));
+          setContacts(mapped);
+        } else {
+          setContacts([]);
+        }
+      } catch (err) {
+        console.error('Failed to load wedding guests as contacts:', err);
+        setError('Could not load guest contacts.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchGuests();
+  }, []);
 
   // Detect keyboard open/close on mobile
   useEffect(() => {
@@ -33,7 +66,7 @@ const FamilyContacts = () => {
   }, []);
 
   // Filter contacts based on search query
-  const filteredContacts = familyContacts.filter(contact =>
+  const filteredContacts = contacts.filter(contact =>
     contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     contact.relation.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -57,14 +90,13 @@ const FamilyContacts = () => {
   };
 
   const handleCreateGroup = () => {
-    if (selectedContacts.length < 2) {
-      alert('Please select at least 2 contacts to create a group');
-      return;
-    }
-    
-    // Navigate to group creation page with selected contacts
+    const selectedContactsData = contacts.filter(c => selectedContacts.includes(c.id));
+    // Navigate to group creation page with selected contacts data
     navigate('/user/family/create-group', { 
-      state: { selectedContacts: selectedContacts }
+      state: { 
+        selectedContacts: selectedContacts,
+        selectedContactsData: selectedContactsData 
+      }
     });
   };
 

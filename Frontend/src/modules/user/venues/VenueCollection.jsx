@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import { useToast } from '../../../components/ui/Toast';
@@ -6,7 +6,7 @@ import Button from '../../../components/ui/Button';
 import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import VendorCard from '../vendors/VendorCardFixed';
-import { vendors } from '../../../data/vendors';
+import userApi from '../../../services/userApi';
 
 const VenueCollection = () => {
   const { theme } = useTheme();
@@ -14,6 +14,9 @@ const VenueCollection = () => {
   const { collection } = useParams();
   const { showToast, ToastComponent } = useToast();
   
+  const [allVenues, setAllVenues] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [sortBy, setSortBy] = useState('rating');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -23,6 +26,33 @@ const VenueCollection = () => {
     capacity: 'all'
   });
 
+  useEffect(() => {
+    const fetchLiveVenues = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const res = await userApi.getVendors({ category: 'venues', limit: 100 });
+        if (res.success && Array.isArray(res.data)) {
+          setAllVenues(res.data);
+        } else {
+          setAllVenues([]);
+        }
+      } catch (err) {
+        console.error('Failed to load venues:', err);
+        setError('Unable to load live venues. Please check your connection.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchLiveVenues();
+  }, [collection]);
+
+  const getVenuePrice = (venue) => {
+    if (typeof venue.startingPrice === 'number') return venue.startingPrice;
+    const raw = venue.price || venue.priceRange || venue.pricing?.range || '0';
+    return parseInt(String(raw).replace(/[^\d]/g, '') || '0', 10);
+  };
+
   // Collection definitions
   const collectionInfo = {
     'luxury': {
@@ -30,10 +60,7 @@ const VenueCollection = () => {
       description: 'Premium venues with world-class amenities and services',
       icon: 'crown',
       color: theme.colors.accent[500],
-      filter: (venue) => {
-        const price = parseInt((venue.price || '0').replace(/[^\d]/g, ''));
-        return price >= 100000;
-      }
+      filter: (venue) => getVenuePrice(venue) >= 100000
     },
     'budget': {
       title: 'Budget Wedding Venues',
@@ -41,8 +68,8 @@ const VenueCollection = () => {
       icon: 'money',
       color: theme.colors.primary[500],
       filter: (venue) => {
-        const price = parseInt((venue.price || '0').replace(/[^\d]/g, ''));
-        return price < 50000;
+        const p = getVenuePrice(venue);
+        return p > 0 && p < 50000;
       }
     },
     'beach': {
@@ -51,40 +78,39 @@ const VenueCollection = () => {
       icon: 'location',
       color: theme.colors.secondary[500],
       filter: (venue) => {
-        return venue.services?.some(s => 
-          s.toLowerCase().includes('beach') || 
-          s.toLowerCase().includes('destination') ||
-          s.toLowerCase().includes('outdoor')
-        ) || venue.description?.toLowerCase().includes('beach');
+        const services = Array.isArray(venue.services) 
+          ? venue.services.map(s => typeof s === 'string' ? s.toLowerCase() : (s.name || '').toLowerCase())
+          : [];
+        const text = `${venue.businessName || venue.name || ''} ${venue.description || venue.businessDetails?.description || ''}`.toLowerCase();
+        return services.some(s => s.includes('beach') || s.includes('destination') || s.includes('lawn') || s.includes('outdoor')) ||
+          text.includes('beach') || text.includes('destination') || text.includes('lawn') || text.includes('resort');
       }
     }
   };
 
   const currentCollection = collectionInfo[collection] || collectionInfo['luxury'];
 
-  // Get all venues
-  const allVenues = vendors.filter(vendor => vendor.category === 'venues');
-
   // Filter by collection type
   const collectionVenues = allVenues.filter(currentCollection.filter);
 
   const filteredVenues = collectionVenues.filter(venue => {
+    const venueName = (venue.businessName || venue.name || '').toLowerCase();
+    const venueLoc = (venue.city || venue.location || '').toLowerCase();
+    const services = Array.isArray(venue.services)
+      ? venue.services.map(s => (typeof s === 'string' ? s : s.name || '').toLowerCase())
+      : [];
+
     // Search filter
     const matchesSearch = searchQuery === '' || 
-      venue.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      venue.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      venue.services?.some(service => 
-        service.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      venueName.includes(searchQuery.toLowerCase()) ||
+      venueLoc.includes(searchQuery.toLowerCase()) ||
+      services.some(service => service.includes(searchQuery.toLowerCase()));
     
     // Price range filter
     const matchesPriceRange = filters.priceRange === 'all' || (() => {
-      const price = venue.price || venue.priceRange;
-      if (!price) return true;
-      
-      const priceNum = parseInt(price.replace(/[^\d]/g, ''));
+      const priceNum = getVenuePrice(venue);
       switch (filters.priceRange) {
-        case 'budget': return priceNum < 50000;
+        case 'budget': return priceNum > 0 && priceNum < 50000;
         case 'mid': return priceNum >= 50000 && priceNum < 100000;
         case 'premium': return priceNum >= 100000;
         default: return true;
@@ -108,19 +134,15 @@ const VenueCollection = () => {
   const sortedVenues = [...filteredVenues].sort((a, b) => {
     switch (sortBy) {
       case 'rating':
-        return b.rating - a.rating;
+        return (b.rating || 0) - (a.rating || 0);
       case 'reviews':
-        return b.reviews - a.reviews;
+        return (b.reviewCount ?? b.reviews ?? 0) - (a.reviewCount ?? a.reviews ?? 0);
       case 'name':
-        return a.name.localeCompare(b.name);
+        return (a.businessName || a.name || '').localeCompare(b.businessName || b.name || '');
       case 'price-low':
-        const priceA = parseInt((a.price || a.priceRange || '0').replace(/[^\d]/g, ''));
-        const priceB = parseInt((b.price || b.priceRange || '0').replace(/[^\d]/g, ''));
-        return priceA - priceB;
+        return getVenuePrice(a) - getVenuePrice(b);
       case 'price-high':
-        const priceA2 = parseInt((a.price || a.priceRange || '0').replace(/[^\d]/g, ''));
-        const priceB2 = parseInt((b.price || b.priceRange || '0').replace(/[^\d]/g, ''));
-        return priceB2 - priceA2;
+        return getVenuePrice(b) - getVenuePrice(a);
       default:
         return 0;
     }
@@ -421,17 +443,36 @@ const VenueCollection = () => {
           )}
         </div>
 
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin mb-3" style={{ borderColor: theme.colors.primary[500], borderTopColor: 'transparent' }} />
+            <p className="text-sm font-medium" style={{ color: theme.semantic.text.secondary }}>Loading venues from marketplace...</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {!isLoading && error && (
+          <div className="text-center py-12 px-4 rounded-xl mb-8" style={{ backgroundColor: theme.semantic.card.background, border: `1px solid ${theme.semantic.border.light}` }}>
+            <Icon name="alert-circle" size="xl" className="mx-auto mb-2 text-red-500" />
+            <p className="text-sm font-medium mb-4" style={{ color: theme.semantic.text.primary }}>{error}</p>
+            <Button onClick={() => window.location.reload()} variant="primary" className="px-4 py-2 text-xs">Retry</Button>
+          </div>
+        )}
+
         {/* Venues Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 pb-24">
-          {sortedVenues.map((venue) => (
-            <div key={venue.id} className="venue-card">
-              <VendorCard vendor={venue} layout="responsive" />
-            </div>
-          ))}
-        </div>
+        {!isLoading && !error && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 pb-24">
+            {sortedVenues.map((venue) => (
+              <div key={venue._id || venue.id} className="venue-card">
+                <VendorCard vendor={venue} layout="responsive" />
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Empty State */}
-        {sortedVenues.length === 0 && (
+        {!isLoading && !error && sortedVenues.length === 0 && (
           <div 
             className="text-center py-12 sm:py-16 mb-24 rounded-lg mx-auto max-w-md"
             style={{

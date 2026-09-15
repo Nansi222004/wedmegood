@@ -125,6 +125,10 @@ router.get('/activity', userController.getUserActivity);
 router.get('/preferences', userController.getPreferences);
 router.put('/preferences', userController.updatePreferences);
 
+// Wedding details (Phase 2 persistence)
+router.get('/wedding', userController.getWeddingDetails);
+router.put('/wedding', userController.updateWeddingDetails);
+
 // Wedding progress tracking
 router.get('/wedding-progress', userController.getWeddingProgress);
 router.put('/wedding-progress', userController.updateWeddingProgress);
