@@ -4,63 +4,108 @@ import Button from '../../../components/ui/Button';
 import Icon from '../../../components/ui/Icon';
 import { useTheme } from '../../../hooks/useTheme';
 import { useCart } from '../../../contexts/CartContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import userApi from '../../../services/userApi';
 
 const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
   const { theme } = useTheme();
   const { addToCart, isInCart } = useCart();
+  const { user } = useAuth();
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const navigate = useNavigate();
 
-  // Check if vendor is saved
+  // Normalize MongoDB vendor properties
+  const id = vendor?._id || vendor?.id;
+  const name = vendor?.businessName || vendor?.name || 'Wedding Vendor';
+  const location = vendor?.city || vendor?.location || 'Indore';
+  const image = vendor?.profileImage || vendor?.portfolio?.[0]?.url || vendor?.image || 'https://images.unsplash.com/photo-1519741497674-611481863552?w=800&h=600&fit=crop&q=80';
+  const price = vendor?.pricing?.range
+    ? (vendor.pricing.range.startsWith('₹') ? vendor.pricing.range : `₹${vendor.pricing.range}`)
+    : (vendor?.startingPrice ? `₹${vendor.startingPrice.toLocaleString()}` : 'Price on request');
+  const rating = typeof vendor?.rating === 'number' && vendor.rating > 0 ? vendor.rating : 0;
+  const reviews = vendor?.reviewCount ?? vendor?.reviews ?? 0;
+  const phone = vendor?.phone || '';
+  const services = Array.isArray(vendor?.services) && vendor.services.length > 0
+    ? vendor.services.map(s => typeof s === 'string' ? s : (s.name || s.category || 'Service'))
+    : (vendor?.selectedCategories?.map(c => c.categoryName) || ['Wedding Services']);
+  const verified = vendor?.isVerified || vendor?.verified || false;
+  const description = vendor?.businessDetails?.description || vendor?.description || '';
+
+  // Check if vendor is saved in MongoDB
   useEffect(() => {
-    const savedVendors = JSON.parse(localStorage.getItem('savedVendors') || '[]');
-    setIsSaved(savedVendors.includes(vendor.id));
-  }, [vendor.id]);
+    if (!id || !user) {
+      setIsSaved(false);
+      return;
+    }
+    userApi.checkFavorite(id)
+      .then(res => {
+        if (res.success) {
+          setIsSaved(Boolean(res.isFavorite));
+        }
+      })
+      .catch(() => {});
+  }, [id, user]);
 
   // Toggle save vendor
-  const toggleSave = () => {
-    const savedVendors = JSON.parse(localStorage.getItem('savedVendors') || '[]');
-    let updatedSavedVendors;
-    
-    if (isSaved) {
-      updatedSavedVendors = savedVendors.filter(id => id !== vendor.id);
-    } else {
-      updatedSavedVendors = [...savedVendors, vendor.id];
+  const toggleSave = async () => {
+    if (!id) return;
+
+    // Guard: Prevent unauthenticated users from creating favorites
+    if (!user) {
+      if (onToggleSave) {
+        onToggleSave(id, isSaved);
+      } else {
+        navigate('/login', { state: { from: window.location.pathname } });
+      }
+      return;
     }
-    
-    setIsSaved(!isSaved);
-    localStorage.setItem('savedVendors', JSON.stringify(updatedSavedVendors));
-    
-    // Notify parent component
-    if (onToggleSave) {
-      onToggleSave(vendor.id);
+
+    const prevSaved = isSaved;
+    try {
+      if (onToggleSave) {
+        const nextState = await onToggleSave(id, isSaved);
+        if (typeof nextState === 'boolean') {
+          setIsSaved(nextState);
+        } else {
+          setIsSaved(!prevSaved);
+        }
+      } else {
+        if (prevSaved) {
+          setIsSaved(false);
+          await userApi.removeFavorite(id);
+        } else {
+          setIsSaved(true);
+          await userApi.addFavorite(id);
+        }
+      }
+    } catch (err) {
+      setIsSaved(prevSaved);
+      console.error('Error toggling favorite:', err);
     }
   };
 
   const handleWhatsAppContact = () => {
-    const phoneNumber = vendor.phone || '919876543210';
-    const message = `Hi! I'm interested in your ${vendor.services.join(', ')} services for my wedding. Can you please share more details?`;
-    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    const phoneNumber = phone;
+    const message = `Hi! I'm interested in your ${services.join(', ')} services for my wedding. Can you please share more details?`;
+    const whatsappUrl = `https://wa.me/${phoneNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
   };
 
   const handleViewDetails = () => {
-    navigate(`/user/vendor/${vendor.id}`);
+    navigate(`/user/vendor/${id}`);
   };
 
   const handleAddToCart = async () => {
-    if (isInCart(vendor.id)) {
+    if (isInCart(id)) {
       return; // Already in cart
     }
 
     setIsAddingToCart(true);
     
-    // Normalize category for consistent grouping
-    let category = vendor.category || vendor.services?.[0] || 'Wedding Service';
+    let category = vendor?.category || services[0] || 'Wedding Service';
     
-    // Map vendor categories to standard cart categories
     const categoryMappings = {
       'venues': 'venues',
       'photographers': 'photographers', 
@@ -77,25 +122,21 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
     
     category = categoryMappings[category] || category;
     
-    // Create cart item from vendor data
     const cartItem = {
-      id: vendor.id,
-      name: vendor.name,
+      id: id,
+      name: name,
       category: category,
-      price: vendor.price,
-      image: vendor.image,
-      rating: vendor.rating,
-      location: vendor.location,
-      whatsappNumber: vendor.phone || '+919876543210'
+      price: price,
+      image: image,
+      rating: rating,
+      location: location,
+      whatsappNumber: phone
     };
     
-    console.log('Adding to cart:', cartItem);
-    
-    // Add small delay for visual feedback
     setTimeout(() => {
       addToCart(cartItem);
       setIsAddingToCart(false);
-    }, 500);
+    }, 300);
   };
 
   if (layout === 'responsive') {
@@ -112,8 +153,8 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
           <div className="relative group">
             <div className="w-full aspect-video overflow-hidden">
               <img
-                src={vendor.image}
-                alt={vendor.name}
+                src={image}
+                alt={name}
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                 loading="lazy"
                 onError={(e) => {
@@ -132,29 +173,34 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
                 e.stopPropagation();
                 toggleSave();
               }}
-              className="absolute top-3 right-3 w-8 h-8 rounded-lg bg-white/80 backdrop-blur-xl flex items-center justify-center text-[#3D2B2B] shadow-sm active:scale-90 transition-all z-10"
+              className="absolute top-3 right-3 w-8 h-8 rounded-lg bg-white/80 backdrop-blur-xl flex items-center justify-center text-[#3D2B2B] shadow-sm active:scale-90 transition-all z-10 hover:bg-white"
+              aria-label={isSaved ? 'Remove from favorites' : 'Save to favorites'}
             >
-              <Icon name={isSaved ? 'checkList' : 'menu'} size="xs" className={isSaved ? 'opacity-100' : 'opacity-40'} />
+              <Icon 
+                name="heart" 
+                size="xs" 
+                className={`transition-colors ${isSaved ? 'text-rose-600 fill-rose-600' : 'text-[#3D2B2B]/60'}`} 
+              />
             </button>
           </div>
             
           <div className="p-4 space-y-3">
             <div>
                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[9px] font-bold text-[#3D2B2B]/40 uppercase tracking-widest">{vendor.location}</span>
+                  <span className="text-[9px] font-bold text-[#3D2B2B]/40 uppercase tracking-widest">{location}</span>
                   <div className="flex items-center gap-1">
-                      <span className="text-[#E91E63] text-xs font-black">★ {vendor.rating}</span>
-                      <span className="text-[#3D2B2B]/30 text-[9px] font-bold">({vendor.reviews})</span>
+                      <span className="text-[#E91E63] text-xs font-black">★ {rating}</span>
+                      <span className="text-[#3D2B2B]/30 text-[9px] font-bold">({reviews})</span>
                   </div>
                </div>
                <h3 className="text-[#3D2B2B] text-lg font-bold leading-tight line-clamp-1 mb-1" style={{ fontFamily: '"Playfair Display", serif' }}>
-                 {vendor.name}
+                 {name}
                </h3>
             </div>
 
             <div className="pt-1.5 border-t border-gray-50 flex items-center justify-between">
                <div className="flex items-baseline gap-1">
-                  <span className="text-lg font-black text-[#3D2B2B]">{vendor.price}</span>
+                  <span className="text-lg font-black text-[#3D2B2B]">{price}</span>
                   <span className="text-[9px] font-bold text-[#3D2B2B]/20">/ day avg.</span>
                </div>
                <span className="text-[8px] font-black text-[#3D2B2B]/30 uppercase tracking-widest">Est. Quote</span>
@@ -166,9 +212,9 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
                     e.stopPropagation();
                     handleAddToCart();
                   }}
-                  disabled={isAddingToCart || isInCart(vendor.id)}
+                  disabled={isAddingToCart || isInCart(id)}
                   className={`flex-1 py-2.5 px-4 rounded-full border-2 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95 ${
-                    isInCart(vendor.id) 
+                    isInCart(id) 
                       ? 'bg-[#E91E63] text-white border-[#E91E63]' 
                       : 'border-[#E91E63] text-[#E91E63] hover:bg-[#E91E63]/5'
                   }`}
@@ -177,15 +223,15 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
                      <div className="w-3 h-3 border-2 border-current border-t-transparent animate-spin rounded-full" />
                   ) : (
                     <>
-                      <Icon name={isInCart(vendor.id) ? 'checkCircle' : 'heart'} size="xs" />
-                      {isInCart(vendor.id) ? 'Shortlisted' : 'Shortlist'}
+                      <Icon name={isInCart(id) ? 'checkCircle' : 'heart'} size="xs" />
+                      {isInCart(id) ? 'Shortlisted' : 'Shortlist'}
                     </>
                   )}
                 </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    window.location.href = `tel:${vendor.phone || '9876543210'}`;
+                    window.location.href = `tel:${phone || '9876543210'}`;
                   }}
                   className="w-10 h-10 rounded-full bg-[#10B981] flex items-center justify-center text-white shadow-lg active:scale-90 transition-all border-none"
                 >
@@ -215,8 +261,8 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
           <div className="block md:hidden">
             <div className="w-full h-48 rounded-xl overflow-hidden mb-4">
               <img
-                src={vendor.image}
-                alt={vendor.name}
+                src={image}
+                alt={name}
                 className="w-full h-full object-cover"
                 loading="lazy"
                 onError={(e) => {
@@ -231,8 +277,8 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
                   className="font-bold text-lg flex items-center gap-2 mb-1"
                   style={{ color: theme.semantic.text.primary }}
                 >
-                  {vendor.name}
-                  {vendor.verified && (
+                  {name}
+                  {verified && (
                     <Icon name="verified" size="sm" color="accent" />
                   )}
                 </h3>
@@ -240,14 +286,14 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
                   className="text-sm mb-2"
                   style={{ color: theme.semantic.text.secondary }}
                 >
-                  {vendor.description}
+                  {description}
                 </p>
                 <p 
                   className="text-sm flex items-center mb-2"
                   style={{ color: theme.semantic.text.secondary }}
                 >
                   <Icon name="location" size="xs" className="mr-1" />
-                  {vendor.location}
+                  {location}
                 </p>
               </div>
 
@@ -262,14 +308,14 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
                       className="font-medium text-sm"
                       style={{ color: theme.semantic.text.primary }}
                     >
-                      {vendor.rating}
+                      {rating}
                     </span>
                   </div>
                   <span 
                     className="text-sm"
                     style={{ color: theme.semantic.text.secondary }}
                   >
-                    {vendor.reviews} reviews
+                    {reviews} reviews
                   </span>
                 </div>
                 
@@ -277,7 +323,7 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
                   className="font-bold text-base"
                   style={{ color: theme.colors.primary[600] }}
                 >
-                  {vendor.price}
+                  {price}
                 </div>
               </div>
 
@@ -289,14 +335,14 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
                   }}
                   disabled={isAddingToCart}
                   className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center ${
-                    isInCart(vendor.id) 
+                    isInCart(id) 
                       ? 'opacity-60' 
                       : isAddingToCart 
                         ? 'opacity-80' 
                         : 'hover:scale-105'
                   }`}
                   style={{
-                    backgroundColor: isInCart(vendor.id) 
+                    backgroundColor: isInCart(id) 
                       ? theme.colors.accent[500] 
                       : theme.colors.primary[500],
                     color: 'white'
@@ -304,7 +350,7 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
                 >
                   {isAddingToCart ? (
                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                  ) : isInCart(vendor.id) ? (
+                  ) : isInCart(id) ? (
                     <>
                       <Icon name="heart" size="xs" className="mr-1" />
                       Shortlisted
@@ -340,8 +386,8 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
           <div className="hidden md:flex md:gap-4">
             <div className="w-32 h-24 rounded-xl overflow-hidden flex-shrink-0">
               <img
-                src={vendor.image}
-                alt={vendor.name}
+                src={image}
+                alt={name}
                 className="w-full h-full object-cover"
                 loading="lazy"
                 onError={(e) => {
@@ -357,8 +403,8 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
                     className="font-bold text-base flex items-center gap-2 truncate mb-1"
                     style={{ color: theme.semantic.text.primary }}
                   >
-                    {vendor.name}
-                    {vendor.verified && (
+                    {name}
+                    {verified && (
                       <Icon name="verified" size="xs" color="accent" />
                     )}
                   </h3>
@@ -366,14 +412,14 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
                     className="text-sm mb-1"
                     style={{ color: theme.semantic.text.secondary }}
                   >
-                    {vendor.description}
+                    {description}
                   </p>
                   <p 
                     className="text-sm flex items-center"
                     style={{ color: theme.semantic.text.secondary }}
                   >
                     <Icon name="location" size="xs" className="mr-1" />
-                    {vendor.location}
+                    {location}
                   </p>
                 </div>
               </div>
@@ -389,21 +435,21 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
                       className="font-medium text-xs"
                       style={{ color: theme.semantic.text.primary }}
                     >
-                      {vendor.rating}
+                      {rating}
                     </span>
                   </div>
                   <span 
                     className="text-xs"
                     style={{ color: theme.semantic.text.secondary }}
                   >
-                    ({vendor.reviews})
+                    ({reviews})
                   </span>
                   
                   <div 
                     className="font-bold text-sm ml-2"
                     style={{ color: theme.colors.primary[600] }}
                   >
-                    {vendor.price}
+                    {price}
                   </div>
                 </div>
                 
@@ -448,8 +494,8 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
         style={{ background: theme.semantic.background.gradient.card }}
       >
         <img
-          src={vendor.image}
-          alt={vendor.name}
+          src={image}
+          alt={name}
           className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
           loading="lazy"
           onError={(e) => {
@@ -465,8 +511,8 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
               className="font-semibold text-lg flex items-center gap-2"
               style={{ color: theme.semantic.text.primary }}
             >
-              {vendor.name}
-              {vendor.verified && (
+              {name}
+              {verified && (
                 <Icon 
                   name="verified" 
                   size="sm" 
@@ -478,7 +524,7 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
               className="text-sm"
               style={{ color: theme.semantic.text.secondary }}
             >
-              {vendor.location}
+              {location}
             </p>
           </div>
         </div>
@@ -493,7 +539,7 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
               className="font-medium ml-1 text-sm"
               style={{ color: theme.semantic.text.primary }}
             >
-              {vendor.rating}
+              {rating}
             </span>
           </div>
           <span style={{ color: theme.semantic.text.tertiary }}>•</span>
@@ -501,7 +547,7 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
             className="text-sm"
             style={{ color: theme.semantic.text.secondary }}
           >
-            {vendor.reviews} reviews
+            {reviews} reviews
           </span>
         </div>
 
@@ -509,11 +555,11 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
           className="font-semibold text-lg"
           style={{ color: theme.colors.primary[600] }}
         >
-          {vendor.price}
+          {price}
         </div>
 
         <div className="flex flex-wrap gap-1">
-          {vendor.services.map((service) => (
+          {services.map((service) => (
             <span
               key={service}
               className="px-2 py-1 text-xs rounded-full font-medium"

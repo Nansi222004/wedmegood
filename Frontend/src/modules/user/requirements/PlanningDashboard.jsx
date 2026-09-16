@@ -4,6 +4,7 @@ import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
 import { useState, useEffect } from 'react';
 import { useLenisContext } from '../../../providers/LenisProvider';
+import { userApi } from '../../../services/userApi';
 
 const PlanningDashboard = () => {
   const navigate = useNavigate();
@@ -28,81 +29,85 @@ const PlanningDashboard = () => {
     };
   }, [selectedCeremony, lenis]);
 
-  // Load event data from localStorage
+  // Load event data from Backend (with localStorage fallback)
   useEffect(() => {
-    const saved = localStorage.getItem('eventDetails');
-    if (saved && saved !== 'null' && saved !== 'undefined') {
+    let isMounted = true;
+    const loadData = async () => {
       try {
-        const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
-          setEventData(parsed);
-        } else {
-          navigate('/user/requirements', { replace: true });
+        const res = await userApi.getWeddingDetails();
+        if (isMounted && res.success && res.data?.weddingDetails && res.data.weddingDetails.category) {
+          const wd = res.data.weddingDetails;
+          const normalized = {
+            category: wd.category,
+            subcategories: wd.subcategories || [],
+            subcategoryLabels: wd.subcategoryLabels || [],
+            details: {
+              brideName: wd.brideName || '',
+              groomName: wd.groomName || '',
+              weddingDate: wd.weddingDate || '',
+              venue: wd.venue || '',
+              budget: wd.budget || 0,
+              guestCount: wd.guestCount || 0
+            }
+          };
+          setEventData(normalized);
+          return;
         }
-      } catch (e) {
-        localStorage.removeItem('eventDetails');
+      } catch (err) {
+        console.warn('Could not fetch wedding details from backend, checking local cache:', err.message);
+      }
+
+      const saved = localStorage.getItem('eventDetails');
+      if (saved && saved !== 'null' && saved !== 'undefined') {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+            if (isMounted) setEventData(parsed);
+            return;
+          }
+        } catch (e) {
+          localStorage.removeItem('eventDetails');
+        }
+      }
+
+      if (isMounted) {
         navigate('/user/requirements', { replace: true });
       }
-    } else {
-      navigate('/user/requirements', { replace: true });
-    }
+    };
 
-    const savedPlanningCategories = localStorage.getItem('planningCategories');
-    if (savedPlanningCategories) {
-      setPlanningCategories(JSON.parse(savedPlanningCategories));
-    } else {
-      // Default data if nothing in localStorage (for initial load)
-      setPlanningCategories([
-        {
-          name: 'Venue',
-          status: 'Confirmed',
-          advancePaid: '₹25,000',
-          balanceAmount: '₹75,000',
-          totalBudget: '₹1,00,000',
-          id: 'venue'
-        },
-        {
-          name: 'Catering',
-          status: 'Pending with Discussion',
-          advancePaid: null,
-          balanceAmount: null,
-          totalBudget: '₹50,000',
-          id: 'catering'
-        },
-        {
-          name: 'Photography',
-          status: 'Pending with Budget',
-          advancePaid: null,
-          balanceAmount: null,
-          totalBudget: '₹30,000',
-          id: 'photography'
-        },
-        {
-          name: 'Decoration',
-          status: 'Confirmed',
-          advancePaid: '₹10,000',
-          balanceAmount: '₹40,000',
-          totalBudget: '₹50,000',
-          id: 'decoration'
-        },
-        {
-          name: 'Invitations',
-          status: 'Pending with Discussion',
-          advancePaid: null,
-          balanceAmount: null,
-          totalBudget: '₹15,000',
-          id: 'invitations'
-        },
-        {
-          name: 'Entertainment',
-          status: 'Pending with Budget',
-          advancePaid: null,
-          balanceAmount: null,
-          totalBudget: '₹20,000',
-          id: 'entertainment'
+    loadData();
+    return () => { isMounted = false; };
+  }, [navigate]);
+
+  useEffect(() => {
+    let isMounted = true;
+    userApi.getBudget()
+      .then(res => {
+        if (isMounted && res.success && res.data?.categories && res.data.categories.length > 0) {
+          const mapped = res.data.categories.map(c => ({
+            id: c.name.toLowerCase().replace(/\s+/g, '-'),
+            name: c.name,
+            status: (c.spent > 0 || c.advancePaid > 0) ? 'Confirmed' : 'Pending with Budget',
+            advancePaid: c.advancePaid ? `₹${c.advancePaid.toLocaleString()}` : null,
+            balanceAmount: c.balanceAmount ? `₹${c.balanceAmount.toLocaleString()}` : null,
+            totalBudget: c.allocated ? `₹${c.allocated.toLocaleString()}` : '₹0'
+          }));
+          setPlanningCategories(mapped);
+        } else if (isMounted) {
+          setPlanningCategories([
+            { name: 'Venue', status: 'Pending with Discussion', advancePaid: null, balanceAmount: null, totalBudget: '₹1,00,000', id: 'venue' },
+            { name: 'Catering', status: 'Pending with Discussion', advancePaid: null, balanceAmount: null, totalBudget: '₹50,000', id: 'catering' },
+            { name: 'Photography', status: 'Pending with Budget', advancePaid: null, balanceAmount: null, totalBudget: '₹30,000', id: 'photography' },
+            { name: 'Decoration', status: 'Pending with Budget', advancePaid: null, balanceAmount: null, totalBudget: '₹50,000', id: 'decoration' },
+            { name: 'Invitations', status: 'Pending with Discussion', advancePaid: null, balanceAmount: null, totalBudget: '₹15,000', id: 'invitations' },
+            { name: 'Entertainment', status: 'Pending with Budget', advancePaid: null, balanceAmount: null, totalBudget: '₹20,000', id: 'entertainment' }
+          ]);
         }
-      ]);
-    }
+      })
+      .catch(err => {
+        console.warn('Could not load budget categories from backend:', err.message);
+      });
+    return () => { isMounted = false; };
   }, []);
 
   // Update category status
@@ -113,56 +118,42 @@ const PlanningDashboard = () => {
         : category
     );
     setPlanningCategories(updatedCategories);
-    localStorage.setItem('planningCategories', JSON.stringify(updatedCategories));
   };
 
   // Update category financial details
-  const updateCategoryFinancials = (categoryId, advancePaid, balanceAmount) => {
+  const updateCategoryFinancials = async (categoryId, advancePaid, balanceAmount) => {
     const updatedCategories = planningCategories.map(category =>
       category.id === categoryId
         ? {
           ...category,
           advancePaid,
           balanceAmount,
-          status: 'Confirmed' // Auto-update status when financials are added
+          status: 'Confirmed'
         }
         : category
     );
     setPlanningCategories(updatedCategories);
-    localStorage.setItem('planningCategories', JSON.stringify(updatedCategories));
 
-    // Also update budget data
-    updateBudgetData(updatedCategories);
-  };
-
-  // Update budget data based on planning categories
-  const updateBudgetData = (categories) => {
-    const confirmedCategories = categories.filter(cat => cat.status === 'Confirmed');
-    const totalSpent = confirmedCategories.reduce((sum, cat) => {
-      const advance = parseInt(cat.advancePaid?.replace(/[₹,]/g, '') || 0);
-      return sum + advance;
-    }, 0);
-
-    const totalBudget = categories.reduce((sum, cat) => {
-      const budget = parseInt(cat.totalBudget?.replace(/[₹,]/g, '') || 0);
-      return sum + budget;
-    }, 0);
-
-    const budgetData = {
-      totalBudget,
-      spentAmount: totalSpent,
-      remainingAmount: totalBudget - totalSpent,
-      categories: categories.map(cat => ({
-        name: cat.name,
-        totalAmount: parseInt(cat.totalBudget?.replace(/[₹,]/g, '') || 0),
-        advancePaid: parseInt(cat.advancePaid?.replace(/[₹,]/g, '') || 0),
-        balanceAmount: parseInt(cat.balanceAmount?.replace(/[₹,]/g, '') || 0),
-        spent: parseInt(cat.advancePaid?.replace(/[₹,]/g, '') || 0),
-        color: getCategoryColor(cat.name)
-      }))
-    };
-
-    localStorage.setItem('budgetData', JSON.stringify(budgetData));
+    // Sync to MongoDB Budget
+    try {
+      const advNum = parseInt(String(advancePaid || '').replace(/[₹,]/g, '') || 0);
+      const balNum = parseInt(String(balanceAmount || '').replace(/[₹,]/g, '') || 0);
+      const matchedCat = updatedCategories.find(c => c.id === categoryId);
+      if (matchedCat) {
+        const allocNum = parseInt(String(matchedCat.totalBudget || '').replace(/[₹,]/g, '') || 0);
+        await userApi.updateBudget({
+          categories: [{
+            name: matchedCat.name,
+            allocated: allocNum,
+            advancePaid: advNum,
+            balanceAmount: balNum,
+            spent: advNum
+          }]
+        });
+      }
+    } catch (err) {
+      console.error('Error syncing category financials to MongoDB:', err);
+    }
   };
 
   // Get category color

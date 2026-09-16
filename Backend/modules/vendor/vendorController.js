@@ -8,6 +8,7 @@ const Quote = require('./Quote');
 const Conversation = require('./Conversation');
 const Message = require('./Message');
 const SupportTicket = require('./SupportTicket');
+const chatService = require('../chat/chat.service');
 const SubscriptionPlan = require('../admin/SubscriptionPlan');
 const Banner = require('../admin/Banner');
 const Service = require('./Service');
@@ -484,7 +485,26 @@ exports.getDashboardBanners = async (req, res, next) => {
     }
 };
 
-// @desc    Get vendor leads
+// Helper: Mask sensitive customer contact info until permitted stage ('Booked')
+const maskCustomerPhone = (phone) => {
+    if (!phone || typeof phone !== 'string') return '******';
+    const clean = phone.trim();
+    if (clean.length <= 4) return '****';
+    if (clean.length <= 7) return clean.slice(0, 2) + '****' + clean.slice(-2);
+    return clean.slice(0, 3) + '****' + clean.slice(-4);
+};
+
+const sanitizeLeadForVendor = (leadDoc) => {
+    if (!leadDoc) return null;
+    const lead = leadDoc.toObject ? leadDoc.toObject() : { ...leadDoc };
+    const isPermitted = lead.status === 'Booked';
+    if (!isPermitted && lead.phone) {
+        lead.phone = maskCustomerPhone(lead.phone);
+    }
+    return lead;
+};
+
+// @desc    Get vendor leads (with privacy masking for early stage leads)
 // @route   GET /api/vendor/leads
 // @access  Private
 exports.getLeads = async (req, res, next) => {
@@ -493,7 +513,30 @@ exports.getLeads = async (req, res, next) => {
 
         res.status(200).json({
             success: true,
-            data: leads
+            data: leads.map(sanitizeLeadForVendor)
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Get single vendor lead by ID (with privacy masking)
+// @route   GET /api/vendor/leads/:id
+// @access  Private
+exports.getLeadById = async (req, res, next) => {
+    try {
+        const lead = await Lead.findOne({ _id: req.params.id, vendorId: req.vendor.id });
+
+        if (!lead) {
+            return res.status(404).json({
+                success: false,
+                message: 'Lead not found'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: sanitizeLeadForVendor(lead)
         });
     } catch (err) {
         next(err);
@@ -506,22 +549,49 @@ exports.getLeads = async (req, res, next) => {
 exports.updateLeadStatus = async (req, res, next) => {
     try {
         const { status } = req.body;
-        const lead = await Lead.findOneAndUpdate(
-            { _id: req.params.id, vendorId: req.vendor.id },
-            { status },
-            { new: true, runValidators: true }
-        );
+        if (!status) {
+            return res.status(400).json({
+                success: false,
+                message: 'Status is required'
+            });
+        }
 
-        if (!lead) {
+        if (status === 'Booked') {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot manually set lead status to Booked. Status is automatically updated upon quote acceptance.'
+            });
+        }
+
+        const allowedVendorStatuses = ['Contacted', 'Quote Sent', 'Rejected'];
+        if (!allowedVendorStatuses.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid lead status. Allowed values: ${allowedVendorStatuses.join(', ')}`
+            });
+        }
+
+        const existingLead = await Lead.findOne({ _id: req.params.id, vendorId: req.vendor.id });
+        if (!existingLead) {
             return res.status(404).json({
                 success: false,
                 message: 'Lead not found'
             });
         }
 
+        if (existingLead.status === 'Booked') {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot modify status of an already booked lead'
+            });
+        }
+
+        existingLead.status = status;
+        await existingLead.save();
+
         res.status(200).json({
             success: true,
-            data: lead
+            data: sanitizeLeadForVendor(existingLead)
         });
     } catch (err) {
         next(err);
@@ -549,18 +619,75 @@ exports.getBookings = async (req, res, next) => {
 // @access  Private
 exports.updateBookingStatus = async (req, res, next) => {
     try {
-        const { status } = req.body;
-        const booking = await Booking.findOneAndUpdate(
-            { _id: req.params.id, vendorId: req.vendor.id },
-            { status },
-            { new: true, runValidators: true }
-        );
+        const { status, reason } = req.body;
+        if (!status) {
+            return res.status(400).json({
+                success: false,
+                message: 'Status is required'
+            });
+        }
 
+        const allowedTransitions = ['In Progress', 'Completed', 'Cancelled'];
+        if (!allowedTransitions.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid status update. Allowed values: ${allowedTransitions.join(', ')}`
+            });
+        }
+
+        const booking = await Booking.findOne({ _id: req.params.id, vendorId: req.vendor.id });
         if (!booking) {
             return res.status(404).json({
                 success: false,
                 message: 'Booking not found'
             });
+        }
+
+        // If vendor is cancelling the booking, invoke the centralized canonical cancel/refund service
+        if (status === 'Cancelled') {
+            const { cancelAndRefundBooking } = require('../../services/settlement.service');
+            const result = await cancelAndRefundBooking({
+                bookingId: booking._id,
+                cancelledBy: 'Vendor',
+                actorId: req.vendor.id,
+                reason: reason || 'Cancelled by vendor'
+            });
+
+            if (!result.success) {
+                return res.status(result.statusCode).json({
+                    success: false,
+                    message: result.message
+                });
+            }
+
+            return res.status(result.statusCode).json({
+                success: true,
+                message: result.message,
+                data: result.data
+            });
+        }
+
+        if (booking.status === 'Cancelled') {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot update status of a cancelled booking'
+            });
+        }
+
+        if (booking.status === 'Completed') {
+            return res.status(400).json({
+                success: false,
+                message: 'Booking is already completed'
+            });
+        }
+
+        booking.status = status;
+        await booking.save();
+
+        // Auto-settle earnings to available balance when booking is marked Completed
+        if (status === 'Completed') {
+            const { settleBookingEarnings } = require('../../services/settlement.service');
+            await settleBookingEarnings(booking._id);
         }
 
         res.status(200).json({
@@ -579,16 +706,64 @@ exports.createBooking = async (req, res, next) => {
     try {
         const { customerName, eventDate, location, services, totalAmount, eventType, guestCount, notes } = req.body;
 
+        if (!customerName || !eventDate || !location) {
+            return res.status(400).json({
+                success: false,
+                message: 'Customer name, event date, and location are required'
+            });
+        }
+
+        const targetDate = new Date(eventDate);
+        if (isNaN(targetDate.getTime())) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid event date'
+            });
+        }
+
+        const startOfDay = new Date(targetDate);
+        startOfDay.setUTCHours(0, 0, 0, 0);
+        const endOfDay = new Date(targetDate);
+        endOfDay.setUTCHours(23, 59, 59, 999);
+
+        // Check for conflicting confirmed/in-progress bookings
+        const conflictingBooking = await Booking.findOne({
+            vendorId: req.vendor.id,
+            eventDate: { $gte: startOfDay, $lte: endOfDay },
+            status: { $in: ['Confirmed', 'In Progress'] }
+        });
+
+        if (conflictingBooking) {
+            return res.status(409).json({
+                success: false,
+                message: 'Vendor already has a confirmed booking on this date'
+            });
+        }
+
+        // Check for vendor manual blocked dates
+        const vendorDoc = await Vendor.findById(req.vendor.id).select('blockedDates');
+        const isBlocked = (vendorDoc?.blockedDates || []).some(bDate => {
+            const b = new Date(bDate);
+            return b >= startOfDay && b <= endOfDay;
+        });
+
+        if (isBlocked) {
+            return res.status(409).json({
+                success: false,
+                message: 'This date is marked as blocked on your calendar'
+            });
+        }
+
         const booking = await Booking.create({
             vendorId: req.vendor.id,
             customerName,
-            eventDate,
+            eventDate: targetDate,
             location,
             services: services || ['Manual Entry'],
             eventType: eventType || 'Wedding',
             guestCount: guestCount || 0,
             notes: notes || '',
-            totalPrice: totalAmount || 0,
+            totalPrice: Math.max(0, Number(totalAmount) || 0),
             status: 'Confirmed'
         });
 
@@ -786,46 +961,93 @@ exports.verifySubscriptionPayment = async (req, res, next) => {
     try {
         const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
+        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+            return res.status(400).json({
+                success: false,
+                message: 'Payment verification failed: Missing required payment details'
+            });
+        }
+
+        const vendor = await Vendor.findById(req.vendor.id);
+        if (!vendor) {
+            return res.status(404).json({
+                success: false,
+                message: 'Vendor not found'
+            });
+        }
+
+        // Idempotency: Check if subscription is already active with this payment
+        if (vendor.subscription?.status === 'Active' && vendor.subscription?.paymentId === razorpay_payment_id) {
+            return res.status(200).json({
+                success: true,
+                message: 'Payment already verified',
+                data: vendor
+            });
+        }
+
+        // Tamper check: If vendor has a recorded subscription orderId, ensure it matches
+        if (vendor.subscription?.orderId && vendor.subscription.orderId !== razorpay_order_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'Payment verification failed: Order ID mismatch'
+            });
+        }
+
+        const razorpaySecret = process.env.RAZORPAY_KEY_SECRET;
+        if (!razorpaySecret) {
+            return res.status(500).json({
+                success: false,
+                message: 'Payment gateway configuration error'
+            });
+        }
+
         const sign = razorpay_order_id + "|" + razorpay_payment_id;
         const expectedSign = crypto
-            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+            .createHmac("sha256", razorpaySecret)
             .update(sign.toString())
             .digest("hex");
 
-        if (razorpay_signature === expectedSign || req.body.isMock === true) {
-            // Fetch plan to get duration
-            const plan = await SubscriptionPlan.findOne({ isActive: true });
-            const durationValue = plan?.durationValue || 1;
-            const durationUnit = plan?.durationUnit || 'year';
-
-            const startDate = new Date();
-            const endDate = new Date();
-
-            if (durationUnit === 'year') {
-                endDate.setFullYear(startDate.getFullYear() + durationValue);
-            } else {
-                endDate.setMonth(startDate.getMonth() + durationValue);
-            }
-
-            // Payment success
-            const vendor = await Vendor.findByIdAndUpdate(req.vendor.id, {
-                'subscription.status': 'Active',
-                'subscription.paymentId': razorpay_payment_id,
-                'subscription.startDate': startDate,
-                'subscription.endDate': endDate
-            }, { new: true });
-
-            res.status(200).json({
-                success: true,
-                message: 'Payment verified successfully',
-                data: vendor
-            });
-        } else {
-            res.status(400).json({
+        if (razorpay_signature !== expectedSign) {
+            return res.status(400).json({
                 success: false,
                 message: 'Invalid signature'
             });
         }
+
+        // Fetch plan to get duration
+        let plan = null;
+        if (vendor.subscription?.planId) {
+            plan = await SubscriptionPlan.findById(vendor.subscription.planId);
+        }
+        if (!plan) {
+            plan = await SubscriptionPlan.findOne({ isActive: true });
+        }
+        const durationValue = plan?.durationValue || 1;
+        const durationUnit = plan?.durationUnit || 'year';
+
+        const startDate = new Date();
+        const endDate = new Date();
+
+        if (durationUnit === 'year') {
+            endDate.setFullYear(startDate.getFullYear() + durationValue);
+        } else {
+            endDate.setMonth(startDate.getMonth() + durationValue);
+        }
+
+        // Payment success - activate subscription
+        const updatedVendor = await Vendor.findByIdAndUpdate(req.vendor.id, {
+            'subscription.status': 'Active',
+            'subscription.paymentId': razorpay_payment_id,
+            'subscription.orderId': razorpay_order_id,
+            'subscription.startDate': startDate,
+            'subscription.endDate': endDate
+        }, { new: true });
+
+        res.status(200).json({
+            success: true,
+            message: 'Payment verified successfully',
+            data: updatedVendor
+        });
     } catch (err) {
         next(err);
     }
@@ -920,16 +1142,47 @@ exports.getQuotes = async (req, res, next) => {
 // @access  Private
 exports.updateQuote = async (req, res, next) => {
     try {
-        const { totalAmount, items } = req.body;
-        const quote = await Quote.findOneAndUpdate(
-            { _id: req.params.id, vendorId: req.vendor.id },
-            { totalAmount, items },
-            { new: true, runValidators: true }
-        );
+        const { items, taxAmount, discountAmount, notes, terms, validUntil } = req.body;
+
+        const quote = await Quote.findOne({
+            _id: req.params.id,
+            vendorId: req.vendor.id
+        });
 
         if (!quote) {
             return res.status(404).json({ success: false, message: 'Quote not found' });
         }
+
+        if (quote.status === 'Accepted') {
+            return res.status(400).json({ success: false, message: 'Cannot modify an already accepted quote' });
+        }
+
+        if (quote.status === 'Expired') {
+            return res.status(400).json({ success: false, message: 'Cannot modify an expired quote' });
+        }
+
+        const itemsToUse = items !== undefined ? items : quote.items;
+        if (!Array.isArray(itemsToUse) || itemsToUse.length === 0) {
+            return res.status(400).json({ success: false, message: 'Quote must contain at least one item' });
+        }
+
+        const taxToUse = taxAmount !== undefined ? taxAmount : (quote.taxAmount || 0);
+        const discToUse = discountAmount !== undefined ? discountAmount : (quote.discountAmount || 0);
+
+        const subtotal = itemsToUse.reduce((sum, item) => sum + (Math.max(0, Number(item.price) || 0) * Math.max(1, Number(item.quantity) || 1)), 0);
+        const tax = Math.max(0, Number(taxToUse) || 0);
+        const discount = Math.max(0, Number(discToUse) || 0);
+        const totalAmount = Math.max(0, subtotal + tax - discount);
+
+        quote.items = itemsToUse;
+        quote.taxAmount = tax;
+        quote.discountAmount = discount;
+        quote.totalAmount = totalAmount;
+        if (notes !== undefined) quote.notes = notes;
+        if (terms !== undefined) quote.terms = terms;
+        if (validUntil !== undefined) quote.validUntil = validUntil;
+
+        await quote.save();
 
         res.status(200).json({
             success: true,
@@ -969,26 +1222,57 @@ exports.deleteQuote = async (req, res, next) => {
 exports.createQuote = async (req, res, next) => {
     try {
         const vendorId = req.vendor.id;
-        const { leadId, userId, items, taxAmount, discountAmount, validUntil, notes, terms } = req.body;
+        const { leadId, items, taxAmount, discountAmount, validUntil, notes, terms } = req.body;
 
-        const totalAmount = items.reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0) + (taxAmount || 0) - (discountAmount || 0);
+        if (!leadId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Lead ID is required'
+            });
+        }
+
+        // Authoritatively verify Lead ownership
+        const lead = await Lead.findOne({ _id: leadId, vendorId });
+        if (!lead) {
+            return res.status(404).json({
+                success: false,
+                message: 'Lead not found or not assigned to your vendor account'
+            });
+        }
+
+        if (!Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Quote must include at least one service item'
+            });
+        }
+
+        // Server-authoritative price calculation
+        const subtotal = items.reduce((sum, item) => sum + (Math.max(0, Number(item.price) || 0) * Math.max(1, Number(item.quantity) || 1)), 0);
+        const tax = Math.max(0, Number(taxAmount) || 0);
+        const discount = Math.max(0, Number(discountAmount) || 0);
+        const totalAmount = Math.max(0, subtotal + tax - discount);
+
+        // Derive authoritative userId from lead
+        const userId = lead.userId;
 
         const quote = await Quote.create({
             vendorId,
-            leadId,
+            leadId: lead._id,
             userId,
             items,
             totalAmount,
-            taxAmount,
-            discountAmount,
-            validUntil,
+            taxAmount: tax,
+            discountAmount: discount,
+            validUntil: validUntil || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // default 14 days
             notes,
             terms,
             status: 'Sent'
         });
 
         // Update lead status
-        await Lead.findByIdAndUpdate(leadId, { status: 'Quote Sent' });
+        lead.status = 'Quote Sent';
+        await lead.save();
 
         res.status(201).json({
             success: true,
@@ -1024,12 +1308,12 @@ exports.updatePortfolio = async (req, res, next) => {
 // @access  Private
 exports.getConversations = async (req, res, next) => {
     try {
-        const conversations = await Conversation.find({
-            'participants.participantId': req.vendor.id
-        }).sort('-updatedAt');
+        const vendorId = req.vendor.id || req.vendor._id;
+        const conversations = await chatService.getVendorConversations(vendorId);
 
         res.status(200).json({
             success: true,
+            count: conversations.length,
             data: conversations
         });
     } catch (err) {
@@ -1042,13 +1326,20 @@ exports.getConversations = async (req, res, next) => {
 // @access  Private
 exports.getMessages = async (req, res, next) => {
     try {
-        const messages = await Message.find({
-            conversationId: req.params.conversationId
-        }).sort('createdAt');
+        const vendorId = req.vendor.id || req.vendor._id;
+        const result = await chatService.getConversationMessages({
+            conversationId: req.params.conversationId,
+            requesterId: vendorId,
+            requesterRole: 'Vendor',
+            limit: req.query.limit,
+            before: req.query.before
+        });
 
         res.status(200).json({
             success: true,
-            data: messages
+            count: result.messages.length,
+            hasMore: result.hasMore,
+            data: result.messages
         });
     } catch (err) {
         next(err);
@@ -1060,27 +1351,32 @@ exports.getMessages = async (req, res, next) => {
 // @access  Private
 exports.sendMessage = async (req, res, next) => {
     try {
-        const { conversationId, text, attachments } = req.body;
+        const vendorId = req.vendor.id || req.vendor._id;
+        const { conversationId, text, attachments, type = 'text', quoteId, clientMessageId } = req.body;
 
-        const message = await Message.create({
+        const result = await chatService.createMessage({
             conversationId,
-            senderId: req.vendor.id,
-            senderModel: 'Vendor',
+            senderId: vendorId,
+            senderRole: 'Vendor',
+            type,
             text,
-            attachments
+            attachments,
+            quoteId,
+            clientMessageId
         });
 
-        await Conversation.findByIdAndUpdate(conversationId, {
-            lastMessage: {
-                text,
-                senderId: req.vendor.id,
-                createdAt: new Date()
-            }
-        });
+        const io = req.app.get('io');
+        if (io && !result.isDuplicate) {
+            io.to(`conversation_${conversationId}`).emit('message:new', {
+                message: result.message,
+                conversation: result.conversation
+            });
+        }
 
         res.status(201).json({
             success: true,
-            data: message
+            data: result.message,
+            isDuplicate: result.isDuplicate
         });
     } catch (err) {
         next(err);
@@ -1623,6 +1919,14 @@ exports.getVendorInventory = async (req, res, next) => {
 exports.createInventoryItem = async (req, res, next) => {
     try {
         req.body.vendor = req.vendor.id;
+
+        if (!req.body.category || !req.body.category.toString().trim()) {
+            return res.status(400).json({ success: false, message: 'Please select a category for this item' });
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(req.body.category)) {
+            return res.status(400).json({ success: false, message: 'Invalid category selected' });
+        }
         
         // Handle images
         if (req.files && req.files.length > 0) {
@@ -1650,6 +1954,14 @@ exports.updateInventoryItem = async (req, res, next) => {
 
         if (inventoryItem.vendor.toString() !== req.vendor.id) {
             return res.status(403).json({ success: false, message: 'Not authorized to update this inventory item' });
+        }
+
+        if (req.body.category !== undefined) {
+            if (!req.body.category || !req.body.category.toString().trim()) {
+                delete req.body.category;
+            } else if (!mongoose.Types.ObjectId.isValid(req.body.category)) {
+                return res.status(400).json({ success: false, message: 'Invalid category selected' });
+            }
         }
 
         // Keep existing images and add new ones if uploaded
@@ -1687,6 +1999,129 @@ exports.deleteInventoryItem = async (req, res, next) => {
         await inventoryItem.deleteOne();
 
         res.status(200).json({ success: true, data: {} });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Get vendor blocked dates
+// @route   GET /api/vendor/calendar/blocked-dates
+// @access  Private
+exports.getBlockedDates = async (req, res, next) => {
+    try {
+        const vendor = await Vendor.findById(req.vendor.id).select('blockedDates');
+        if (!vendor) {
+            return res.status(404).json({ success: false, message: 'Vendor not found' });
+        }
+        const formatted = (vendor.blockedDates || []).map(d => new Date(d).toISOString().split('T')[0]);
+        res.status(200).json({
+            success: true,
+            data: Array.from(new Set(formatted))
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Add vendor blocked date
+// @route   POST /api/vendor/calendar/blocked-dates
+// @access  Private
+exports.addBlockedDate = async (req, res, next) => {
+    try {
+        const { date } = req.body;
+        if (!date) {
+            return res.status(400).json({ success: false, message: 'Date is required (YYYY-MM-DD)' });
+        }
+
+        const targetDate = new Date(date);
+        if (isNaN(targetDate.getTime())) {
+            return res.status(400).json({ success: false, message: 'Invalid date format' });
+        }
+
+        const startOfDay = new Date(targetDate);
+        startOfDay.setUTCHours(0, 0, 0, 0);
+        const endOfDay = new Date(targetDate);
+        endOfDay.setUTCHours(23, 59, 59, 999);
+
+        const now = new Date();
+        const todayStart = new Date(now);
+        todayStart.setUTCHours(0, 0, 0, 0);
+        if (startOfDay < todayStart) {
+            return res.status(400).json({ success: false, message: 'Cannot block past dates' });
+        }
+
+        const vendor = await Vendor.findById(req.vendor.id);
+        if (!vendor) {
+            return res.status(404).json({ success: false, message: 'Vendor not found' });
+        }
+
+        const alreadyBlocked = (vendor.blockedDates || []).some(b => {
+            const bd = new Date(b);
+            return bd >= startOfDay && bd <= endOfDay;
+        });
+
+        if (alreadyBlocked) {
+            return res.status(400).json({ success: false, message: 'Date is already blocked' });
+        }
+
+        const conflicting = await Booking.findOne({
+            vendorId: req.vendor.id,
+            eventDate: { $gte: startOfDay, $lte: endOfDay },
+            status: { $in: ['Confirmed', 'In Progress'] }
+        });
+
+        if (conflicting) {
+            return res.status(409).json({ success: false, message: 'Cannot block a date with an existing confirmed booking' });
+        }
+
+        vendor.blockedDates = vendor.blockedDates || [];
+        vendor.blockedDates.push(startOfDay);
+        await vendor.save();
+
+        const formatted = vendor.blockedDates.map(d => new Date(d).toISOString().split('T')[0]);
+        res.status(201).json({
+            success: true,
+            message: 'Date blocked successfully',
+            data: Array.from(new Set(formatted))
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Remove vendor blocked date
+// @route   DELETE /api/vendor/calendar/blocked-dates/:date
+// @access  Private
+exports.removeBlockedDate = async (req, res, next) => {
+    try {
+        const { date } = req.params;
+        const targetDate = new Date(date);
+        if (isNaN(targetDate.getTime())) {
+            return res.status(400).json({ success: false, message: 'Invalid date format' });
+        }
+
+        const startOfDay = new Date(targetDate);
+        startOfDay.setUTCHours(0, 0, 0, 0);
+        const endOfDay = new Date(targetDate);
+        endOfDay.setUTCHours(23, 59, 59, 999);
+
+        const vendor = await Vendor.findById(req.vendor.id);
+        if (!vendor) {
+            return res.status(404).json({ success: false, message: 'Vendor not found' });
+        }
+
+        vendor.blockedDates = (vendor.blockedDates || []).filter(b => {
+            const bd = new Date(b);
+            return bd < startOfDay || bd > endOfDay;
+        });
+        await vendor.save();
+
+        const formatted = vendor.blockedDates.map(d => new Date(d).toISOString().split('T')[0]);
+        res.status(200).json({
+            success: true,
+            message: 'Date unblocked successfully',
+            data: Array.from(new Set(formatted))
+        });
     } catch (err) {
         next(err);
     }

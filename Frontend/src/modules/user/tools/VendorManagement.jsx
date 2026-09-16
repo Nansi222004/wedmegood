@@ -2,64 +2,41 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
+import userApi from '../../../services/userApi';
 
 const VendorManagement = () => {
   const navigate = useNavigate();
   const { theme } = useTheme();
   const [isLoading, setIsLoading] = useState(true);
   const [vendorData, setVendorData] = useState(null);
+  const [filterStatus, setFilterStatus] = useState('all');
 
-  // Simulate loading and fetch vendor data
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      // Mock vendor data
-      const mockData = {
-        totalVendors: 12,
-        bookedVendors: 6,
-        pendingVendors: 4,
-        quotedVendors: 2,
-        categories: [
-          { name: 'Photography', total: 3, booked: 1, pending: 1, quoted: 1, color: '#ec4899' },
-          { name: 'Catering', total: 2, booked: 1, pending: 1, quoted: 0, color: '#f59e0b' },
-          { name: 'Decoration', total: 2, booked: 1, pending: 0, quoted: 1, color: '#10b981' },
-          { name: 'Makeup', total: 2, booked: 1, pending: 1, quoted: 0, color: '#8b5cf6' },
-          { name: 'Music', total: 2, booked: 1, pending: 1, quoted: 0, color: '#06b6d4' },
-          { name: 'Others', total: 1, booked: 1, pending: 0, quoted: 0, color: '#ef4444' }
-        ],
-        bookingTimeline: [
-          { month: 'Jan', booked: 1 },
-          { month: 'Feb', booked: 2 },
-          { month: 'Mar', booked: 3 },
-          { month: 'Apr', booked: 5 },
-          { month: 'Current', booked: 6 }
-        ],
-        recentActivity: [
-          { vendor: 'Royal Photography', action: 'Booked', date: '2 days ago', status: 'confirmed' },
-          { vendor: 'Elite Catering', action: 'Quote Received', date: '5 days ago', status: 'pending' },
-          { vendor: 'Dream Decorators', action: 'Meeting Scheduled', date: '1 week ago', status: 'pending' },
-          { vendor: 'Glamour Makeup', action: 'Booked', date: '2 weeks ago', status: 'confirmed' }
-        ],
-        budgetAllocation: [
-          { category: 'Photography', allocated: 75000, spent: 50000 },
-          { category: 'Catering', allocated: 100000, spent: 80000 },
-          { category: 'Decoration', allocated: 60000, spent: 45000 },
-          { category: 'Makeup', allocated: 25000, spent: 20000 },
-          { category: 'Music', allocated: 30000, spent: 25000 },
-          { category: 'Others', allocated: 20000, spent: 15000 }
-        ]
-      };
-      setVendorData(mockData);
+  const fetchVendorData = async () => {
+    try {
+      setIsLoading(true);
+      const res = await userApi.getVendorManagement();
+      if (res.success && res.data) {
+        setVendorData(res.data);
+      }
+    } catch (err) {
+      console.error('Error fetching vendor management data:', err);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
+  };
 
-    return () => clearTimeout(timer);
+  useEffect(() => {
+    fetchVendorData();
   }, []);
 
   const handleBack = () => {
     navigate('/user/planning-dashboard');
   };
 
-  const getPercentage = (value, total) => ((value / total) * 100).toFixed(1);
+  const getPercentage = (value, total) => {
+    if (!total || total === 0) return 0;
+    return Math.round((value / total) * 100);
+  };
 
   if (isLoading) {
     return (
@@ -72,7 +49,6 @@ const VendorManagement = () => {
               <div className="w-48 h-4 bg-gray-200 rounded animate-pulse"></div>
             </div>
           </div>
-          
           <div className="space-y-6">
             {[1, 2, 3].map((i) => (
               <div key={i} className="bg-white rounded-xl p-4 animate-pulse">
@@ -86,312 +62,262 @@ const VendorManagement = () => {
     );
   }
 
-  if (!vendorData) {
-    return (
-      <div className="min-h-screen pb-24 flex items-center justify-center" style={{ backgroundColor: theme.semantic.background.primary }}>
-        <div className="text-center px-4">
-          <Icon name="compare" size="xl" style={{ color: theme.colors.primary[300] }} className="mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2" style={{ color: theme.semantic.text.primary }}>
-            No Vendor Data
-          </h2>
-          <p className="text-sm mb-6" style={{ color: theme.semantic.text.secondary }}>
-            Start booking vendors to see management analytics
-          </p>
-          <button
-            onClick={() => navigate('/user/vendors')}
-            className="px-6 py-3 rounded-lg font-medium"
-            style={{ backgroundColor: theme.colors.primary[500], color: 'white' }}
-          >
-            Browse Vendors
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const hasData = vendorData && vendorData.totalVendors > 0;
+  const filteredVendors = (vendorData?.vendors || []).filter(v => {
+    if (filterStatus === 'all') return true;
+    return v.status.toLowerCase().includes(filterStatus.toLowerCase());
+  });
 
   return (
     <div className="min-h-screen pb-24" style={{ backgroundColor: theme.semantic.background.primary }}>
       {/* Header */}
       <div className="px-4 py-6">
-        <div className="flex items-center mb-6">
-          <button
-            onClick={handleBack}
-            className="mr-3 p-2 rounded-full"
-            style={{ backgroundColor: theme.semantic.background.accent }}
-          >
-            <Icon name="chevronDown" size="sm" className="rotate-90" style={{ color: theme.semantic.text.primary }} />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: theme.semantic.text.primary }}>
-              Vendor Management
-            </h1>
-            <p className="text-sm mt-1" style={{ color: theme.semantic.text.secondary }}>
-              Track and manage your wedding vendors
-            </p>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center">
+            <button
+              onClick={handleBack}
+              className="mr-3 p-2 rounded-full"
+              style={{ backgroundColor: theme.semantic.background.accent }}
+            >
+              <Icon name="chevronDown" size="sm" className="rotate-90" style={{ color: theme.semantic.text.primary }} />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold" style={{ color: theme.semantic.text.primary }}>
+                Vendor Management
+              </h1>
+              <p className="text-sm mt-1" style={{ color: theme.semantic.text.secondary }}>
+                Track and manage your real wedding vendors
+              </p>
+            </div>
           </div>
+          <button
+            onClick={() => navigate('/user/vendors')}
+            className="px-3.5 py-2 rounded-xl text-xs font-bold text-white shadow-sm"
+            style={{ backgroundColor: theme.colors.primary[500] }}
+          >
+            Find Vendors
+          </button>
         </div>
 
-        {/* Vendor Overview */}
+        {/* Vendor Overview Grid */}
         <div className="grid grid-cols-4 gap-2 mb-6">
-          <div className="bg-white rounded-xl p-3 text-center" style={{ boxShadow: `0 4px 15px -3px ${theme.semantic.card.shadow}40` }}>
-            <p className="text-xs font-medium mb-1" style={{ color: theme.semantic.text.secondary }}>Total</p>
-            <p className="text-lg font-bold" style={{ color: theme.colors.primary[600] }}>
-              {vendorData.totalVendors}
+          <div className="bg-white rounded-2xl p-3 text-center shadow-sm border border-slate-100">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Total</p>
+            <p className="text-lg font-black text-slate-900">
+              {vendorData?.totalVendors || 0}
             </p>
           </div>
-          <div className="bg-white rounded-xl p-3 text-center" style={{ boxShadow: `0 4px 15px -3px ${theme.semantic.card.shadow}40` }}>
-            <p className="text-xs font-medium mb-1" style={{ color: theme.semantic.text.secondary }}>Booked</p>
-            <p className="text-lg font-bold" style={{ color: theme.colors.accent[600] }}>
-              {vendorData.bookedVendors}
+          <div className="bg-white rounded-2xl p-3 text-center shadow-sm border border-slate-100">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 mb-1">Booked</p>
+            <p className="text-lg font-black text-emerald-600">
+              {vendorData?.bookedVendors || 0}
             </p>
           </div>
-          <div className="bg-white rounded-xl p-3 text-center" style={{ boxShadow: `0 4px 15px -3px ${theme.semantic.card.shadow}40` }}>
-            <p className="text-xs font-medium mb-1" style={{ color: theme.semantic.text.secondary }}>Pending</p>
-            <p className="text-lg font-bold" style={{ color: theme.colors.secondary[600] }}>
-              {vendorData.pendingVendors}
+          <div className="bg-white rounded-2xl p-3 text-center shadow-sm border border-slate-100">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-500 mb-1">Pending</p>
+            <p className="text-lg font-black text-amber-600">
+              {vendorData?.pendingVendors || 0}
             </p>
           </div>
-          <div className="bg-white rounded-xl p-3 text-center" style={{ boxShadow: `0 4px 15px -3px ${theme.semantic.card.shadow}40` }}>
-            <p className="text-xs font-medium mb-1" style={{ color: theme.semantic.text.secondary }}>Quoted</p>
-            <p className="text-lg font-bold" style={{ color: theme.colors.neutral[500] }}>
-              {vendorData.quotedVendors}
+          <div className="bg-white rounded-2xl p-3 text-center shadow-sm border border-slate-100">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-purple-500 mb-1">Quoted</p>
+            <p className="text-lg font-black text-purple-600">
+              {vendorData?.quotedVendors || 0}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Charts Section */}
-      <div className="px-4 space-y-6">
-        {/* Vendor Status Distribution */}
-        <div className="bg-white rounded-xl p-4" style={{ boxShadow: `0 4px 15px -3px ${theme.semantic.card.shadow}40` }}>
-          <h3 className="font-bold text-lg mb-4" style={{ color: theme.semantic.text.primary }}>
-            Booking Status Overview
-          </h3>
-          
-          <div className="relative mb-4">
-            <div className="w-full bg-gray-200 rounded-full h-4">
-              <div 
-                className="h-4 rounded-full transition-all duration-1000 ease-out"
-                style={{ 
-                  width: `${getPercentage(vendorData.bookedVendors, vendorData.totalVendors)}%`,
-                  background: `linear-gradient(135deg, ${theme.colors.accent[400]} 0%, ${theme.colors.accent[600]} 100%)`
-                }}
+      {!hasData ? (
+        <div className="px-4 py-12 text-center">
+          <div className="w-16 h-16 rounded-3xl bg-pink-50 text-pink-400 flex items-center justify-center mx-auto mb-4">
+            <Icon name="compare" size="lg" />
+          </div>
+          <h2 className="text-xl font-bold mb-2" style={{ color: theme.semantic.text.primary }}>
+            No Active Vendor Connections
+          </h2>
+          <p className="text-sm mb-6 max-w-xs mx-auto" style={{ color: theme.semantic.text.secondary }}>
+            Inquire with verified vendors, receive quotes, and confirm bookings to track them in your unified dashboard.
+          </p>
+          <button
+            onClick={() => navigate('/user/vendors')}
+            className="px-6 py-3 rounded-xl font-semibold text-white shadow-md shadow-pink-200"
+            style={{ backgroundColor: theme.colors.primary[500] }}
+          >
+            Explore Vendors Marketplace
+          </button>
+        </div>
+      ) : (
+        <div className="px-4 space-y-6">
+          {/* Booking Progress Bar */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-bold text-base text-slate-800">
+                Booking Conversion Progress
+              </h3>
+              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
+                {getPercentage(vendorData.bookedVendors, vendorData.totalVendors)}% Completed
+              </span>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden mb-3">
+              <div
+                className="h-full rounded-full transition-all duration-700 ease-out bg-emerald-500"
+                style={{ width: `${getPercentage(vendorData.bookedVendors, vendorData.totalVendors)}%` }}
               />
             </div>
-            <div className="flex justify-between text-sm mt-2">
-              <span style={{ color: theme.semantic.text.secondary }}>
-                {getPercentage(vendorData.bookedVendors, vendorData.totalVendors)}% Booked
-              </span>
-              <span style={{ color: theme.semantic.text.secondary }}>
-                {vendorData.bookedVendors} of {vendorData.totalVendors} vendors
-              </span>
-            </div>
+            <p className="text-xs text-slate-500">
+              <span className="font-semibold text-slate-700">{vendorData.bookedVendors}</span> of{' '}
+              <span className="font-semibold text-slate-700">{vendorData.totalVendors}</span> contacted vendors are officially booked.
+            </p>
           </div>
 
-          {/* Status Legend */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: theme.colors.accent[500] }}></div>
-              <div>
-                <p className="text-xs font-medium" style={{ color: theme.semantic.text.primary }}>Booked</p>
-                <p className="text-xs" style={{ color: theme.semantic.text.secondary }}>
-                  {vendorData.bookedVendors} vendors
-                </p>
+          {/* Vendors Filter & List */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-base text-slate-800">
+                Active Engagements ({filteredVendors.length})
+              </h3>
+              <div className="flex gap-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+                {['all', 'booked', 'quote', 'inquiry'].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setFilterStatus(st)}
+                    className={`px-2.5 py-1 rounded-lg capitalize transition-all ${
+                      filterStatus === st
+                        ? 'bg-white text-slate-800 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    {st}
+                  </button>
+                ))}
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: theme.colors.secondary[500] }}></div>
-              <div>
-                <p className="text-xs font-medium" style={{ color: theme.semantic.text.primary }}>Pending</p>
-                <p className="text-xs" style={{ color: theme.semantic.text.secondary }}>
-                  {vendorData.pendingVendors} vendors
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: theme.colors.neutral[400] }}></div>
-              <div>
-                <p className="text-xs font-medium" style={{ color: theme.semantic.text.primary }}>Quoted</p>
-                <p className="text-xs" style={{ color: theme.semantic.text.secondary }}>
-                  {vendorData.quotedVendors} vendors
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Category Distribution */}
-        <div className="bg-white rounded-xl p-4" style={{ boxShadow: `0 4px 15px -3px ${theme.semantic.card.shadow}40` }}>
-          <h3 className="font-bold text-lg mb-4" style={{ color: theme.semantic.text.primary }}>
-            Vendor Categories
-          </h3>
-          <div className="space-y-4">
-            {vendorData.categories.map((category, index) => (
-              <div key={category.name} className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center space-x-2">
-                    <div 
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: category.color }}
+            <div className="space-y-3">
+              {filteredVendors.map((vendor) => (
+                <div
+                  key={vendor.id}
+                  onClick={() => vendor.vendorId && navigate(`/user/vendor/${vendor.vendorId}`)}
+                  className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-100/60 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <img
+                      src={vendor.avatar || 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=100&h=100&fit=crop&q=80'}
+                      alt={vendor.businessName}
+                      className="w-11 h-11 rounded-xl object-cover border border-slate-200 shrink-0"
                     />
-                    <span className="text-sm font-medium" style={{ color: theme.semantic.text.primary }}>
-                      {category.name}
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-800 truncate">
+                        {vendor.businessName}
+                      </p>
+                      <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+                        <span className="capitalize">{vendor.category}</span>
+                        {vendor.contact && <span>• {vendor.contact}</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0 ml-3">
+                    <span
+                      className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full mb-1 ${
+                        vendor.status === 'Booked'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : vendor.status === 'Quote Received'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'bg-amber-100 text-amber-700'
+                      }`}
+                    >
+                      {vendor.status}
+                    </span>
+                    {vendor.amount > 0 && (
+                      <p className="text-xs font-black text-slate-700">
+                        ₹{vendor.amount.toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Category Distribution */}
+          {vendorData.categories && vendorData.categories.length > 0 && (
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+              <h3 className="font-bold text-base text-slate-800 mb-4">
+                Category Breakdown
+              </h3>
+              <div className="space-y-3">
+                {vendorData.categories.map((category) => (
+                  <div key={category.name} className="space-y-1.5">
+                    <div className="flex justify-between items-center text-xs font-semibold">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-2.5 h-2.5 rounded-full"
+                          style={{ backgroundColor: category.color || '#ec4899' }}
+                        />
+                        <span className="text-slate-700">{category.name}</span>
+                      </div>
+                      <span className="text-slate-500">
+                        {category.booked} booked / {category.total} total
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-700 ease-out"
+                        style={{
+                          width: `${getPercentage(category.booked, category.total)}%`,
+                          backgroundColor: category.color || '#ec4899'
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Real Recent Activity */}
+          {vendorData.recentActivity && vendorData.recentActivity.length > 0 && (
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+              <h3 className="font-bold text-base text-slate-800 mb-3">
+                Recent Engagement History
+              </h3>
+              <div className="space-y-2.5">
+                {vendorData.recentActivity.map((activity, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 rounded-xl bg-slate-50">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-2.5 h-2.5 rounded-full ${
+                          activity.status === 'confirmed' ? 'bg-emerald-500' : 'bg-amber-500'
+                        }`}
+                      />
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">
+                          {activity.vendor}
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          {activity.action} • {activity.date}
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                        activity.status === 'confirmed'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-amber-100 text-amber-700'
+                      }`}
+                    >
+                      {activity.status}
                     </span>
                   </div>
-                  <span className="text-sm" style={{ color: theme.semantic.text.secondary }}>
-                    {category.booked}/{category.total}
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="h-2 rounded-full transition-all duration-1000 ease-out"
-                    style={{ 
-                      width: `${getPercentage(category.booked, category.total)}%`,
-                      backgroundColor: category.color,
-                      animationDelay: `${index * 200}ms`
-                    }}
-                  />
-                </div>
-                <div className="flex justify-between text-xs" style={{ color: theme.semantic.text.secondary }}>
-                  <span>Booked: {category.booked}</span>
-                  <span>Pending: {category.pending}</span>
-                  <span>Quoted: {category.quoted}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Booking Timeline */}
-        <div className="bg-white rounded-xl p-4" style={{ boxShadow: `0 4px 15px -3px ${theme.semantic.card.shadow}40` }}>
-          <h3 className="font-bold text-lg mb-4" style={{ color: theme.semantic.text.primary }}>
-            Booking Timeline
-          </h3>
-          <div className="space-y-3">
-            {vendorData.bookingTimeline.map((month, index) => (
-              <div key={month.month} className="flex items-center space-x-4">
-                <div className="w-16 text-xs font-medium" style={{ color: theme.semantic.text.secondary }}>
-                  {month.month}
-                </div>
-                <div className="flex-1">
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="h-2 rounded-full transition-all duration-1000 ease-out"
-                      style={{ 
-                        width: `${(month.booked / vendorData.totalVendors) * 100}%`,
-                        backgroundColor: theme.colors.primary[500],
-                        animationDelay: `${index * 200}ms`
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="w-8 text-xs font-bold text-right" style={{ color: theme.semantic.text.primary }}>
-                  {month.booked}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Budget vs Spending */}
-        <div className="bg-white rounded-xl p-4" style={{ boxShadow: `0 4px 15px -3px ${theme.semantic.card.shadow}40` }}>
-          <h3 className="font-bold text-lg mb-4" style={{ color: theme.semantic.text.primary }}>
-            Budget Allocation
-          </h3>
-          <div className="space-y-4">
-            {vendorData.budgetAllocation.map((item, index) => (
-              <div key={item.category} className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium" style={{ color: theme.semantic.text.primary }}>
-                    {item.category}
-                  </span>
-                  <span className="text-sm" style={{ color: theme.semantic.text.secondary }}>
-                    ₹{item.spent.toLocaleString()} / ₹{item.allocated.toLocaleString()}
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="h-2 rounded-full transition-all duration-1000 ease-out"
-                    style={{ 
-                      width: `${getPercentage(item.spent, item.allocated)}%`,
-                      backgroundColor: vendorData.categories.find(cat => cat.name === item.category)?.color || theme.colors.primary[500],
-                      animationDelay: `${index * 200}ms`
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="bg-white rounded-xl p-4" style={{ boxShadow: `0 4px 15px -3px ${theme.semantic.card.shadow}40` }}>
-          <h3 className="font-bold text-lg mb-4" style={{ color: theme.semantic.text.primary }}>
-            Recent Activity
-          </h3>
-          <div className="space-y-3">
-            {vendorData.recentActivity.map((activity, index) => (
-              <div key={index} className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: theme.semantic.background.secondary }}>
-                <div className="flex items-center space-x-3">
-                  <div 
-                    className={`w-3 h-3 rounded-full ${
-                      activity.status === 'confirmed' ? 'bg-green-500' : 'bg-yellow-500'
-                    }`}
-                  />
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: theme.semantic.text.primary }}>
-                      {activity.vendor}
-                    </p>
-                    <p className="text-xs" style={{ color: theme.semantic.text.secondary }}>
-                      {activity.action} • {activity.date}
-                    </p>
-                  </div>
-                </div>
-                <span 
-                  className={`text-xs font-medium px-2 py-1 rounded-full ${
-                    activity.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                  }`}
-                >
-                  {activity.status.charAt(0).toUpperCase() + activity.status.slice(1)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Vendor Management Insights */}
-        <div className="bg-white rounded-xl p-4" style={{ boxShadow: `0 4px 15px -3px ${theme.semantic.card.shadow}40` }}>
-          <h3 className="font-bold text-lg mb-4" style={{ color: theme.semantic.text.primary }}>
-            Management Insights
-          </h3>
-          <div className="space-y-3">
-            <div className="flex items-start space-x-3 p-3 rounded-lg" style={{ backgroundColor: theme.colors.accent[50] }}>
-              <Icon name="compare" size="sm" style={{ color: theme.colors.accent[500] }} className="mt-0.5" />
-              <div>
-                <p className="text-sm font-medium" style={{ color: theme.semantic.text.primary }}>
-                  Booking Progress: {getPercentage(vendorData.bookedVendors, vendorData.totalVendors)}%
-                </p>
-                <p className="text-xs" style={{ color: theme.semantic.text.secondary }}>
-                  You've booked {vendorData.bookedVendors} out of {vendorData.totalVendors} planned vendors.
-                </p>
+                ))}
               </div>
             </div>
-            <div className="flex items-start space-x-3 p-3 rounded-lg" style={{ backgroundColor: theme.colors.secondary[50] }}>
-              <Icon name="star" size="sm" style={{ color: theme.colors.secondary[500] }} className="mt-0.5" />
-              <div>
-                <p className="text-sm font-medium" style={{ color: theme.semantic.text.primary }}>
-                  Vendor Tip
-                </p>
-                <p className="text-xs" style={{ color: theme.semantic.text.secondary }}>
-                  Follow up with pending vendors within 48 hours to secure bookings.
-                </p>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
-      </div>
+      )}
 
-      {/* Bottom spacing */}
       <div className="h-8"></div>
     </div>
   );

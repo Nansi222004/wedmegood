@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
+import { userApi } from '../../../services/userApi';
 
 const WeddingDetailsForm = () => {
   const navigate = useNavigate();
@@ -64,7 +65,53 @@ const WeddingDetailsForm = () => {
     guestCount: ''
   });
 
+  const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
   const [errors, setErrors] = useState({});
+  const [serverError, setServerError] = useState('');
+
+  // Load existing wedding details from backend on mount
+  useEffect(() => {
+    let isMounted = true;
+    const loadDetails = async () => {
+      try {
+        setIsFetching(true);
+        const res = await userApi.getWeddingDetails();
+        if (isMounted && res.success && res.data?.weddingDetails) {
+          const wd = res.data.weddingDetails;
+          if (wd.category) setSelectedCategory(wd.category);
+          if (wd.subcategories?.length) setSelectedSubcategories(wd.subcategories);
+          
+          const formattedDate = wd.weddingDate ? new Date(wd.weddingDate).toISOString().split('T')[0] : '';
+          
+          setFormData({
+            brideName: wd.brideName || '',
+            groomName: wd.groomName || '',
+            weddingDate: formattedDate,
+            venue: wd.venue || '',
+            budget: wd.budget ? String(wd.budget) : '',
+            guestCount: wd.guestCount ? String(wd.guestCount) : ''
+          });
+        }
+      } catch (err) {
+        // Fallback to cached client state if network error
+        const saved = localStorage.getItem('eventDetails');
+        if (saved && isMounted) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed.category) setSelectedCategory(parsed.category);
+            if (parsed.subcategories) setSelectedSubcategories(parsed.subcategories);
+            if (parsed.details) setFormData(parsed.details);
+          } catch (e) {}
+        }
+      } finally {
+        if (isMounted) setIsFetching(false);
+      }
+    };
+
+    loadDetails();
+    return () => { isMounted = false; };
+  }, []);
 
   const handleCategoryChange = (val) => {
     setSelectedCategory(val);
@@ -101,21 +148,49 @@ const WeddingDetailsForm = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (validateForm()) {
-      // Save data logic
-      const eventData = {
+    setServerError('');
+    if (!validateForm()) return;
+
+    setIsLoading(true);
+    try {
+      const weddingPayload = {
         category: selectedCategory,
         subcategories: selectedSubcategories,
         subcategoryLabels: selectedSubcategories.map(id => 
           eventCategories[selectedCategory].subcategories.find(s => s.id === id)?.label || id
         ),
-        details: formData,
-        timestamp: new Date().toISOString()
+        brideName: formData.brideName || formData.personName || '',
+        groomName: formData.groomName || '',
+        weddingDate: formData.weddingDate || formData.eventDate || null,
+        venue: formData.venue || '',
+        budget: Number(formData.budget) || 0,
+        guestCount: Number(formData.guestCount) || 0,
+        planningPreferences: {
+          rawDetails: formData
+        }
       };
-      localStorage.setItem('eventDetails', JSON.stringify(eventData));
-      navigate('/user/planning-dashboard');
+
+      // Persist to MongoDB
+      const res = await userApi.updateWeddingDetails(weddingPayload);
+
+      if (res.success) {
+        // Sync local cache for fast Phase 3 compatibility
+        const eventData = {
+          ...weddingPayload,
+          details: formData,
+          timestamp: new Date().toISOString()
+        };
+        localStorage.setItem('eventDetails', JSON.stringify(eventData));
+        navigate('/user/planning-dashboard');
+      } else {
+        throw new Error(res.message || 'Failed to save wedding details');
+      }
+    } catch (err) {
+      setServerError(err.message || 'Failed to save event details to server');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -165,12 +240,18 @@ const WeddingDetailsForm = () => {
 
       {/* MAIN FORM CONTAINER */}
       <div className="relative z-20 w-full max-w-sm px-6 space-y-4">
+        {serverError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-xs font-semibold">
+            {serverError}
+          </div>
+        )}
           
         {/* Category Selector Cards */}
         <div className="flex gap-3">
           {Object.keys(eventCategories).map(key => (
             <button
               key={key}
+              type="button"
               onClick={() => handleCategoryChange(key)}
               className={`flex-1 p-3.5 rounded-3xl transition-all duration-500 border-2 ${
                 selectedCategory === key 
@@ -263,10 +344,11 @@ const WeddingDetailsForm = () => {
           <div className="flex flex-col gap-3">
             <button
               type="submit"
-              className="w-full bg-[#5D3E3E] py-4.5 rounded-[2rem] font-black text-sm text-white tracking-[0.2em] uppercase shadow-2xl active:scale-[0.98] hover:bg-[#4A3232] transition-all transform hover:translate-y-[-2px]"
+              disabled={isLoading || isFetching}
+              className="w-full bg-[#5D3E3E] py-4.5 rounded-[2rem] font-black text-sm text-white tracking-[0.2em] uppercase shadow-2xl active:scale-[0.98] hover:bg-[#4A3232] transition-all transform hover:translate-y-[-2px] disabled:opacity-50"
               style={{ fontFamily: '"Outfit", sans-serif' }}
             >
-              Confirm My Plan →
+              {isLoading ? 'Saving to Database...' : 'Confirm My Plan →'}
             </button>
             
             <button

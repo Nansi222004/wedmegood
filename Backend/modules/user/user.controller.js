@@ -1,4 +1,9 @@
 const User = require('./user.model');
+const Booking = require('../vendor/Booking');
+const Lead = require('../vendor/Lead');
+const Quote = require('../vendor/Quote');
+const Review = require('../vendor/Review');
+const Payment = require('./Payment');
 const { body, validationResult } = require('express-validator');
 const multer = require('multer');
 const path = require('path');
@@ -85,11 +90,21 @@ exports.updateProfile = async (req, res) => {
       });
     }
 
-    const allowedUpdates = ['name', 'weddingDate', 'city', 'profileImage', 'preferences'];
+    const allowedUpdates = [
+      'name',
+      'email',
+      'phone',
+      'weddingDate',
+      'city',
+      'profileImage',
+      'preferences',
+      'weddingDetails',
+      'socialLinks'
+    ];
     const filteredData = {};
 
     Object.keys(req.body).forEach(key => {
-      if (allowedUpdates.includes(key)) {
+      if (allowedUpdates.includes(key) && req.body[key] !== undefined) {
         filteredData[key] = req.body[key];
       }
     });
@@ -99,8 +114,25 @@ exports.updateProfile = async (req, res) => {
       filteredData.preferences = { ...req.user.preferences, ...req.body.preferences };
     }
 
-    if (filteredData.weddingDate) {
+    // Handle wedding details
+    if (req.body.weddingDetails) {
+      filteredData.weddingDetails = {
+        ...(req.user.weddingDetails || {}),
+        ...req.body.weddingDetails,
+        updatedAt: new Date()
+      };
+      if (req.body.weddingDetails.weddingDate) {
+        filteredData.weddingDate = new Date(req.body.weddingDetails.weddingDate);
+      }
+    } else if (req.body.weddingDate === null || req.body.weddingDate === '') {
+      filteredData.weddingDate = null;
+    } else if (filteredData.weddingDate) {
       filteredData.weddingDate = new Date(filteredData.weddingDate);
+    }
+
+    // Handle profileImage empty/null
+    if (req.body.profileImage === '' || req.body.profileImage === null) {
+      delete filteredData.profileImage;
     }
 
     const user = await User.findByIdAndUpdate(
@@ -511,6 +543,15 @@ exports.getUserStats = async (req, res) => {
       });
     }
 
+    // Real counts from MongoDB transaction models
+    const [bookingsCount, leadsCount, quotesCount, reviewsCount, paymentsCount] = await Promise.all([
+      Booking.countDocuments({ userId: req.user._id, status: { $ne: 'Cancelled' } }).catch(() => 0),
+      Lead.countDocuments({ userId: req.user._id }).catch(() => 0),
+      Quote.countDocuments({ userId: req.user._id, status: { $ne: 'Rejected' } }).catch(() => 0),
+      Review.countDocuments({ userId: req.user._id }).catch(() => 0),
+      Payment.countDocuments({ userId: req.user._id, status: 'Completed' }).catch(() => 0)
+    ]);
+
     const stats = {
       weddingDaysLeft: user.weddingDaysLeft,
       checklistProgress: user.checklistProgress,
@@ -519,7 +560,15 @@ exports.getUserStats = async (req, res) => {
       loginCount: user.loginCount,
       accountAge: Math.floor((Date.now() - user.createdAt) / (1000 * 60 * 60 * 24)), // days
       lastLogin: user.lastLogin,
-      profileCompleteness: req.profileCompleteness
+      profileCompleteness: req.profileCompleteness || 85,
+      bookingsCount,
+      leadsCount,
+      quotesCount,
+      reviewsCount,
+      paymentsCount,
+      weddingDate: user.weddingDate,
+      city: user.city,
+      budgetPlanned: user.weddingDetails?.budget || user.weddingProgress?.budgetPlanned || 0
     };
 
     res.status(200).json({
@@ -600,10 +649,17 @@ exports.getPreferences = async (req, res) => {
       });
     }
 
+    const returnedPrefs = user.preferences ? (user.preferences.toObject ? user.preferences.toObject() : { ...user.preferences }) : {};
+    if (returnedPrefs.notifications) {
+      returnedPrefs.notifications.emailEnabled = returnedPrefs.notifications.email;
+      returnedPrefs.notifications.smsEnabled = returnedPrefs.notifications.sms;
+      returnedPrefs.notifications.pushEnabled = returnedPrefs.notifications.push;
+    }
+
     res.status(200).json({
       success: true,
       data: {
-        preferences: user.preferences
+        preferences: returnedPrefs
       }
     });
 
@@ -631,15 +687,42 @@ exports.updatePreferences = async (req, res) => {
       });
     }
 
-    // Update preferences
-    user.preferences = { ...user.preferences, ...req.body };
+    if (!user.preferences) {
+      user.preferences = {};
+    }
+
+    if (req.body.notifications) {
+      const notifs = req.body.notifications;
+      if (!user.preferences.notifications) {
+        user.preferences.notifications = {};
+      }
+      if (notifs.email !== undefined) user.preferences.notifications.email = notifs.email;
+      else if (notifs.emailEnabled !== undefined) user.preferences.notifications.email = notifs.emailEnabled;
+
+      if (notifs.sms !== undefined) user.preferences.notifications.sms = notifs.sms;
+      else if (notifs.smsEnabled !== undefined) user.preferences.notifications.sms = notifs.smsEnabled;
+
+      if (notifs.push !== undefined) user.preferences.notifications.push = notifs.push;
+      else if (notifs.pushEnabled !== undefined) user.preferences.notifications.push = notifs.pushEnabled;
+    }
+
+    if (req.body.language) user.preferences.language = req.body.language;
+    if (req.body.theme) user.preferences.theme = req.body.theme;
+
     await user.save();
+
+    const returnedPrefs = user.preferences.toObject ? user.preferences.toObject() : { ...user.preferences };
+    if (returnedPrefs.notifications) {
+      returnedPrefs.notifications.emailEnabled = returnedPrefs.notifications.email;
+      returnedPrefs.notifications.smsEnabled = returnedPrefs.notifications.sms;
+      returnedPrefs.notifications.pushEnabled = returnedPrefs.notifications.push;
+    }
 
     res.status(200).json({
       success: true,
       message: 'Preferences updated successfully',
       data: {
-        preferences: user.preferences
+        preferences: returnedPrefs
       }
     });
 
@@ -856,3 +939,88 @@ exports.exportUserData = async (req, res) => {
     });
   }
 };
+
+// @desc    Get user wedding & event planning details
+// @route   GET /api/user/profile/wedding
+// @access  Private
+exports.getWeddingDetails = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('weddingDetails weddingDate city');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        weddingDetails: user.weddingDetails || {}
+      }
+    });
+  } catch (error) {
+    console.error('Get wedding details error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching wedding details'
+    });
+  }
+};
+
+// @desc    Create or update user wedding & event planning details
+// @route   PUT /api/user/profile/wedding
+// @access  Private
+exports.updateWeddingDetails = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const currentDetails = user.weddingDetails || {};
+    const newDetails = {
+      ...currentDetails,
+      ...req.body,
+      updatedAt: new Date()
+    };
+
+    user.weddingDetails = newDetails;
+
+    // Synchronize top-level fields
+    if (newDetails.weddingDate) {
+      user.weddingDate = new Date(newDetails.weddingDate);
+    }
+    if (newDetails.venue && !user.city) {
+      user.city = newDetails.venue;
+    }
+    if (newDetails.budget) {
+      user.weddingProgress.budgetPlanned = Number(newDetails.budget);
+    }
+    if (newDetails.guestCount) {
+      user.weddingProgress.guestsAdded = Number(newDetails.guestCount);
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Wedding details saved successfully',
+      data: {
+        weddingDetails: user.weddingDetails
+      }
+    });
+  } catch (error) {
+    console.error('Update wedding details error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while saving wedding details'
+    });
+  }
+};
+

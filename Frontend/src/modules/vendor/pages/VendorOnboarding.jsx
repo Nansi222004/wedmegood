@@ -131,7 +131,7 @@ const VendorOnboarding = () => {
 
   const handleSaveService = () => {
     if (!newService.name || !newService.category || !newService.basePrice) {
-      alert('Please fill in all basic fields.');
+      showToast('Please fill in all basic fields.', 'error');
       return;
     }
     const serviceToAdd = {
@@ -247,7 +247,7 @@ const VendorOnboarding = () => {
     const check = canNavigateTo(index);
     if (!check.complete) {
       e.preventDefault();
-      alert(`⚠️ Please complete "${check.stepLabel}" before moving forward.`);
+      showToast(`Please complete "${check.stepLabel}" before moving forward.`, 'info');
     }
   };
 
@@ -274,7 +274,7 @@ const VendorOnboarding = () => {
     const token = localStorage.getItem('vendorToken');
 
     if (!check.complete) {
-      alert(`⚠️ Requirement Missing: Please finish "${check.stepLabel}" to continue.`);
+      showToast(`Requirement Missing: Please finish "${check.stepLabel}" to continue.`, 'error');
       return;
     }
 

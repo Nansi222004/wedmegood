@@ -4,9 +4,11 @@ import { vendorApi } from '../vendorApi';
 import { computeProfileCompletion } from '../vendorStore';
 import Icon from '../../../components/ui/Icon';
 import { adminApi } from '../../admin/services/adminApi';
+import { useToast } from '../../../components/ui/Toast';
 
 const VendorProfile = () => {
   const { vendorState, updateVendorState, refreshData } = useVendorState();
+  const { showToast, ToastComponent } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showApprovedCelebration, setShowApprovedCelebration] = useState(false);
@@ -81,13 +83,13 @@ const VendorProfile = () => {
         const formData = new FormData();
         formData.append('folder', 'utsavo/vendors/profile');
         formData.append('images', profileImageFile);
-        const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+        const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
         const uploadRes = await fetch(`${BASE_URL}/upload/multiple`, { method: 'POST', body: formData });
         const uploadData = await uploadRes.json();
         if (uploadData.success && uploadData.data.length > 0) {
           finalProfileImage = uploadData.data[0].url;
         } else {
-          alert(uploadData.message || 'Failed to upload profile image');
+          showToast(uploadData.message || 'Failed to upload profile image.', 'error');
           setIsSaving(false);
           return;
         }
@@ -97,15 +99,16 @@ const VendorProfile = () => {
       const payload = { ...tempProfile, profileImage: finalProfileImage };
       const res = await vendorApi.updateProfile(payload, token);
       if (res.success) {
+        showToast('Profile updated successfully.', 'success');
         updateVendorState(res.data);
         setIsEditing(false);
         refreshData();
       } else {
-        alert(res.message || 'Failed to update profile');
+        showToast(res.message || 'Failed to update profile.', 'error');
       }
     } catch (err) {
       console.error('Error saving profile:', err);
-      alert('Network error while saving profile');
+      showToast('Network error while saving profile. Please try again.', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -435,6 +438,9 @@ const VendorProfile = () => {
           Sign Out
         </button>
       </div>
+
+      {/* Toast Component */}
+      <ToastComponent />
     </div>
   );
 };

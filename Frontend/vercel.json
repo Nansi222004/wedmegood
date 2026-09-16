@@ -5,7 +5,7 @@
     "rewrites": [
         {
             "source": "/api/:path*",
-            "destination": "https://wedmegood1-2.onrender.com/api/:path*"
+            "destination": "https://wedmegood-u0n7.onrender.com/api/:path*"
         },
         {
             "source": "/vendor/(.*)",

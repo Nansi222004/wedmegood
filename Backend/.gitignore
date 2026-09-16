@@ -118,6 +118,20 @@ Thumbs.db
 uploads/
 !uploads/.gitkeep
 
-# Test files
+# Test files and directories
 test-results/
 playwright-report/
+tests/
+tests
+test/
+test
+scratch/
+*.test.js
+*.spec.js
+check_*.js
+benchmark_*.js
+
+# Markdown documentation files
+*.md
+**/*.md
+

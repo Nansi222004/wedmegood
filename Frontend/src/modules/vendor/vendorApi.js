@@ -1,4 +1,4 @@
-const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api') + '/vendor';
+const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api') + '/vendor';
 
 export const vendorApi = {
     register: async (data) => {
@@ -91,6 +91,123 @@ export const vendorApi = {
             body: formData
         });
         return response.json();
+    },
+
+    uploadMultipleMedia: async (files, token) => {
+        const formData = new FormData();
+        files.forEach(file => formData.append('files', file));
+        const response = await fetch(`${BASE_URL}/upload-multiple`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+        return response.json();
+    },
+
+    uploadMediaWithProgress: (file, token, onProgress) => {
+        const xhr = new XMLHttpRequest();
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const promise = new Promise((resolve, reject) => {
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable && onProgress) {
+                    const percentage = Math.round((e.loaded * 100) / e.total);
+                    onProgress({ loaded: e.loaded, total: e.total, percentage });
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        resolve(data);
+                    } catch (e) {
+                        reject(new Error('Invalid JSON response from server'));
+                    }
+                } else {
+                    try {
+                        const errData = JSON.parse(xhr.responseText);
+                        reject(new Error(errData.message || `Upload failed with status ${xhr.status}`));
+                    } catch (e) {
+                        reject(new Error(`Upload failed with status ${xhr.status}`));
+                    }
+                }
+            });
+
+            xhr.addEventListener('error', () => {
+                reject(new Error('Network error during file upload'));
+            });
+
+            xhr.addEventListener('abort', () => {
+                reject(new Error('Upload aborted'));
+            });
+
+            xhr.open('POST', `${BASE_URL}/upload`);
+            if (token) {
+                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            }
+            xhr.send(formData);
+        });
+
+        return {
+            promise,
+            abort: () => xhr.abort()
+        };
+    },
+
+    uploadMultipleMediaWithProgress: (files, token, onProgress) => {
+        const xhr = new XMLHttpRequest();
+        const formData = new FormData();
+        files.forEach(file => formData.append('files', file));
+
+        const promise = new Promise((resolve, reject) => {
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable && onProgress) {
+                    const percentage = Math.round((e.loaded * 100) / e.total);
+                    onProgress({ loaded: e.loaded, total: e.total, percentage });
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        resolve(data);
+                    } catch (e) {
+                        reject(new Error('Invalid JSON response from server'));
+                    }
+                } else {
+                    try {
+                        const errData = JSON.parse(xhr.responseText);
+                        reject(new Error(errData.message || `Upload failed with status ${xhr.status}`));
+                    } catch (e) {
+                        reject(new Error(`Upload failed with status ${xhr.status}`));
+                    }
+                }
+            });
+
+            xhr.addEventListener('error', () => {
+                reject(new Error('Network error during file upload'));
+            });
+
+            xhr.addEventListener('abort', () => {
+                reject(new Error('Upload aborted'));
+            });
+
+            xhr.open('POST', `${BASE_URL}/upload-multiple`);
+            if (token) {
+                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            }
+            xhr.send(formData);
+        });
+
+        return {
+            promise,
+            abort: () => xhr.abort()
+        };
     },
 
     getStats: async (token) => {
@@ -302,6 +419,36 @@ export const vendorApi = {
         const response = await fetch(`${BASE_URL}/earnings`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+    },
+
+    getTransactions: async (token, params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const url = `${BASE_URL}/transactions${query ? `?${query}` : ''}`;
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+    },
+
+    getWithdrawals: async (token) => {
+        const response = await fetch(`${BASE_URL}/withdrawals`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+    },
+
+    requestWithdrawal: async (data, token) => {
+        const response = await fetch(`${BASE_URL}/withdrawals`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
         });
         return response.json();
     },

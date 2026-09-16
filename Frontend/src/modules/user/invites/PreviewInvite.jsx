@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
 import Card from '../../../components/ui/Card';
 import { useToast } from '../../../components/ui/Toast';
+import userApi from '../../../services/userApi';
 
 const PreviewInvite = () => {
   const { theme } = useTheme();
@@ -13,8 +14,7 @@ const PreviewInvite = () => {
   const { showToast, ToastComponent } = useToast();
   const [showShareModal, setShowShareModal] = useState(false);
 
-  // Mock data - in real app, fetch from API
-  const inviteData = {
+  const [inviteData, setInviteData] = useState({
     id: 1,
     name: 'Priya & Rahul Wedding',
     template: 'Royal Elegance',
@@ -35,29 +35,150 @@ const PreviewInvite = () => {
     accentColor: '#FFD700',
     enableRSVP: true,
     enableMap: true,
-    views: 234,
-    rsvps: 156,
-    shareUrl: 'https://utsavo.com/invite/priya-rahul-2026'
+    views: 0,
+    rsvps: 0,
+    slug: '',
+    shareUrl: window.location.href
+  });
+
+  const [isRSVPModalOpen, setIsRSVPModalOpen] = useState(false);
+  const [rsvpGuestName, setRsvpGuestName] = useState('');
+  const [rsvpPhone, setRsvpPhone] = useState('');
+  const [rsvpAttendance, setRsvpAttendance] = useState('Attending');
+  const [rsvpGuestCount, setRsvpGuestCount] = useState(1);
+  const [rsvpMealPref, setRsvpMealPref] = useState('Vegetarian');
+  const [rsvpNote, setRsvpNote] = useState('');
+  const [isSubmittingRSVP, setIsSubmittingRSVP] = useState(false);
+
+  useEffect(() => {
+    if (id && id.length === 24) {
+      userApi.getInviteById(id)
+        .then(res => {
+          if (res.success && res.data) {
+            const inv = res.data;
+            const rsvpCount = inv.rsvpCount ?? (Array.isArray(inv.rsvps) ? inv.rsvps.length : 0);
+            setInviteData({
+              id: inv._id,
+              name: inv.title || inv.name,
+              template: inv.template || 'Royal Elegance',
+              status: inv.status || 'Draft',
+              brideName: inv.eventDetails?.brideName || '',
+              groomName: inv.eventDetails?.groomName || '',
+              weddingDate: inv.eventDetails?.eventDate ? inv.eventDetails.eventDate.split('T')[0] : '2026-03-15',
+              weddingTime: inv.eventDetails?.eventTime || '18:00',
+              venue: inv.eventDetails?.venue || '',
+              venueAddress: inv.eventDetails?.venueAddress || '',
+              message: inv.eventDetails?.message || '',
+              rsvpDeadline: inv.eventDetails?.rsvpDeadline ? inv.eventDetails.rsvpDeadline.split('T')[0] : '',
+              contactPerson: inv.eventDetails?.contactPerson || '',
+              contactPhone: inv.eventDetails?.contactPhone || '',
+              dresscode: inv.eventDetails?.dresscode || '',
+              backgroundColor: inv.design?.backgroundColor || '#8B4513',
+              textColor: inv.design?.textColor || '#FFFFFF',
+              accentColor: inv.design?.accentColor || '#FFD700',
+              enableRSVP: inv.settings?.enableRSVP ?? true,
+              enableMap: inv.settings?.enableMap ?? true,
+              views: inv.views || 0,
+              rsvps: rsvpCount,
+              slug: inv.slug,
+              shareUrl: inv.slug ? `${window.location.origin}/invite/${inv.slug}` : window.location.href
+            });
+          }
+        })
+        .catch(err => console.error('Error fetching invite preview from MongoDB:', err));
+    }
+  }, [id]);
+
+  const handleRSVPSubmit = async (e) => {
+    e.preventDefault();
+    if (!rsvpGuestName.trim() || !rsvpPhone.trim()) {
+      showToast('Please enter your name and phone number', 'error', 2500);
+      return;
+    }
+    setIsSubmittingRSVP(true);
+    try {
+      const slug = inviteData.slug;
+      if (!slug) {
+        showToast('Invite slug not found for public RSVP', 'error', 2500);
+        return;
+      }
+      const res = await userApi.submitPublicRSVP(slug, {
+        guestName: rsvpGuestName.trim(),
+        phone: rsvpPhone.trim(),
+        attendance: rsvpAttendance,
+        guestCount: parseInt(rsvpGuestCount) || 1,
+        mealPreference: rsvpMealPref,
+        note: rsvpNote.trim()
+      });
+      if (res.success) {
+        showToast('RSVP submitted successfully! Thank you.', 'success', 3000);
+        setIsRSVPModalOpen(false);
+        setInviteData(prev => ({
+          ...prev,
+          rsvps: prev.rsvps + 1
+        }));
+        setRsvpGuestName('');
+        setRsvpPhone('');
+        setRsvpNote('');
+      } else {
+        throw new Error(res.message || 'Submission failed');
+      }
+    } catch (err) {
+      console.error('RSVP submit error:', err);
+      showToast('RSVP submission failed: ' + (err.message || 'Server error'), 'error', 3000);
+    } finally {
+      setIsSubmittingRSVP(false);
+    }
   };
 
   const stats = [
     { label: 'Total Views', value: inviteData.views, icon: 'eye', color: theme.colors.primary[500] },
     { label: 'RSVPs Received', value: inviteData.rsvps, icon: 'users', color: theme.colors.accent[500] },
-    { label: 'Pending', value: inviteData.views - inviteData.rsvps, icon: 'clock', color: theme.colors.secondary[500] },
-    { label: 'Acceptance Rate', value: `${Math.round((inviteData.rsvps / inviteData.views) * 100)}%`, icon: 'chart', color: theme.colors.primary[500] }
+    { label: 'Pending', value: Math.max(0, inviteData.views - inviteData.rsvps), icon: 'clock', color: theme.colors.secondary[500] },
+    { label: 'Acceptance Rate', value: inviteData.views > 0 ? `${Math.round((inviteData.rsvps / inviteData.views) * 100)}%` : '100%', icon: 'chart', color: theme.colors.primary[500] }
   ];
 
   const shareOptions = [
     { id: 'whatsapp', name: 'WhatsApp', icon: 'share', color: '#25D366' },
-    { id: 'email', name: 'Email', icon: 'mail', color: '#EA4335' },
-    { id: 'sms', name: 'SMS', icon: 'message', color: '#0088CC' },
+    { id: 'email', name: 'Email App', icon: 'mail', color: '#EA4335' },
+    { id: 'sms', name: 'SMS App', icon: 'message', color: '#0088CC' },
     { id: 'copy', name: 'Copy Link', icon: 'link', color: theme.colors.primary[500] }
   ];
+
+  const handleNativeShare = async () => {
+    const url = inviteData.shareUrl;
+    const title = `${inviteData.brideName || 'Wedding'} & ${inviteData.groomName || 'Celebration'} Wedding Invitation`;
+    const text = `You're warmly invited to celebrate our wedding ceremony! View details & RSVP:`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text, url });
+        if (inviteData.slug) {
+          userApi.trackInviteShare(inviteData.slug, 'native').catch(() => {});
+        }
+        showToast('Shared successfully!', 'success', 2000);
+        return;
+      } catch (err) {
+        // AbortError means user cancelled share sheet - not an application failure
+        if (err.name === 'AbortError') {
+          return;
+        }
+        console.warn('Native share failed, falling back to modal:', err);
+      }
+    }
+    // Fallback if navigator.share is unavailable or failed
+    setShowShareModal(true);
+  };
 
   const handleShare = (platform) => {
     const url = inviteData.shareUrl;
     const text = `You're invited to ${inviteData.brideName} & ${inviteData.groomName}'s wedding!`;
-    
+
+    // Non-blocking telemetry tracking (Rule 19 & 20)
+    if (inviteData.slug) {
+      userApi.trackInviteShare(inviteData.slug, platform).catch(() => {});
+    }
+
     switch(platform) {
       case 'whatsapp':
         window.open(`https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`, '_blank');
@@ -142,7 +263,7 @@ const PreviewInvite = () => {
             <Button
               variant="primary"
               size="sm"
-              onClick={() => setShowShareModal(true)}
+              onClick={handleNativeShare}
               className="flex items-center gap-2"
             >
               <Icon name="share" size="sm" />
@@ -313,8 +434,8 @@ const PreviewInvite = () => {
                   {inviteData.enableRSVP && (
                     <div className="mb-6">
                       <button
-                        onClick={() => showToast('RSVP feature coming soon!', 'info', 2000)}
-                        className="px-8 py-3 rounded-full font-semibold text-lg transition-transform hover:scale-105"
+                        onClick={() => setIsRSVPModalOpen(true)}
+                        className="px-8 py-3 rounded-full font-semibold text-lg transition-transform hover:scale-105 shadow-lg"
                         style={{
                           backgroundColor: inviteData.accentColor,
                           color: inviteData.backgroundColor
@@ -527,6 +648,150 @@ const PreviewInvite = () => {
               ))}
             </div>
           </Card>
+        </div>
+      )}
+
+      {/* Interactive Public RSVP Modal */}
+      {isRSVPModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-gray-100 animate-scale-up">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-slate-50/80">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Wedding RSVP</h3>
+                <p className="text-xs text-slate-500">
+                  {inviteData.brideName} & {inviteData.groomName}'s Celebration
+                </p>
+              </div>
+              <button
+                onClick={() => setIsRSVPModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-200/60 hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleRSVPSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+                  Your Full Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Ramesh Patel"
+                  value={rsvpGuestName}
+                  onChange={(e) => setRsvpGuestName(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 outline-none focus:border-pink-500 focus:bg-white transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+                  Phone Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="+91 98765 43210"
+                  value={rsvpPhone}
+                  onChange={(e) => setRsvpPhone(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 outline-none focus:border-pink-500 focus:bg-white transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+                  Will You Attend?
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {['Attending', 'Declined', 'Tentative'].map((att) => (
+                    <button
+                      key={att}
+                      type="button"
+                      onClick={() => setRsvpAttendance(att)}
+                      className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                        rsvpAttendance === att
+                          ? 'bg-pink-50 border-pink-500 text-pink-600 shadow-sm'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {att}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {rsvpAttendance !== 'Declined' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+                      Total Guests
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={rsvpGuestCount}
+                      onChange={(e) => setRsvpGuestCount(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 outline-none focus:border-pink-500 focus:bg-white transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+                      Meal Preference
+                    </label>
+                    <select
+                      value={rsvpMealPref}
+                      onChange={(e) => setRsvpMealPref(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 outline-none focus:border-pink-500 focus:bg-white transition-all"
+                    >
+                      <option value="Vegetarian">Vegetarian</option>
+                      <option value="Non-Vegetarian">Non-Vegetarian</option>
+                      <option value="Jain">Jain</option>
+                      <option value="Vegan">Vegan</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+                  Warm Wishes / Notes (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Congratulations to the lovely couple..."
+                  value={rsvpNote}
+                  onChange={(e) => setRsvpNote(e.target.value)}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 outline-none focus:border-pink-500 focus:bg-white transition-all resize-none"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsRSVPModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingRSVP}
+                  className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-pink-600 hover:bg-pink-700 shadow-md shadow-pink-200 transition-all flex items-center gap-2"
+                >
+                  {isSubmittingRSVP ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent animate-spin rounded-full" />
+                      <span>Submitting...</span>
+                    </>
+                  ) : (
+                    <span>Confirm RSVP</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

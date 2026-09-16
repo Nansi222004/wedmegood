@@ -33,7 +33,7 @@ const VendorPendingApproval = () => {
                             Your professional profile is currently being reviewed by our verification engine.
                         </p>
                         <p className="text-xs font-semibold text-slate-400 leading-relaxed px-8">
-                            We manually verify every vendor to ensure the highest quality experience for our couples. This typically takes <span className="text-slate-900">24 business hours</span>.
+                            We manually verify every vendor to ensure the highest quality experience for our couples. Operational features will become available after your account is approved.
                         </p>
                     </div>
 

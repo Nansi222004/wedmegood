@@ -103,6 +103,17 @@ const Login = () => {
             </div>
           </div>
 
+          <div className="flex justify-end pt-1 pb-1">
+            <button
+              type="button"
+              onClick={() => navigate('/forgot-password')}
+              className="text-[#5D3E3E] hover:text-[#4A3232] text-xs font-semibold hover:underline transition-colors"
+              style={{ fontFamily: '"Outfit", sans-serif' }}
+            >
+              Forgot Password?
+            </button>
+          </div>
+
           {/* ACTION BUTTON (Follows the image's "CONFIRM" button style) */}
           <button
             type="submit"

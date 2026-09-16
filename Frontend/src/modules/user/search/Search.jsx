@@ -1,99 +1,85 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import Input from '../../../components/ui/Input';
 import EmptyState from '../../../components/ui/EmptyState';
 import VendorCard from '../vendors/VendorCardFixed';
-import { vendors } from '../../../data/vendors';
-import { smartSliderCategories } from '../../../data/smartSliderData';
+import userApi from '../../../services/userApi';
 
 const Search = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState('all');
+  const [categories, setCategories] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
 
-  // Debounce search to avoid too many re-renders
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+  // Fetch real categories from database
+  useEffect(() => {
+    userApi.getCategories()
+      .then(res => {
+        if (res.success && res.data) {
+          setCategories(res.data);
+        }
+      })
+      .catch(err => console.error('Error fetching categories for search:', err));
+  }, []);
 
+  // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(searchQuery);
-      setIsSearching(false);
-    }, 300);
-
-    if (searchQuery) {
-      setIsSearching(true);
-    }
+    }, 350);
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Search filters
+  // Execute real server-side search
+  useEffect(() => {
+    const queryTrimmed = debouncedQuery.trim();
+    if (!queryTrimmed && selectedFilter === 'all') {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsSearching(true);
+
+    userApi.getVendors({
+      search: queryTrimmed || undefined,
+      category: selectedFilter !== 'all' ? selectedFilter : undefined,
+      limit: 24
+    })
+      .then(res => {
+        if (isMounted) {
+          setSearchResults(res.data || []);
+        }
+      })
+      .catch(err => {
+        console.error('Server search error:', err);
+        if (isMounted) setSearchResults([]);
+      })
+      .finally(() => {
+        if (isMounted) setIsSearching(false);
+      });
+
+    return () => { isMounted = false; };
+  }, [debouncedQuery, selectedFilter]);
+
+  // Dynamic filters based on DB categories
   const filters = [
     { key: 'all', label: 'All', icon: 'search' },
-    { key: 'photographers', label: 'Photography', icon: 'camera' },
-    { key: 'venues', label: 'Venues', icon: 'building' },
-    { key: 'makeup', label: 'Makeup', icon: 'makeup' },
-    { key: 'planning-decor', label: 'Planning', icon: 'decoration' },
-    { key: 'mehndi', label: 'Mehndi', icon: 'heart' },
-    { key: 'music-dance', label: 'Music', icon: 'sparkles' },
-    { key: 'food', label: 'Catering', icon: 'heart' },
-    { key: 'invites-gifts', label: 'Invites', icon: 'envelope' }
+    ...categories.map(c => ({
+      key: c.slug || c.name,
+      label: c.name,
+      icon: 'sparkles'
+    }))
   ];
 
-  // Combine all searchable data
-  const allSearchableItems = useMemo(() => {
-    const vendorItems = vendors.map(vendor => ({
-      ...vendor,
-      type: 'vendor',
-      searchText: `${vendor.name} ${vendor.description} ${vendor.location} ${vendor.services.join(' ')} ${vendor.category}`.toLowerCase()
-    }));
-
-    // Add items from smart slider data
-    const sliderItems = [];
-    Object.values(smartSliderCategories).forEach(category => {
-      category.items.forEach(item => {
-        // Only add if not already in vendors (avoid duplicates)
-        if (!vendorItems.find(v => v.id === item.id)) {
-          sliderItems.push({
-            ...item,
-            type: 'vendor',
-            searchText: `${item.name} ${item.category} ${item.location}`.toLowerCase()
-          });
-        }
-      });
-    });
-
-    return [...vendorItems, ...sliderItems];
-  }, []);
-
-  // Search logic
-  const searchResults = useMemo(() => {
-    if (!debouncedQuery.trim()) return [];
-
-    const query = debouncedQuery.toLowerCase().trim();
-    const words = query.split(' ').filter(word => word.length > 0);
-
-    return allSearchableItems.filter(item => {
-      // Filter by category if selected
-      if (selectedFilter !== 'all' && item.category !== selectedFilter) {
-        return false;
-      }
-
-      // Check if all search words are found in the item
-      return words.every(word => 
-        item.searchText.includes(word) ||
-        item.name.toLowerCase().includes(word) ||
-        item.category.toLowerCase().includes(word) ||
-        item.location.toLowerCase().includes(word)
-      );
-    }).slice(0, 20); // Limit results to 20 items
-  }, [debouncedQuery, selectedFilter, allSearchableItems]);
-
-  // Popular searches
   const popularSearches = [
     'Wedding Photography',
     'Bridal Makeup',
@@ -110,7 +96,7 @@ const Search = () => {
   };
 
   const handleVendorClick = (vendor) => {
-    navigate(`/user/vendor/${vendor.id}`);
+    navigate(`/user/vendor/${vendor._id || vendor.id}`);
   };
 
   return (
@@ -128,7 +114,7 @@ const Search = () => {
             className="text-sm"
             style={{ color: theme.semantic.text.secondary }}
           >
-            Find vendors, services, and everything you need for your perfect wedding
+            Find approved vendors, services, and everything you need for your wedding
           </p>
         </div>
 
@@ -140,7 +126,7 @@ const Search = () => {
             </div>
             <Input
               type="text"
-              placeholder="Search for vendors, services, venues..."
+              placeholder="Search by vendor name, service, or city..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -153,7 +139,7 @@ const Search = () => {
           </div>
         </div>
 
-        {/* Search Filters */}
+        {/* Dynamic Category Filters */}
         <div className="mb-6">
           <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {filters.map((filter) => (
@@ -187,7 +173,7 @@ const Search = () => {
         </div>
 
         {/* Search Results */}
-        {debouncedQuery ? (
+        {debouncedQuery || selectedFilter !== 'all' ? (
           <div>
             <div className="flex items-center justify-between mb-4">
               <p 
@@ -195,14 +181,17 @@ const Search = () => {
                 style={{ color: theme.semantic.text.secondary }}
               >
                 {isSearching ? (
-                  `Searching for "${debouncedQuery}"...`
+                  `Searching database...`
                 ) : (
-                  `Found ${searchResults.length} result${searchResults.length !== 1 ? 's' : ''} for "${debouncedQuery}"`
+                  `Found ${searchResults.length} verified vendor${searchResults.length !== 1 ? 's' : ''}`
                 )}
               </p>
-              {searchResults.length > 0 && (
+              {(debouncedQuery || selectedFilter !== 'all') && (
                 <button
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedFilter('all');
+                  }}
                   className="text-sm underline"
                   style={{ color: theme.colors.primary[600] }}
                 >
@@ -214,7 +203,7 @@ const Search = () => {
             {searchResults.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {searchResults.map((vendor) => (
-                  <div key={`${vendor.type}-${vendor.id}`} onClick={() => handleVendorClick(vendor)}>
+                  <div key={vendor._id || vendor.id} onClick={() => handleVendorClick(vendor)}>
                     <VendorCard 
                       vendor={vendor} 
                       layout="responsive"
@@ -225,8 +214,8 @@ const Search = () => {
             ) : !isSearching ? (
               <EmptyState
                 icon="noResults"
-                title="No results found"
-                description={`We couldn't find any vendors matching "${debouncedQuery}". Try different keywords or browse by category.`}
+                title="No vendors found"
+                description={`We couldn't find any approved vendors matching "${debouncedQuery}". Try different keywords or city filters.`}
               />
             ) : null}
           </div>
@@ -258,7 +247,7 @@ const Search = () => {
               </div>
             </div>
 
-            {/* Recent Searches - Placeholder */}
+            {/* Browse Categories */}
             <div className="mb-8">
               <h3 
                 className="text-lg font-semibold mb-4"
@@ -267,10 +256,10 @@ const Search = () => {
                 Browse Categories
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {filters.slice(1).map((filter) => (
+                {categories.map((cat) => (
                   <button
-                    key={filter.key}
-                    onClick={() => navigate(`/user/vendors/${filter.key}`)}
+                    key={cat._id}
+                    onClick={() => navigate(`/user/vendors/${cat.slug || cat.name}`)}
                     className="p-4 rounded-xl border transition-colors hover:border-primary-500"
                     style={{
                       borderColor: theme.semantic.border.light,
@@ -282,13 +271,13 @@ const Search = () => {
                         className="w-12 h-12 rounded-full flex items-center justify-center"
                         style={{ backgroundColor: theme.colors.primary[100] }}
                       >
-                        <Icon name={filter.icon} size="md" color="primary" />
+                        <Icon name="sparkles" size="md" color="primary" />
                       </div>
                       <span 
                         className="text-sm font-medium"
                         style={{ color: theme.semantic.text.primary }}
                       >
-                        {filter.label}
+                        {cat.name}
                       </span>
                     </div>
                   </button>
@@ -299,7 +288,7 @@ const Search = () => {
             <EmptyState
               icon="search"
               title="Start Your Search"
-              description="Enter keywords to find vendors, services, venues, and more for your wedding."
+              description="Enter keywords to find verified vendors, services, venues, and more for your wedding."
             />
           </div>
         )}

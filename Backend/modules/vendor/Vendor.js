@@ -133,7 +133,7 @@ const vendorSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['Incomplete', 'Pending', 'Approved', 'Rejected'],
+        enum: ['Incomplete', 'Pending', 'Approved', 'Rejected', 'Suspended'],
         default: 'Incomplete'
     },
     isVerified: {
@@ -144,6 +144,21 @@ const vendorSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    isFeatured: {
+        type: Boolean,
+        default: false
+    },
+    rating: {
+        type: Number,
+        default: 0
+    },
+    reviewCount: {
+        type: Number,
+        default: 0
+    },
+    blockedDates: [{
+        type: Date
+    }],
     subscription: {
         planId: String,
         planName: String,

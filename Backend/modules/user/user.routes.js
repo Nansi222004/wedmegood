@@ -24,21 +24,65 @@ const updateProfileValidation = [
     .isLength({ min: 2, max: 30 })
     .withMessage('City must be between 2 and 30 characters'),
   
+  body('phone')
+    .optional({ nullable: true, checkFalsy: true })
+    .trim()
+    .matches(/^[6-9]\d{9}$/)
+    .withMessage('Please provide a valid 10-digit Indian phone number'),
+
   body('weddingDate')
-    .optional()
-    .isISO8601()
-    .toDate()
+    .customSanitizer(val => {
+      if (val === '' || val === null || val === undefined) return null;
+      return val;
+    })
     .custom((value) => {
-      if (value && value <= new Date()) {
+      if (value === null || value === undefined) {
+        return true; // clearing or omitting date is allowed
+      }
+      const d = new Date(value);
+      if (isNaN(d.getTime())) {
+        throw new Error('Wedding date must be a valid date');
+      }
+      if (d <= new Date()) {
         throw new Error('Wedding date must be in the future');
       }
       return true;
     }),
   
   body('profileImage')
-    .optional()
-    .isURL()
-    .withMessage('Profile image must be a valid URL'),
+    .customSanitizer(val => {
+      if (val === '' || val === null || val === undefined) return '';
+      return typeof val === 'string' ? val.trim() : val;
+    })
+    .custom((value, { req }) => {
+      if (!value) return true; // empty or omitted is allowed
+      if (typeof value !== 'string') {
+        throw new Error('Profile image must be a valid URL');
+      }
+      // Allow validated Cloudinary URLs
+      if (value.startsWith('https://res.cloudinary.com/')) {
+        return true;
+      }
+      // Allow trusted Unsplash/default avatar URLs
+      if (value.startsWith('https://images.unsplash.com/')) {
+        return true;
+      }
+      // Allow user-owned local upload paths
+      if (req.user?._id && value.startsWith(`/uploads/profiles/profile-${req.user._id}-`)) {
+        return true;
+      }
+      // Validate secure external URL structure if hosted on cloudinary or unsplash
+      try {
+        const parsed = new URL(value);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+          if (parsed.hostname.includes('cloudinary.com') || parsed.hostname.includes('unsplash.com')) {
+            return true;
+          }
+        }
+      } catch (e) {}
+
+      throw new Error('Profile image must be a valid uploaded image URL');
+    }),
   
   body('preferences.language')
     .optional()
@@ -124,6 +168,10 @@ router.get('/activity', userController.getUserActivity);
 // Preferences management
 router.get('/preferences', userController.getPreferences);
 router.put('/preferences', userController.updatePreferences);
+
+// Wedding details (Phase 2 persistence)
+router.get('/wedding', userController.getWeddingDetails);
+router.put('/wedding', userController.updateWeddingDetails);
 
 // Wedding progress tracking
 router.get('/wedding-progress', userController.getWeddingProgress);

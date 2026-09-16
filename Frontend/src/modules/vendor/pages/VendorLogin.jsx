@@ -1,14 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Icon from '../../../components/ui/Icon';
 import { vendorApi } from '../vendorApi';
 import { useVendorState } from '../useVendorState';
 import VendorSplashScreen from '../components/VendorSplashScreen';
+import { useToast } from '../../../components/ui/Toast';
 
 import loginImg from '../../../assets/login (2).png';
 
 const VendorLogin = () => {
   const navigate = useNavigate();
+  const { showToast, ToastComponent } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showSplash, setShowSplash] = useState(true);
@@ -26,18 +28,22 @@ const VendorLogin = () => {
           refreshData(); // Trigger the /me API to hydrate global context
           navigate('/vendor/dashboard');
         } else {
-          alert(res.message || 'Login failed');
+          showToast(res.message || 'Login failed. Please check your credentials.', 'error');
         }
       } catch (err) {
-        alert('Server error connecting to backend');
+        showToast('Server error connecting to backend. Please try again.', 'error');
       }
     } else {
-      alert('Please enter your credentials');
+      showToast('Please enter your credentials.', 'warning');
     }
   };
 
+  const handleSplashComplete = useCallback(() => {
+    setShowSplash(false);
+  }, []);
+
   if (showSplash) {
-    return <VendorSplashScreen onComplete={() => setShowSplash(false)} />;
+    return <VendorSplashScreen onComplete={handleSplashComplete} />;
   }
 
   return (
@@ -136,6 +142,9 @@ const VendorLogin = () => {
           </div>
         </div>
       </div>
+
+      {/* Toast Component */}
+      <ToastComponent />
     </div>
   );
 };

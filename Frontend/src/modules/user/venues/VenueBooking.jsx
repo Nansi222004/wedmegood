@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import { useToast } from '../../../components/ui/Toast';
@@ -6,13 +6,16 @@ import Button from '../../../components/ui/Button';
 import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import VendorCard from '../vendors/VendorCardFixed';
-import { vendors } from '../../../data/vendors';
+import userApi from '../../../services/userApi';
 
 const VenueBooking = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const { showToast, ToastComponent } = useToast();
   
+  const [allVenues, setAllVenues] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -22,16 +25,69 @@ const VenueBooking = () => {
     rating: 'all'
   });
 
-  // Get all venues
-  const allVenues = vendors.filter(vendor => vendor.category === 'venues');
+  useEffect(() => {
+    const fetchLiveVenues = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const res = await userApi.getVendors({ category: 'venues', limit: 100 });
+        if (res.success && Array.isArray(res.data)) {
+          setAllVenues(res.data);
+        } else {
+          setAllVenues([]);
+        }
+      } catch (err) {
+        console.error('Failed to load venues:', err);
+        setError('Unable to load venues from marketplace.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchLiveVenues();
+  }, []);
 
-  // Categories
+  const getVenuePrice = (venue) => {
+    if (typeof venue.startingPrice === 'number') return venue.startingPrice;
+    const raw = venue.price || venue.priceRange || venue.pricing?.range || '0';
+    return parseInt(String(raw).replace(/[^\d]/g, '') || '0', 10);
+  };
+
+  // Categories based on live data
   const categories = [
     { id: 'all', name: 'All Venues', count: allVenues.length, icon: 'grid' },
-    { id: 'banquet', name: 'Banquet Halls', count: allVenues.filter(v => v.services?.includes('venue')).length, icon: 'location' },
-    { id: 'outdoor', name: 'Outdoor', count: allVenues.filter(v => v.services?.includes('lawn') || v.name.toLowerCase().includes('garden')).length, icon: 'star' },
-    { id: 'luxury', name: 'Luxury', count: allVenues.filter(v => parseInt((v.price || '0').replace(/[^\d]/g, '')) >= 200000).length, icon: 'crown' },
-    { id: 'budget', name: 'Budget Friendly', count: allVenues.filter(v => parseInt((v.price || '0').replace(/[^\d]/g, '')) < 100000).length, icon: 'money' }
+    { 
+      id: 'banquet', 
+      name: 'Banquet Halls', 
+      count: allVenues.filter(v => {
+        const s = Array.isArray(v.services) ? v.services.join(' ').toLowerCase() : '';
+        return s.includes('banquet') || s.includes('hall') || (v.businessName || '').toLowerCase().includes('banquet');
+      }).length, 
+      icon: 'location' 
+    },
+    { 
+      id: 'outdoor', 
+      name: 'Outdoor & Lawns', 
+      count: allVenues.filter(v => {
+        const s = Array.isArray(v.services) ? v.services.join(' ').toLowerCase() : '';
+        return s.includes('lawn') || s.includes('outdoor') || s.includes('garden') || (v.businessName || '').toLowerCase().includes('lawn');
+      }).length, 
+      icon: 'star' 
+    },
+    { 
+      id: 'luxury', 
+      name: 'Luxury Venues', 
+      count: allVenues.filter(v => getVenuePrice(v) >= 200000).length, 
+      icon: 'crown' 
+    },
+    { 
+      id: 'budget', 
+      name: 'Budget Friendly', 
+      count: allVenues.filter(v => {
+        const p = getVenuePrice(v);
+        return p > 0 && p < 100000;
+      }).length, 
+      icon: 'money' 
+    }
   ];
 
   // Filter venues
@@ -41,16 +97,18 @@ const VenueBooking = () => {
     // Category filter
     if (selectedCategory !== 'all') {
       filtered = filtered.filter(venue => {
-        const price = parseInt((venue.price || '0').replace(/[^\d]/g, ''));
+        const price = getVenuePrice(venue);
+        const s = Array.isArray(venue.services) ? venue.services.join(' ').toLowerCase() : '';
+        const name = (venue.businessName || venue.name || '').toLowerCase();
         switch(selectedCategory) {
           case 'banquet':
-            return venue.services?.includes('venue');
+            return s.includes('banquet') || s.includes('hall') || name.includes('banquet');
           case 'outdoor':
-            return venue.services?.includes('lawn') || venue.name.toLowerCase().includes('garden');
+            return s.includes('lawn') || s.includes('outdoor') || s.includes('garden') || name.includes('lawn');
           case 'luxury':
             return price >= 200000;
           case 'budget':
-            return price < 100000;
+            return price > 0 && price < 100000;
           default:
             return true;
         }
@@ -59,18 +117,20 @@ const VenueBooking = () => {
 
     // Search filter
     if (searchQuery) {
-      filtered = filtered.filter(venue =>
-        venue.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        venue.location.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(venue => {
+        const name = (venue.businessName || venue.name || '').toLowerCase();
+        const loc = (venue.city || venue.location || '').toLowerCase();
+        return name.includes(q) || loc.includes(q);
+      });
     }
 
     // Price range filter
     if (filters.priceRange !== 'all') {
       filtered = filtered.filter(venue => {
-        const price = parseInt((venue.price || '0').replace(/[^\d]/g, ''));
+        const price = getVenuePrice(venue);
         switch(filters.priceRange) {
-          case 'budget': return price < 100000;
+          case 'budget': return price > 0 && price < 100000;
           case 'mid': return price >= 100000 && price < 200000;
           case 'premium': return price >= 200000;
           default: return true;
@@ -406,15 +466,34 @@ const VenueBooking = () => {
           )}
         </div>
 
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin mb-3" style={{ borderColor: theme.colors.primary[500], borderTopColor: 'transparent' }} />
+            <p className="text-sm font-medium" style={{ color: theme.semantic.text.secondary }}>Loading venues from marketplace...</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {!isLoading && error && (
+          <div className="text-center py-12 px-4 rounded-xl mb-8" style={{ backgroundColor: theme.semantic.card.background, border: `1px solid ${theme.semantic.border.light}` }}>
+            <Icon name="alert-circle" size="xl" className="mx-auto mb-2 text-red-500" />
+            <p className="text-sm font-medium mb-4" style={{ color: theme.semantic.text.primary }}>{error}</p>
+            <Button onClick={() => window.location.reload()} variant="primary" className="px-4 py-2 text-xs">Retry</Button>
+          </div>
+        )}
+
         {/* Venues Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredVenues.map((venue) => (
-            <VendorCard key={venue.id} vendor={venue} layout="responsive" />
-          ))}
-        </div>
+        {!isLoading && !error && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredVenues.map((venue) => (
+              <VendorCard key={venue._id || venue.id} vendor={venue} layout="responsive" />
+            ))}
+          </div>
+        )}
 
         {/* Empty State */}
-        {filteredVenues.length === 0 && (
+        {!isLoading && !error && filteredVenues.length === 0 && (
           <div 
             className="text-center py-16 rounded-lg"
             style={{

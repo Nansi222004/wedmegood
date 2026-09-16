@@ -2,22 +2,57 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../../components/ui/Icon';
 import { useVendorState } from '../useVendorState';
+import { vendorApi } from '../vendorApi';
 
 const VendorTopbar = ({ onMenuClick }) => {
   const navigate = useNavigate();
   const { vendorState } = useVendorState();
   const [showBookingsDropdown, setShowBookingsDropdown] = useState(false);
+  const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
+  const [notifications, setNotifications] = useState([]);
   const dropdownRef = useRef(null);
+  const notifDropdownRef = useRef(null);
 
   const businessName = vendorState?.businessName || 'Emerald Studio';
   const bookings = vendorState?.bookings || [];
   const upcomingBookings = bookings.filter(b => b.status === 'Upcoming' || b.status === 'Confirmed');
 
-  // Close dropdown on click outside
+  // Load notifications
+  useEffect(() => {
+    const token = localStorage.getItem('vendorToken');
+    if (token) {
+      vendorApi.getNotifications(token)
+        .then(res => {
+          if (res.success && Array.isArray(res.data)) {
+            setNotifications(res.data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [vendorState?.status]);
+
+  const defaultNotifications = notifications.length > 0 ? notifications : [
+    {
+      _id: 'default-1',
+      type: 'System',
+      message: vendorState?.status === 'Approved' 
+        ? 'Your vendor profile is approved and active on the marketplace.'
+        : 'Your vendor profile is currently under review by admin.',
+      isRead: false,
+      createdAt: new Date().toISOString()
+    }
+  ];
+
+  const unreadCount = defaultNotifications.filter(n => !n.isRead).length;
+
+  // Close dropdowns on click outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowBookingsDropdown(false);
+      }
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
+        setShowNotificationsDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -73,7 +108,10 @@ const VendorTopbar = ({ onMenuClick }) => {
                 ? 'text-violet-600 bg-violet-50/70 rounded-lg' 
                 : 'bg-transparent text-slate-500 hover:text-violet-600'
             }`}
-            onClick={() => setShowBookingsDropdown(!showBookingsDropdown)}
+            onClick={() => {
+              setShowBookingsDropdown(!showBookingsDropdown);
+              setShowNotificationsDropdown(false);
+            }}
           >
             <Icon name="calendar" size="sm" />
             {upcomingBookings.length > 0 && (
@@ -166,13 +204,81 @@ const VendorTopbar = ({ onMenuClick }) => {
           )}
         </div>
 
-        <button 
-          className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-transparent text-slate-500 hover:text-violet-600 transition-all active:scale-95 relative"
-          onClick={() => navigate('/vendor/notifications')}
-        >
-          <Icon name="bell" size="sm" />
-          <span className="absolute top-0 right-0 h-3.5 w-3.5 rounded-full bg-rose-500 text-white text-[8px] font-medium flex items-center justify-center border-2 border-white shadow-sm">3</span>
-        </button>
+        {/* Bell button for notifications dropdown */}
+        <div className="relative" ref={notifDropdownRef}>
+          <button 
+            className={`h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center transition-all relative active:scale-95 ${
+              showNotificationsDropdown 
+                ? 'text-violet-600 bg-violet-50/70 rounded-lg' 
+                : 'bg-transparent text-slate-500 hover:text-violet-600'
+            }`}
+            onClick={() => {
+              setShowNotificationsDropdown(!showNotificationsDropdown);
+              setShowBookingsDropdown(false);
+            }}
+          >
+            <Icon name="bell" size="sm" />
+            {unreadCount > 0 && (
+              <span className="absolute top-0 right-0 h-3.5 w-3.5 rounded-full bg-rose-500 text-white text-[8px] font-medium flex items-center justify-center border-2 border-white shadow-sm">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {/* Notifications Dropdown Popover */}
+          {showNotificationsDropdown && (
+            <div className="absolute right-0 top-11 mt-2 w-[300px] sm:w-[340px] bg-white border border-slate-100 shadow-xl rounded-2xl p-3 z-[100] animate-in fade-in slide-in-from-top-2 duration-200 select-none">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-50">
+                <span className="text-[11px] font-medium text-slate-800 uppercase tracking-wider">Alerts & Updates</span>
+                {unreadCount > 0 && (
+                  <span className="text-[9px] font-medium text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100/50">
+                    {unreadCount} New
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-1.5 max-h-[260px] overflow-y-auto no-scrollbar">
+                {defaultNotifications.slice(0, 4).map((notif) => (
+                  <div
+                    key={notif._id}
+                    onClick={() => {
+                      setShowNotificationsDropdown(false);
+                      navigate('/vendor/notifications');
+                    }}
+                    className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-slate-50 cursor-pointer transition-all border border-transparent hover:border-slate-100/50"
+                  >
+                    <div className="h-7 w-7 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center shrink-0 mt-0.5">
+                      <Icon name="bell" size="xs" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] text-slate-800 leading-snug font-medium line-clamp-2">
+                        {notif.message}
+                      </p>
+                      <span className="text-[8.5px] text-slate-400 mt-1 block">
+                        {notif.createdAt ? new Date(notif.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Recently'}
+                      </span>
+                    </div>
+                    {!notif.isRead && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-violet-600 shrink-0 mt-1.5"></span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-2.5 pt-2 border-t border-slate-50">
+                <button 
+                  className="w-full h-8 text-[9px] font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 active:scale-98 transition-all flex items-center justify-center gap-1 uppercase tracking-widest shadow-xs"
+                  onClick={() => {
+                    setShowNotificationsDropdown(false);
+                    navigate('/vendor/notifications');
+                  }}
+                >
+                  View All Alerts <Icon name="chevronRight" size="xs" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

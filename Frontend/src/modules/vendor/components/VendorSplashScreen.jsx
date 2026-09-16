@@ -4,25 +4,26 @@ const VendorSplashScreen = ({ onComplete }) => {
   const [fading, setFading] = useState(false);
 
   useEffect(() => {
-    // Show splash screen for 3500ms, then trigger fade-out
+    // Show splash screen for 2500ms, then trigger fade-out
     const fadeTimer = setTimeout(() => {
       setFading(true);
-    }, 3500);
+    }, 2500);
 
-    // After 4100ms (fade-out completes), remove splash screen entirely
+    // After 3000ms (fade-out completes), remove splash screen entirely
     const completeTimer = setTimeout(() => {
-      onComplete();
-    }, 4100);
+      if (typeof onComplete === 'function') onComplete();
+    }, 3000);
 
     return () => {
       clearTimeout(fadeTimer);
       clearTimeout(completeTimer);
     };
-  }, [onComplete]);
+  }, []);
 
   return (
     <div
-      className={`fixed inset-0 w-full h-full z-[99999] flex flex-col items-center justify-between py-14 px-6 overflow-hidden select-none transition-opacity duration-600 ease-out ${
+      onClick={() => typeof onComplete === 'function' && onComplete()}
+      className={`fixed inset-0 w-full h-full z-[99999] flex flex-col items-center justify-between py-14 px-6 overflow-hidden select-none cursor-pointer transition-opacity duration-600 ease-out ${
         fading ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}
       style={{

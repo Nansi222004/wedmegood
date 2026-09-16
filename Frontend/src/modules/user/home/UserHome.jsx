@@ -2,31 +2,55 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
+import userApi from '../../../services/userApi';
 
 const UserHome = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
-  const [checklistStats, setChecklistStats] = useState({ completed: 0, total: 71 });
+  const [checklistStats, setChecklistStats] = useState({ completed: 0, total: 10 });
+  const [venues, setVenues] = useState([]);
+  const [photographers, setPhotographers] = useState([]);
+  const [trendingVendors, setTrendingVendors] = useState([]);
+  const [makeupArtists, setMakeupArtists] = useState([]);
+  const [decorators, setDecorators] = useState([]);
 
-  // Load checklist stats from localStorage
+  // Load checklist stats and dynamic vendor categories from MongoDB
   useEffect(() => {
-    const loadChecklistStats = () => {
-      const savedTasks = localStorage.getItem('weddingChecklistTasks');
-      if (savedTasks) {
-        const tasks = JSON.parse(savedTasks);
-        const completed = tasks.filter(task => task.completed).length;
-        setChecklistStats({ completed, total: tasks.length });
-      }
-    };
+    let isMounted = true;
+    const mapVendor = (v, defaultImg) => ({
+      id: v._id,
+      name: v.businessName || v.name,
+      location: v.city || 'Indore',
+      city: v.city || 'Indore',
+      price: v.pricing?.range ? `₹${v.pricing.range}` : (v.startingPrice ? `From ₹${v.startingPrice.toLocaleString()}` : 'Contact for price'),
+      priceType: 'per event',
+      rating: v.rating && v.rating > 0 ? v.rating : 'New',
+      reviews: v.reviewCount || 0,
+      image: v.portfolio?.[0]?.url || v.profileImage || defaultImg,
+      route: `/user/vendor/${v._id}`
+    });
 
-    loadChecklistStats();
-    
-    // Listen for storage changes (when checklist is updated)
-    window.addEventListener('storage', loadChecklistStats);
-    
-    return () => {
-      window.removeEventListener('storage', loadChecklistStats);
-    };
+    Promise.all([
+      userApi.getVendors({ category: 'Venues', limit: 10 }).catch(() => ({ data: [] })),
+      userApi.getVendors({ category: 'Photography', limit: 10 }).catch(() => ({ data: [] })),
+      userApi.getTrendingVendors({ limit: 10 }).catch(() => ({ data: [] })),
+      userApi.getVendors({ category: 'Makeup', limit: 10 }).catch(() => ({ data: [] })),
+      userApi.getVendors({ category: 'Decoration', limit: 10 }).catch(() => ({ data: [] })),
+      userApi.getChecklist().catch(() => ({ data: [] }))
+    ]).then(([venueRes, photoRes, trendRes, makeupRes, decorRes, checkRes]) => {
+      if (!isMounted) return;
+      if (checkRes?.success && Array.isArray(checkRes?.data)) {
+        const completed = checkRes.data.filter(t => t.completed).length;
+        setChecklistStats({ completed, total: checkRes.data.length });
+      }
+      if (venueRes?.data?.length) setVenues(venueRes.data.map(v => mapVendor(v, 'https://images.unsplash.com/photo-1519167758481-83f29d8ae8e4?w=600&h=400&fit=crop&q=80')));
+      if (photoRes?.data?.length) setPhotographers(photoRes.data.map(v => mapVendor(v, 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=600&h=400&fit=crop&q=80')));
+      if (trendRes?.data?.length) setTrendingVendors(trendRes.data.map(v => mapVendor(v, 'https://images.unsplash.com/photo-1519741497674-611481863552?w=600&h=400&fit=crop&q=80')));
+      if (makeupRes?.data?.length) setMakeupArtists(makeupRes.data.map(v => mapVendor(v, 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=400&fit=crop&q=80')));
+      if (decorRes?.data?.length) setDecorators(decorRes.data.map(v => mapVendor(v, 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=600&h=400&fit=crop&q=80')));
+    });
+
+    return () => { isMounted = false; };
   }, []);
 
   // Image error handler
@@ -57,18 +81,7 @@ const UserHome = () => {
     { id: 'groups', title: 'Family Planning Groups', subtitle: 'Collaborate with family', icon: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=100&h=100&fit=crop&q=80', bgColor: '#F0FDF4', route: '/user/family/groups' }
   ];
  
-  const venues = [
-    { id: 1, name: 'Essentia Luxury Hotel Indore', location: 'Indore', price: '₹ 2,050', priceType: 'per function', image: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=600&h=400&fit=crop&q=80', route: '/user/vendor/1' },
-    { id: 2, name: 'Sarai Resort Indore', location: 'Dhar Road', price: '₹ 800', priceType: 'per plate', image: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=600&h=400&fit=crop&q=80', route: '/user/vendor/2' },
-    { id: 3, name: 'Royal Palace Gardens', location: 'Vijay Nagar', price: '₹ 1,500', priceType: 'per plate', image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=600&h=400&fit=crop&q=80', route: '/user/vendor/3' },
-    { id: 4, name: 'Grand Celebration Banquet', location: 'AB Road', price: '₹ 1,200', priceType: 'per plate', image: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=600&h=400&fit=crop&q=80', route: '/user/vendor/4' },
-    { id: 5, name: 'Radisson Blu Hotel', location: 'Ring Road', price: '₹ 3,000', priceType: 'per function', image: 'https://images.unsplash.com/photo-1519167758481-83f29d8ae8e4?w=600&h=400&fit=crop&q=80', route: '/user/vendor/5' },
-    { id: 6, name: 'Sayaji Hotel', location: 'RNT Marg', price: '₹ 1,800', priceType: 'per plate', image: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=600&h=400&fit=crop&q=80', route: '/user/vendor/6' },
-    { id: 7, name: 'Brilliant Convention Centre', location: 'Bypass Road', price: '₹ 900', priceType: 'per plate', image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=600&h=400&fit=crop&q=80', route: '/user/vendor/7' },
-    { id: 8, name: 'Usha Kiran Palace', location: 'Lashkar', price: '₹ 4,500', priceType: 'per function', image: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=600&h=400&fit=crop&q=80', route: '/user/vendor/8' },
-    { id: 9, name: 'Lemon Tree Hotel', location: 'Scheme 54', price: '₹ 1,100', priceType: 'per plate', image: 'https://images.unsplash.com/photo-1519167758481-83f29d8ae8e4?w=600&h=400&fit=crop&q=80', route: '/user/vendor/9' },
-    { id: 10, name: 'Pride Hotel', location: 'South Tukoganj', price: '₹ 1,400', priceType: 'per plate', image: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=600&h=400&fit=crop&q=80', route: '/user/vendor/10' }
-  ];
+
 
   const weddingIdeas = [
     { id: 1, title: 'Bridal Lehenga Inspiration', image: 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?w=400&h=500&fit=crop&q=80', route: '/user/inspirations/1' },
@@ -122,18 +135,7 @@ const UserHome = () => {
     { id: 10, title: 'Aisle Decor', image: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400&h=500&fit=crop&q=80', route: '/user/decor/aisle' }
   ];
 
-  const trendingVendors = [
-    { id: 1, name: 'The Wedding Filmer', city: 'Mumbai', rating: 4.9, image: 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=600&h=400&fit=crop&q=80', route: '/user/vendor/trending-1' },
-    { id: 2, name: 'Makeup by Priya', city: 'Delhi', rating: 4.8, image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=400&fit=crop&q=80', route: '/user/vendor/trending-2' },
-    { id: 3, name: 'Decor Dreams', city: 'Bangalore', rating: 4.9, image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=600&h=400&fit=crop&q=80', route: '/user/vendor/trending-3' },
-    { id: 4, name: 'Royal Caterers', city: 'Indore', rating: 4.7, image: 'https://images.unsplash.com/photo-1555244162-803834f70033?w=600&h=400&fit=crop&q=80', route: '/user/vendor/trending-4' },
-    { id: 5, name: 'Elegant Events', city: 'Jaipur', rating: 4.8, image: 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=600&h=400&fit=crop&q=80', route: '/user/vendor/trending-5' },
-    { id: 6, name: 'Bridal Bliss Studio', city: 'Pune', rating: 4.9, image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=400&fit=crop&q=80', route: '/user/vendor/trending-6' },
-    { id: 7, name: 'Perfect Planners', city: 'Hyderabad', rating: 4.7, image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=600&h=400&fit=crop&q=80', route: '/user/vendor/trending-7' },
-    { id: 8, name: 'Gourmet Catering Co', city: 'Chennai', rating: 4.8, image: 'https://images.unsplash.com/photo-1555244162-803834f70033?w=600&h=400&fit=crop&q=80', route: '/user/vendor/trending-8' },
-    { id: 9, name: 'Candid Captures', city: 'Goa', rating: 4.9, image: 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=600&h=400&fit=crop&q=80', route: '/user/vendor/trending-9' },
-    { id: 10, name: 'Glamour Makeup Artists', city: 'Kolkata', rating: 4.8, image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=400&fit=crop&q=80', route: '/user/vendor/trending-10' }
-  ];
+
 
   const planningBanners = [
     { id: 1, title: 'Plan Your Wedding Budget', subtitle: 'Smart tools to manage expenses', image: 'https://images.unsplash.com/photo-1554224311-beee415c201f?w=800&h=300&fit=crop&q=80', route: '/user/tools/budget' },
@@ -156,31 +158,9 @@ const UserHome = () => {
     { id: 12, title: 'Wedding Table Settings', image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=400&h=500&fit=crop&q=80', route: '/user/feed/12' }
   ];
 
-  const makeupArtists = [
-    { id: 1, name: 'Glamour Studio by Priya', location: 'Vijay Nagar', price: '₹ 25,000', priceType: 'per day', rating: 4.9, reviews: 156, image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=400&fit=crop&q=80', route: '/user/makeup/1' },
-    { id: 2, name: 'Bridal Bliss Makeup', location: 'AB Road', price: '₹ 18,000', priceType: 'per day', rating: 4.8, reviews: 203, image: 'https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=600&h=400&fit=crop&q=80', route: '/user/makeup/2' },
-    { id: 3, name: 'Elegant Touch Studio', location: 'Palasia', price: '₹ 30,000', priceType: 'per day', rating: 4.9, reviews: 178, image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=400&fit=crop&q=80', route: '/user/makeup/3' },
-    { id: 4, name: 'Royal Bridal Makeup', location: 'Scheme 54', price: '₹ 22,000', priceType: 'per day', rating: 4.7, reviews: 134, image: 'https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=600&h=400&fit=crop&q=80', route: '/user/makeup/4' },
-    { id: 5, name: 'Radiance Makeup Studio', location: 'Ring Road', price: '₹ 28,000', priceType: 'per day', rating: 4.8, reviews: 189, image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=400&fit=crop&q=80', route: '/user/makeup/5' },
-    { id: 6, name: 'Diva Makeup Artistry', location: 'South Tukoganj', price: '₹ 20,000', priceType: 'per day', rating: 4.9, reviews: 221, image: 'https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=600&h=400&fit=crop&q=80', route: '/user/makeup/6' },
-    { id: 7, name: 'Perfect Look Studio', location: 'Treasure Island', price: '₹ 26,000', priceType: 'per day', rating: 4.8, reviews: 167, image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=400&fit=crop&q=80', route: '/user/makeup/7' },
-    { id: 8, name: 'Glamorous Bride', location: 'Sapna Sangeeta', price: '₹ 24,000', priceType: 'per day', rating: 4.7, reviews: 145, image: 'https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=600&h=400&fit=crop&q=80', route: '/user/makeup/8' },
-    { id: 9, name: 'Bridal Glow Studio', location: 'Rau', price: '₹ 19,000', priceType: 'per day', rating: 4.8, reviews: 198, image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=400&fit=crop&q=80', route: '/user/makeup/9' },
-    { id: 10, name: 'Elite Makeup Artists', location: 'Bypass Road', price: '₹ 32,000', priceType: 'per day', rating: 4.9, reviews: 234, image: 'https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=600&h=400&fit=crop&q=80', route: '/user/makeup/10' }
-  ];
 
-  const decorators = [
-    { id: 1, name: 'Dream Decor Events', location: 'Indore', price: '₹ 1,50,000', priceType: 'per event', rating: 4.9, reviews: 89, image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=600&h=400&fit=crop&q=80', route: '/user/decorator/1' },
-    { id: 2, name: 'Royal Decorations', location: 'Vijay Nagar', price: '₹ 2,00,000', priceType: 'per event', rating: 4.8, reviews: 112, image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=600&h=400&fit=crop&q=80', route: '/user/decorator/2' },
-    { id: 3, name: 'Elegant Events Decor', location: 'AB Road', price: '₹ 1,75,000', priceType: 'per event', rating: 4.9, reviews: 95, image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=600&h=400&fit=crop&q=80', route: '/user/decorator/3' },
-    { id: 4, name: 'Floral Fantasy', location: 'Palasia', price: '₹ 1,25,000', priceType: 'per event', rating: 4.7, reviews: 78, image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=600&h=400&fit=crop&q=80', route: '/user/decorator/4' },
-    { id: 5, name: 'Grand Celebrations', location: 'Ring Road', price: '₹ 2,50,000', priceType: 'per event', rating: 4.9, reviews: 134, image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=600&h=400&fit=crop&q=80', route: '/user/decorator/5' },
-    { id: 6, name: 'Perfect Decor Studio', location: 'Scheme 54', price: '₹ 1,80,000', priceType: 'per event', rating: 4.8, reviews: 101, image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=600&h=400&fit=crop&q=80', route: '/user/decorator/6' },
-    { id: 7, name: 'Luxury Events Decor', location: 'South Tukoganj', price: '₹ 2,20,000', priceType: 'per event', rating: 4.9, reviews: 118, image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=600&h=400&fit=crop&q=80', route: '/user/decorator/7' },
-    { id: 8, name: 'Blossom Decorations', location: 'Treasure Island', price: '₹ 1,60,000', priceType: 'per event', rating: 4.7, reviews: 87, image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=600&h=400&fit=crop&q=80', route: '/user/decorator/8' },
-    { id: 9, name: 'Majestic Decor', location: 'Rau', price: '₹ 1,40,000', priceType: 'per event', rating: 4.8, reviews: 93, image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=600&h=400&fit=crop&q=80', route: '/user/decorator/9' },
-    { id: 10, name: 'Opulent Events', location: 'Bypass Road', price: '₹ 3,00,000', priceType: 'per event', rating: 4.9, reviews: 156, image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=600&h=400&fit=crop&q=80', route: '/user/decorator/10' }
-  ];
+
+
 
   const photographerCollections = [
     { id: 1, title: 'Top Rated Photographers', count: '19 Vendors', image: 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=300&h=300&fit=crop&q=80', route: '/user/photographers/top-rated' },
@@ -194,18 +174,7 @@ const UserHome = () => {
     { id: 3, title: 'Beach Wedding Destinations', count: '15 Vendors', image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=300&h=300&fit=crop&q=80', route: '/user/venues/beach' }
   ];
 
-  const photographers = [
-    { id: 1, name: 'The Wedding Essence By PSF', location: 'Indore', price: '₹ 50,000', priceType: 'per day', image: 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=600&h=400&fit=crop&q=80', route: '/user/photographer/1' },
-    { id: 2, name: 'Himanshu Bhargav Films', location: 'MG Road', price: '₹ 40,000', priceType: 'per day', image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=400&fit=crop&q=80', route: '/user/photographer/2' },
-    { id: 3, name: 'Candid Moments Studio', location: 'Vijay Nagar', price: '₹ 45,000', priceType: 'per day', image: 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=600&h=400&fit=crop&q=80', route: '/user/photographer/3' },
-    { id: 4, name: 'Royal Photography', location: 'AB Road', price: '₹ 35,000', priceType: 'per day', image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=400&fit=crop&q=80', route: '/user/photographer/4' },
-    { id: 5, name: 'Picture Perfect Studios', location: 'Palasia', price: '₹ 55,000', priceType: 'per day', image: 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=600&h=400&fit=crop&q=80', route: '/user/photographer/5' },
-    { id: 6, name: 'Dream Capture Films', location: 'Ring Road', price: '₹ 48,000', priceType: 'per day', image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=400&fit=crop&q=80', route: '/user/photographer/6' },
-    { id: 7, name: 'Elite Wedding Films', location: 'Scheme 54', price: '₹ 60,000', priceType: 'per day', image: 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=600&h=400&fit=crop&q=80', route: '/user/photographer/7' },
-    { id: 8, name: 'Moments Photography', location: 'South Tukoganj', price: '₹ 38,000', priceType: 'per day', image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=400&fit=crop&q=80', route: '/user/photographer/8' },
-    { id: 9, name: 'Artistic Vision Studios', location: 'Treasure Island', price: '₹ 52,000', priceType: 'per day', image: 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=600&h=400&fit=crop&q=80', route: '/user/photographer/9' },
-    { id: 10, name: 'Cinematic Weddings', location: 'Bypass Road', price: '₹ 65,000', priceType: 'per day', image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=400&fit=crop&q=80', route: '/user/photographer/10' }
-  ];
+
 
   const trendingToday = [
     { id: 1, hashtag: '#bridal-jewellery', image: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400&h=300&fit=crop&q=80', route: '/user/trending/bridal-jewellery' },

@@ -17,8 +17,7 @@ const Horoscope = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [dailyHoroscope, setDailyHoroscope] = useState(null);
 
-  const API_KEY = 'FfyyUQOBQW7zz05uRDypb3lWY2zxiBiO2ZCtrUWl';
-  const API_BASE_URL = '/api/astrology/v3-json/horoscope';
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5001/api' : '/api')}/user/astrology`;
 
   const zodiacSigns = [
     { id: 'aries', name: 'Aries', symbol: '♈', dates: 'Mar 21 - Apr 19', element: 'Fire', color: '#FF6B6B' },
@@ -38,7 +37,7 @@ const Horoscope = () => {
   const fetchDailyHoroscope = async (sign) => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/daily-sun?sign=${sign}&api_key=${API_KEY}&split=true&type=big&lang=en`);
+      const response = await fetch(`${API_BASE_URL}/daily-sun?sign=${sign}&split=true&type=big&lang=en`);
       
       if (!response.ok) {
         throw new Error('API request failed');
@@ -51,7 +50,7 @@ const Horoscope = () => {
       } else {
         // Use fallback data
         setDailyHoroscope({
-          prediction: `Today brings positive energy for ${sign.name}. Focus on your goals and trust your intuition. Good opportunities may arise in personal relationships and career matters.`,
+          prediction: `Today brings positive energy for ${sign.name || sign}. Focus on your goals and trust your intuition. Good opportunities may arise in personal relationships and career matters.`,
           split_prediction: {
             love: 'Romantic prospects look promising',
             career: 'Professional growth opportunities ahead',
@@ -64,7 +63,7 @@ const Horoscope = () => {
       console.error('Error fetching horoscope:', error);
       // Use fallback data on error
       setDailyHoroscope({
-        prediction: `Today brings positive energy for ${sign.name}. Focus on your goals and trust your intuition. Good opportunities may arise in personal relationships and career matters.`,
+        prediction: `Today brings positive energy for ${sign.name || sign}. Focus on your goals and trust your intuition. Good opportunities may arise in personal relationships and career matters.`,
         split_prediction: {
           love: 'Romantic prospects look promising',
           career: 'Professional growth opportunities ahead',
@@ -92,7 +91,7 @@ const Horoscope = () => {
     setLoading(true);
     try {
       const response = await fetch(
-        `${API_BASE_URL}/match-making?male_sign=${partner1Sign}&female_sign=${partner2Sign}&api_key=${API_KEY}&lang=en`
+        `${API_BASE_URL}/match-making?male_sign=${partner1Sign}&female_sign=${partner2Sign}&lang=en`
       );
       
       if (!response.ok) {

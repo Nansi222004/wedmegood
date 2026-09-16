@@ -31,6 +31,28 @@ const leadSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Please provide inquiry message']
     },
+    category: {
+        type: String
+    },
+    guestCount: {
+        type: Number,
+        default: 0
+    },
+    budget: {
+        type: Number,
+        default: 0
+    },
+    requirements: {
+        type: String
+    },
+    referencePhotos: [{
+        type: String
+    }],
+    assignedType: {
+        type: String,
+        enum: ['Direct', 'RoundRobin'],
+        default: 'Direct'
+    },
     status: {
         type: String,
         enum: ['New', 'Contacted', 'Quote Sent', 'Booked', 'Rejected'],

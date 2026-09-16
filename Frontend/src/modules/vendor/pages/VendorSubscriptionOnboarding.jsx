@@ -185,8 +185,7 @@ const VendorSubscriptionOnboarding = () => {
               showToast(verifyRes.message || 'Subscription verification failed.');
             }
           } catch (err) {
-            showToast('Verification failed. Proceeding next.');
-            setTimeout(() => navigate('/vendor/onboarding/review'), 1500);
+            showToast(err.response?.data?.message || err.message || 'Subscription verification failed.');
           } finally {
             setIsSaving(false);
           }
@@ -210,122 +209,9 @@ const VendorSubscriptionOnboarding = () => {
       const rzp = new window.Razorpay(options);
       rzp.open();
     } catch (err) {
-      console.warn('Razorpay checkout failed, falling back to mock bypass:', err);
-      // Fallback: Open standard frontend-only Razorpay checkout
-      try {
-        const scriptLoaded = await loadRazorpayScript();
-        if (!scriptLoaded) {
-          throw new Error('Razorpay script load failed');
-        }
-
-        const selectedPlan = activePlans.find(p => p._id === selectedPlanId) || MOCKUP_PLANS[1];
-
-        const options = {
-          key: 'rzp_test_8sYbzHWidwe5Zw',
-          amount: selectedPlan.price * 100,
-          currency: 'INR',
-          name: 'Utsavo',
-          description: `Subscription: ${selectedPlan.name}`,
-          handler: async function (response) {
-            setIsSaving(true);
-            try {
-              // Direct mock verification bypass
-              const verifyRes = await fetch(`${import.meta.env.VITE_API_BASE_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000/api' : '/api')}/vendor/subscription/verify`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                  razorpay_order_id: `order_fallback_${Date.now()}`,
-                  razorpay_payment_id: response.razorpay_payment_id || `pay_${Date.now()}`,
-                  razorpay_signature: 'mock_signature',
-                  isMock: true
-                })
-              });
-
-              const verifyData = await verifyRes.json();
-              if (verifyData.success) {
-                updateVendorState({
-                  subscription: {
-                    planId: selectedPlanId,
-                    status: 'Active'
-                  }
-                });
-                showToast('Payment successful! Plan activated 🎉');
-                setTimeout(async () => {
-                  await refreshData();
-                  navigate('/vendor/onboarding/review');
-                }, 1200);
-              } else {
-                showToast(verifyData.message || 'Subscription activation failed.');
-              }
-            } catch (verifyErr) {
-              showToast('Activation bypassed. Proceeding next.');
-              setTimeout(() => navigate('/vendor/onboarding/review'), 1500);
-            } finally {
-              setIsSaving(false);
-            }
-          },
-          prefill: {
-            name: vendorState.fullName || '',
-            email: vendorState.email || '',
-            contact: vendorState.phone || ''
-          },
-          theme: {
-            color: '#4F35C3'
-          },
-          modal: {
-            ondismiss: function () {
-              setIsSaving(false);
-              showToast('Payment cancelled.');
-            }
-          }
-        };
-
-        const rzp = new window.Razorpay(options);
-        rzp.open();
-      } catch (fallbackErr) {
-        console.error('All Razorpay options failed, utilizing silent bypass:', fallbackErr);
-        try {
-          let orderId = `order_${Date.now()}`;
-          const verifyRes = await fetch(`${import.meta.env.VITE_API_BASE_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000/api' : '/api')}/vendor/subscription/verify`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              razorpay_order_id: orderId,
-              razorpay_payment_id: `pay_${Date.now()}`,
-              razorpay_signature: 'mock_signature',
-              isMock: true
-            })
-          });
-
-          const verifyData = await verifyRes.json();
-          if (verifyData.success) {
-            updateVendorState({
-              subscription: {
-                planId: selectedPlanId,
-                status: 'Active'
-              }
-            });
-            showToast('Instant Mock Payment successful! Plan activated 🎉');
-            setTimeout(async () => {
-              await refreshData();
-              navigate('/vendor/onboarding/review');
-            }, 1200);
-          } else {
-            showToast(verifyData.message || 'Subscription activation failed.');
-          }
-        } catch (mockErr) {
-          showToast('Activation failed. Redirecting to review step.');
-          setTimeout(() => navigate('/vendor/onboarding/review'), 1500);
-        } finally {
-          setIsSaving(false);
-        }
-      }
+      console.error('Subscription checkout error:', err);
+      showToast(err.response?.data?.message || err.message || 'Payment initialization failed. Please try again or skip.');
+      setIsSaving(false);
     }
   };
 

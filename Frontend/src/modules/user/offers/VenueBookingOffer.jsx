@@ -1,35 +1,50 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import { useToast } from '../../../components/ui/Toast';
 import Button from '../../../components/ui/Button';
 import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
-import { vendors } from '../../../data/vendors';
+import userApi from '../../../services/userApi';
 
 const VenueBookingOffer = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const { showToast, ToastComponent } = useToast();
   
+  const [allVenues, setAllVenues] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Get all venues
-  const allVenues = vendors.filter(vendor => vendor.category === 'venues');
+  useEffect(() => {
+    const fetchVenues = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const res = await userApi.getVendors({ category: 'venues', limit: 20 });
+        if (res.success && Array.isArray(res.data)) {
+          setAllVenues(res.data);
+        } else {
+          setAllVenues([]);
+        }
+      } catch (err) {
+        console.error('Failed to load venue offers:', err);
+        setError('Unable to load venue offers. Please check your connection.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchVenues();
+  }, []);
 
-  // Venue offers data
-  const venueOffers = [
+  const offerTemplates = [
     {
-      id: 1,
-      venue: allVenues[0],
-      venueId: 1,
       offerTitle: 'Early Bird Special',
       discount: '40% OFF',
-      originalPrice: '₹2,50,000',
-      offerPrice: '₹1,50,000',
-      savings: '₹1,00,000',
-      validUntil: '2026-03-31',
+      discountFactor: 0.6,
+      validUntil: '2026-12-31',
       features: [
         'Venue for 2 functions',
         'Catering for 500 guests',
@@ -42,15 +57,10 @@ const VenueBookingOffer = () => {
       popular: true
     },
     {
-      id: 2,
-      venue: allVenues[2],
-      venueId: 3,
       offerTitle: 'Luxury Package Deal',
       discount: '₹1,50,000 OFF',
-      originalPrice: '₹4,50,000',
-      offerPrice: '₹3,00,000',
-      savings: '₹1,50,000',
-      validUntil: '2026-04-30',
+      discountFactor: 0.7,
+      validUntil: '2026-12-31',
       features: [
         'Premium venue booking',
         'Luxury accommodation (10 rooms)',
@@ -63,15 +73,10 @@ const VenueBookingOffer = () => {
       popular: true
     },
     {
-      id: 3,
-      venue: allVenues[1],
-      venueId: 2,
       offerTitle: 'Weekend Special',
       discount: '30% OFF',
-      originalPrice: '₹1,80,000',
-      offerPrice: '₹1,26,000',
-      savings: '₹54,000',
-      validUntil: '2026-05-15',
+      discountFactor: 0.7,
+      validUntil: '2026-12-31',
       features: [
         'Venue for 1 day',
         'Catering for 400 guests',
@@ -84,15 +89,10 @@ const VenueBookingOffer = () => {
       popular: false
     },
     {
-      id: 4,
-      venue: allVenues[4],
-      venueId: 5,
       offerTitle: 'Monsoon Magic Offer',
       discount: '50% OFF',
-      originalPrice: '₹3,00,000',
-      offerPrice: '₹1,50,000',
-      savings: '₹1,50,000',
-      validUntil: '2026-08-31',
+      discountFactor: 0.5,
+      validUntil: '2026-12-31',
       features: [
         'Indoor venue booking',
         'Catering for 600 guests',
@@ -105,15 +105,10 @@ const VenueBookingOffer = () => {
       popular: true
     },
     {
-      id: 5,
-      venue: allVenues[5],
-      venueId: 6,
       offerTitle: 'Intimate Wedding Package',
       discount: '35% OFF',
-      originalPrice: '₹1,20,000',
-      offerPrice: '₹78,000',
-      savings: '₹42,000',
-      validUntil: '2026-06-30',
+      discountFactor: 0.65,
+      validUntil: '2026-12-31',
       features: [
         'Boutique venue',
         'Catering for 150 guests',
@@ -126,14 +121,9 @@ const VenueBookingOffer = () => {
       popular: false
     },
     {
-      id: 6,
-      venue: allVenues[7],
-      venueId: 8,
       offerTitle: 'Royal Heritage Package',
       discount: '₹2,00,000 OFF',
-      originalPrice: '₹6,00,000',
-      offerPrice: '₹4,00,000',
-      savings: '₹2,00,000',
+      discountFactor: 0.7,
       validUntil: '2026-12-31',
       features: [
         'Heritage property venue',
@@ -147,15 +137,10 @@ const VenueBookingOffer = () => {
       popular: true
     },
     {
-      id: 7,
-      venue: allVenues[3],
-      venueId: 4,
       offerTitle: 'Garden Wedding Special',
       discount: '25% OFF',
-      originalPrice: '₹2,00,000',
-      offerPrice: '₹1,50,000',
-      savings: '₹50,000',
-      validUntil: '2026-04-15',
+      discountFactor: 0.75,
+      validUntil: '2026-12-31',
       features: [
         'Beautiful garden venue',
         'Outdoor setup',
@@ -168,15 +153,10 @@ const VenueBookingOffer = () => {
       popular: false
     },
     {
-      id: 8,
-      venue: allVenues[6],
-      venueId: 7,
       offerTitle: 'Banquet Hall Combo',
       discount: '45% OFF',
-      originalPrice: '₹1,60,000',
-      offerPrice: '₹88,000',
-      savings: '₹72,000',
-      validUntil: '2026-05-31',
+      discountFactor: 0.55,
+      validUntil: '2026-12-31',
       features: [
         'AC banquet hall',
         'Catering for 350 guests',
@@ -189,6 +169,38 @@ const VenueBookingOffer = () => {
       popular: true
     }
   ];
+
+  const venueOffers = allVenues.map((v, index) => {
+    const template = offerTemplates[index % offerTemplates.length];
+    const rawPrice = v.startingPrice || (v.pricing?.range ? parseInt(String(v.pricing.range).replace(/[^\d]/g, '')) : 250000) || 250000;
+    const basePrice = typeof rawPrice === 'number' && rawPrice > 0 ? rawPrice : 250000;
+    const offPrice = Math.round(basePrice * template.discountFactor);
+    const saveAmt = basePrice - offPrice;
+
+    return {
+      id: v._id || v.id || `offer-${index}`,
+      venueId: v._id || v.id,
+      venue: {
+        id: v._id || v.id,
+        name: v.businessName || v.name,
+        location: v.city || v.location || 'Indore',
+        image: v.profileImage || v.portfolio?.[0]?.url || v.image || 'https://images.unsplash.com/photo-1519167758481-83f29d8ae8e4?w=600&h=400&fit=crop',
+        rating: v.rating || 4.5,
+        reviews: v.reviewCount ?? v.reviews ?? 15,
+        verified: Boolean(v.isVerified || v.verified)
+      },
+      offerTitle: template.offerTitle,
+      discount: template.discount,
+      originalPrice: `₹${basePrice.toLocaleString()}`,
+      offerPrice: `₹${offPrice.toLocaleString()}`,
+      savings: `₹${saveAmt.toLocaleString()}`,
+      validUntil: template.validUntil,
+      features: template.features,
+      terms: template.terms,
+      badge: template.badge,
+      popular: template.popular
+    };
+  });
 
   // Filter options
   const filters = [
@@ -372,13 +384,31 @@ const VenueBookingOffer = () => {
           </div>
         </div>
 
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin mb-3" style={{ borderColor: theme.colors.primary[500], borderTopColor: 'transparent' }} />
+            <p className="text-sm font-medium" style={{ color: theme.semantic.text.secondary }}>Loading exclusive venue offers...</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {!isLoading && error && (
+          <div className="text-center py-12 px-4 rounded-xl mb-8" style={{ backgroundColor: theme.semantic.card.background, border: `1px solid ${theme.semantic.border.light}` }}>
+            <Icon name="alert-circle" size="xl" className="mx-auto mb-2 text-red-500" />
+            <p className="text-sm font-medium mb-4" style={{ color: theme.semantic.text.primary }}>{error}</p>
+            <Button onClick={() => window.location.reload()} variant="primary" className="px-4 py-2 text-xs">Retry</Button>
+          </div>
+        )}
+
         {/* Offers Grid */}
-        <div className="space-y-4">
-          {filteredOffers.map((offer) => {
-            const daysRemaining = getDaysRemaining(offer.validUntil);
-            
-            return (
-              <Card key={offer.id} className="overflow-hidden hover:shadow-xl transition-shadow">
+        {!isLoading && !error && (
+          <div className="space-y-4">
+            {filteredOffers.map((offer) => {
+              const daysRemaining = getDaysRemaining(offer.validUntil);
+              
+              return (
+                <Card key={offer.id} className="overflow-hidden hover:shadow-xl transition-shadow">
                 <div className="md:flex">
                   {/* Image */}
                   <div className="relative md:w-2/5">
@@ -539,9 +569,10 @@ const VenueBookingOffer = () => {
             );
           })}
         </div>
+        )}
 
         {/* Empty State */}
-        {filteredOffers.length === 0 && (
+        {!isLoading && !error && filteredOffers.length === 0 && (
           <div 
             className="text-center py-16 rounded-lg"
             style={{

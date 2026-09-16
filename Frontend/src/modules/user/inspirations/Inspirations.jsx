@@ -1,13 +1,64 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
+import { useAuth } from '../../../contexts/AuthContext';
 import Icon from '../../../components/ui/Icon';
+import userApi from '../../../services/userApi';
 
 const Inspirations = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [savedItems, setSavedItems] = useState(new Set());
+  const [savedMap, setSavedMap] = useState(new Map()); // title -> mongoId
+  const [galleryItems, setGalleryItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load public vendor gallery
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+    userApi.getInspirationGallery({
+      category: selectedCategory !== 'all' ? selectedCategory : undefined,
+      limit: 30
+    })
+      .then(res => {
+        if (isMounted && res.success && Array.isArray(res.data?.items) && res.data.items.length > 0) {
+          setGalleryItems(res.data.items.map(item => ({
+            id: item._id,
+            title: item.title,
+            category: item.category,
+            image: item.image,
+            saves: item.likesCount || 0,
+            views: 120,
+            vendorId: item.vendorId,
+            vendorBusinessName: item.vendorBusinessName
+          })));
+        } else if (isMounted) {
+          setGalleryItems([]);
+        }
+      })
+      .catch(err => console.warn('Inspiration gallery fetch error:', err.message))
+      .finally(() => { if (isMounted) setLoading(false); });
+
+    return () => { isMounted = false; };
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    if (user) {
+      userApi.getInspirations()
+        .then(res => {
+          if (res.success && res.data) {
+            const map = new Map();
+            res.data.forEach(item => {
+              map.set(item.title, item._id);
+            });
+            setSavedMap(map);
+          }
+        })
+        .catch(err => console.error('Error fetching saved inspirations:', err));
+    }
+  }, [user]);
 
   const categories = [
     { id: 'all', name: 'All', icon: 'grid' },
@@ -60,20 +111,56 @@ const Inspirations = () => {
     { id: 24, title: 'Haldi Ceremony Outfit', category: 'outfits', image: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=400&h=600&fit=crop&q=80', saves: 3876, views: 17654 }
   ];
 
-  const filteredItems = selectedCategory === 'all' 
-    ? inspirationItems 
-    : inspirationItems.filter(item => item.category === selectedCategory);
+  const displayItems = galleryItems.length > 0
+    ? galleryItems
+    : (selectedCategory === 'all' 
+        ? inspirationItems 
+        : inspirationItems.filter(item => item.category === selectedCategory));
 
-  const handleSave = (itemId) => {
-    setSavedItems(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(itemId)) {
-        newSet.delete(itemId);
+  const filteredItems = displayItems;
+
+  const handleSave = async (item) => {
+    if (!user) {
+      alert('Please log in to save wedding inspiration ideas.');
+      navigate('/login', { state: { from: '/user/inspirations' } });
+      return;
+    }
+    const isSaved = savedMap.has(item.title);
+    const existingId = savedMap.get(item.title);
+
+    try {
+      if (isSaved && existingId) {
+        setSavedMap(prev => {
+          const next = new Map(prev);
+          next.delete(item.title);
+          return next;
+        });
+        await userApi.deleteInspiration(existingId);
       } else {
-        newSet.add(itemId);
+        const res = await userApi.saveInspiration({
+          title: item.title,
+          image: item.image,
+          category: item.category,
+          sourceType: 'user'
+        });
+        if (res.success && res.data?._id) {
+          setSavedMap(prev => {
+            const next = new Map(prev);
+            next.set(item.title, res.data._id);
+            return next;
+          });
+        }
       }
-      return newSet;
-    });
+    } catch (err) {
+      console.error('Failed to update inspiration save state:', err);
+      userApi.getInspirations().then(r => {
+        if (r.success && r.data) {
+          const map = new Map();
+          r.data.forEach(i => map.set(i.title, i._id));
+          setSavedMap(map);
+        }
+      });
+    }
   };
 
   const handleItemClick = (item) => {
@@ -177,11 +264,11 @@ const Inspirations = () => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleSave(item.id);
+                      handleSave(item);
                     }}
-                    className="absolute top-3 right-3 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110"
+                    className="absolute top-3 right-3 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-sm"
                     style={{ 
-                      backgroundColor: savedItems.has(item.id) 
+                      backgroundColor: savedMap.has(item.title) 
                         ? theme.colors.primary[500] 
                         : 'rgba(255,255,255,0.9)'
                     }}
@@ -190,7 +277,7 @@ const Inspirations = () => {
                       name="heart" 
                       size="sm" 
                       style={{ 
-                        color: savedItems.has(item.id) 
+                        color: savedMap.has(item.title) 
                           ? 'white' 
                           : theme.semantic.text.tertiary 
                       }} 
@@ -198,18 +285,23 @@ const Inspirations = () => {
                   </button>
 
                   {/* Info on Hover */}
-                  <div className="absolute bottom-0 left-0 right-0 p-3 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-                    <h3 className="text-white font-semibold text-sm mb-1">
+                  <div className="absolute bottom-0 left-0 right-0 p-3 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
+                    <h3 className="text-white font-semibold text-sm mb-0.5 line-clamp-1">
                       {item.title}
                     </h3>
+                    {item.vendorBusinessName && (
+                      <p className="text-[10px] text-amber-300 font-bold uppercase tracking-wider mb-1 line-clamp-1">
+                        By {item.vendorBusinessName}
+                      </p>
+                    )}
                     <div className="flex items-center gap-3 text-white/90 text-xs">
                       <span className="flex items-center gap-1">
                         <Icon name="heart" size="xs" />
-                        {item.saves}
+                        {item.saves || 0}
                       </span>
                       <span className="flex items-center gap-1">
                         <Icon name="eye" size="xs" />
-                        {item.views}
+                        {item.views || 0}
                       </span>
                     </div>
                   </div>

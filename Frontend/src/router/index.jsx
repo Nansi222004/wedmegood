@@ -4,6 +4,8 @@ import Welcome from '../components/welcome/Welcome';
 import ProtectedRoute from '../components/auth/ProtectedRoute';
 import Signup from '../modules/user/auth/Signup';
 import Login from '../modules/user/auth/Login';
+import ForgotPassword from '../modules/user/auth/ForgotPassword';
+import ResetPassword from '../modules/user/auth/ResetPassword';
 import UserHome from '../modules/user/home/UserHome';
 import RequirementsForm from '../modules/user/requirements/RequirementsForm';
 import PlanningDetails from '../modules/user/requirements/PlanningDetails';
@@ -66,6 +68,7 @@ import DecoratorDetail from '../modules/user/decorators/DecoratorDetail';
 import Trending from '../modules/user/trending/Trending';
 import Festivals from '../modules/user/calendar/Festivals';
 import Horoscope from '../modules/user/calendar/Horoscope';
+import WeddingCalendar from '../modules/user/calendar/WeddingCalendar';
 import ThemeSystemTest from '../components/demo/ThemeSystemTest';
 import Shortlist from '../modules/user/shortlist/Shortlist';
 import Favourites from '../modules/user/favourites/Favourites';
@@ -102,6 +105,10 @@ const AppRouter = () => {
       <Route path="/signup" element={
         isAuthenticated ? <Navigate to="/user/wedding-details" replace /> : <Signup />
       } />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/user/forgot-password" element={<ForgotPassword />} />
+      <Route path="/user/reset-password" element={<ResetPassword />} />
 
       <Route path="/vendor/*" element={<VendorRoutes />} />
       <Route path="/admin/*" element={<AdminRoutes />} />
@@ -163,7 +170,8 @@ const AppRouter = () => {
                     <Route path="tools/inspiration" element={<InspirationBoard />} />
 
                     {/* Quick Access Routes */}
-                    <Route path="bookings" element={<MyBookings />} />
+                    <Route path="bookings" element={<MyBookings initialTab="bookings" />} />
+                    <Route path="quotes" element={<MyBookings initialTab="quotes" />} />
                     <Route path="shortlist" element={<Shortlist />} />
                     <Route path="favourites" element={<Favourites />} />
 
@@ -199,6 +207,7 @@ const AppRouter = () => {
                     <Route path="reads" element={<PlaceholderPage title="Wedding Reads" description="Browse all wedding articles and guides" icon="book" />} />
 
                     {/* Traditional Calendar Routes */}
+                    <Route path="calendar" element={<WeddingCalendar />} />
                     <Route path="festivals" element={<Festivals />} />
                     <Route path="horoscope" element={<Horoscope />} />
 

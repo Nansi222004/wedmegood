@@ -13,7 +13,8 @@ const AdminLogin = () => {
         setIsLoading(true);
 
         try {
-            const res = await fetch('/api/user/auth/login', {
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://wedmegood-u0n7.onrender.com/api';
+            const res = await fetch(`${API_BASE_URL}/user/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 

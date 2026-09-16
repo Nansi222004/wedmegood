@@ -18,9 +18,9 @@ const AdminVendors = () => {
     const fetchVendors = async () => {
         try {
             setLoading(true);
-            const res = await adminApi.getVendors(token);
+            const res = await adminApi.getVendors(token, { limit: 100 });
             if (res.success) {
-                setVendors(res.data);
+                setVendors(res.data || []);
             }
         } catch (err) {
             console.error('Failed to fetch vendors:', err);
@@ -38,6 +38,7 @@ const AdminVendors = () => {
             const statusMap = {
                 'Verified': 'Approved',
                 'Pending': 'Pending',
+                'Suspended': 'Suspended',
                 'Rejected': 'Rejected'
             };
             const targetStatus = statusMap[filter] || filter;
@@ -58,16 +59,34 @@ const AdminVendors = () => {
                 setVendors(prev => prev.map(v => v._id === id ? res.data : v));
                 setModalOpen(false);
                 setSelectedVendor(null);
+            } else {
+                alert(res.message || 'Failed to update status');
             }
         } catch (err) {
             console.error('Failed to update status:', err);
+            alert('Server error updating status');
         } finally {
             setActionLoading(false);
         }
     };
 
+    const handleFeaturedToggle = async (vendor) => {
+        try {
+            const nextFeatured = !vendor.isFeatured;
+            const res = await adminApi.updateVendorFeatured(vendor._id, nextFeatured, token);
+            if (res.success) {
+                setVendors(prev => prev.map(v => v._id === vendor._id ? { ...v, isFeatured: nextFeatured } : v));
+            } else {
+                alert(res.message || 'Failed to update featured status');
+            }
+        } catch (err) {
+            console.error('Failed to toggle featured status:', err);
+            alert('Server error updating featured status');
+        }
+    };
+
     const toggleStatus = async (id, currentStatus) => {
-        const nextStatus = currentStatus === 'Approved' ? 'Pending' : 'Approved';
+        const nextStatus = currentStatus === 'Approved' ? 'Suspended' : 'Approved';
         await handleAction(id, nextStatus);
     };
 
@@ -76,6 +95,8 @@ const AdminVendors = () => {
             const res = await adminApi.toggleVendorActive(id, !currentIsActive, token);
             if (res.success) {
                 setVendors(prev => prev.map(v => v._id === id ? res.data : v));
+            } else {
+                alert(res.message || 'Failed to toggle active state');
             }
         } catch (err) {
             console.error('Failed to toggle active status:', err);
@@ -123,8 +144,8 @@ const AdminVendors = () => {
                             className="w-full sm:w-64 pl-10 pr-4 py-3 bg-[#F9F8FF] border border-[#EAE6FF] rounded-2xl text-[12px] font-bold text-slate-900 focus:border-[#4F35C3]/30 focus:ring-4 focus:ring-[#4F35C3]/5 outline-none transition-all placeholder:text-slate-400"
                         />
                     </div>
-                    <div className="flex items-center gap-2 bg-[#F9F8FF] p-1.5 rounded-2xl border border-[#EAE6FF]">
-                        {['All', 'Pending', 'Verified'].map((status) => (
+                    <div className="flex items-center gap-2 bg-[#F9F8FF] p-1.5 rounded-2xl border border-[#EAE6FF] overflow-x-auto">
+                        {['All', 'Pending', 'Verified', 'Suspended', 'Rejected'].map((status) => (
                             <button
                                 key={status}
                                 onClick={() => setFilter(status)}
@@ -148,7 +169,7 @@ const AdminVendors = () => {
                                 <th className="px-6 py-5 text-[10px] font-black text-[#4F35C3] uppercase tracking-widest border-b border-[#EAE6FF]">Partner Details</th>
                                 <th className="px-5 py-5 text-[10px] font-black text-[#4F35C3] uppercase tracking-widest border-b border-[#EAE6FF]">Contact & Location</th>
                                 <th className="px-5 py-5 text-[10px] font-black text-[#4F35C3] uppercase tracking-widest border-b border-[#EAE6FF]">Service Details</th>
-                                <th className="px-5 py-5 text-[10px] font-black text-[#4F35C3] uppercase tracking-widest border-b border-[#EAE6FF]">Onboarding</th>
+                                <th className="px-5 py-5 text-[10px] font-black text-[#4F35C3] uppercase tracking-widest border-b border-[#EAE6FF]">Featured</th>
                                 <th className="px-5 py-5 text-[10px] font-black text-[#4F35C3] uppercase tracking-widest border-b border-[#EAE6FF]">Verify</th>
                                 <th className="px-6 py-5 text-[10px] font-black text-[#4F35C3] uppercase tracking-widest border-b border-[#EAE6FF] text-right">Ops</th>
                             </tr>
@@ -191,34 +212,40 @@ const AdminVendors = () => {
                                          )}
                                      </td>
                                      <td className="px-5 py-4">
-                                         <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${
-                                             vendor.onboardingStep === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                                         }`}>
-                                             {vendor.onboardingStep || 'Started'}
-                                         </span>
-                                         <p className="text-[8px] font-bold text-slate-400 mt-1.5 uppercase">Joined: {new Date(vendor.createdAt).toLocaleDateString()}</p>
-                                     </td>
-                                     <td className="px-5 py-4">
                                          <button
-                                             onClick={() => toggleStatus(vendor._id, vendor.status)}
-                                             className="flex items-center gap-1.5 hover:opacity-70 transition-opacity"
+                                             onClick={() => handleFeaturedToggle(vendor)}
+                                             className={`px-3 py-1 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${
+                                                 vendor.isFeatured 
+                                                     ? 'bg-amber-400 text-slate-900 border-amber-500 shadow-sm' 
+                                                     : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-amber-50 hover:text-amber-600'
+                                             }`}
+                                             title={vendor.isFeatured ? "Unset Featured" : "Mark as Featured"}
                                          >
-                                             <div className={`h-1.5 w-1.5 rounded-full ${vendor.status === 'Approved' && vendor.isActive ? 'bg-emerald-500' :
-                                                     vendor.status === 'Approved' && !vendor.isActive ? 'bg-slate-400' :
-                                                     vendor.status === 'Pending' ? 'bg-amber-500' :
-                                                         'bg-rose-500'
-                                                 }`} />
-                                             <span className={`text-[9px] font-black uppercase tracking-widest ${vendor.status === 'Approved' && vendor.isActive ? 'text-emerald-600' :
-                                                     vendor.status === 'Approved' && !vendor.isActive ? 'text-slate-500' :
-                                                     vendor.status === 'Pending' ? 'text-amber-600' :
-                                                         'text-rose-600'
-                                                 }`}>
-                                                 {vendor.status === 'Approved' ? (vendor.isActive ? 'Verified & Active' : 'Deactivated') : vendor.status}
-                                             </span>
+                                             {vendor.isFeatured ? '★ Featured' : '☆ Standard'}
                                          </button>
                                      </td>
+                                     <td className="px-5 py-4">
+                                         <div className="flex items-center gap-1.5">
+                                             <div className={`h-2 w-2 rounded-full ${
+                                                 vendor.status === 'Approved' && vendor.isActive ? 'bg-emerald-500' :
+                                                 vendor.status === 'Approved' && !vendor.isActive ? 'bg-slate-400' :
+                                                 vendor.status === 'Pending' ? 'bg-amber-500' :
+                                                 vendor.status === 'Suspended' ? 'bg-rose-500' :
+                                                 'bg-rose-700'
+                                             }`} />
+                                             <span className={`text-[9px] font-black uppercase tracking-widest ${
+                                                 vendor.status === 'Approved' && vendor.isActive ? 'text-emerald-600' :
+                                                 vendor.status === 'Approved' && !vendor.isActive ? 'text-slate-500' :
+                                                 vendor.status === 'Pending' ? 'text-amber-600' :
+                                                 vendor.status === 'Suspended' ? 'text-rose-600' :
+                                                 'text-rose-700'
+                                             }`}>
+                                                 {vendor.status === 'Approved' ? (vendor.isActive ? 'Approved' : 'Deactivated') : vendor.status}
+                                             </span>
+                                         </div>
+                                     </td>
                                      <td className="px-5 py-4 text-right">
-                                         <div className="flex items-center justify-end gap-2 opacity-30 group-hover:opacity-100 transition-opacity">
+                                         <div className="flex items-center justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
                                              {vendor.status === 'Pending' && (
                                                  <>
                                                      <button 
@@ -238,22 +265,49 @@ const AdminVendors = () => {
                                                  </>
                                              )}
                                              {vendor.status === 'Approved' && (
+                                                 <>
+                                                     <button 
+                                                         onClick={() => toggleActive(vendor._id, vendor.isActive)}
+                                                         title={vendor.isActive ? "Deactivate Vendor" : "Activate Vendor"}
+                                                         className={`h-8 px-2.5 flex items-center justify-center rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all shadow-sm hover:scale-105 ${
+                                                             vendor.isActive 
+                                                             ? 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-200' 
+                                                             : 'bg-emerald-50 border-emerald-100 text-emerald-600 hover:bg-emerald-500 hover:text-white'
+                                                         }`}
+                                                     >
+                                                         {vendor.isActive ? "Deactivate" : "Activate"}
+                                                     </button>
+                                                     <button 
+                                                         onClick={() => handleAction(vendor._id, 'Suspended')}
+                                                         title="Suspend Vendor (Hides from marketplace)"
+                                                         className="h-8 px-2.5 flex items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white text-[9px] font-black uppercase tracking-widest transition-all shadow-sm hover:scale-105"
+                                                     >
+                                                         Suspend
+                                                     </button>
+                                                 </>
+                                             )}
+                                             {vendor.status === 'Suspended' && (
                                                  <button 
-                                                     onClick={() => toggleActive(vendor._id, vendor.isActive)}
-                                                     title={vendor.isActive ? "Deactivate Vendor" : "Activate Vendor"}
-                                                     className={`h-8 px-3 flex items-center justify-center rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all shadow-sm hover:scale-105 ${
-                                                         vendor.isActive 
-                                                         ? 'bg-amber-50 border-amber-100 text-amber-600 hover:bg-amber-500 hover:text-white' 
-                                                         : 'bg-emerald-50 border-emerald-100 text-emerald-600 hover:bg-emerald-500 hover:text-white'
-                                                     }`}
+                                                     onClick={() => handleAction(vendor._id, 'Approved')}
+                                                     title="Reinstate Partner to Approved"
+                                                     className="h-8 px-2.5 flex items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white text-[9px] font-black uppercase tracking-widest transition-all shadow-sm hover:scale-105"
                                                  >
-                                                     {vendor.isActive ? "Deactive" : "Active"}
+                                                     Reinstate
+                                                 </button>
+                                             )}
+                                             {vendor.status === 'Rejected' && (
+                                                 <button 
+                                                     onClick={() => handleAction(vendor._id, 'Approved')}
+                                                     title="Re-approve Partner"
+                                                     className="h-8 px-2.5 flex items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white text-[9px] font-black uppercase tracking-widest transition-all shadow-sm hover:scale-105"
+                                                 >
+                                                     Approve
                                                  </button>
                                              )}
                                              <button 
                                                  onClick={() => openDetails(vendor)}
                                                  title="View Full Details"
-                                                 className="h-8 w-8 flex items-center justify-center rounded-xl bg-violet-600 hover:bg-violet-600 active:bg-violet-600 focus:bg-violet-600 text-white opacity-100 hover:!brightness-100 hover:scale-110 transition-all shadow-sm"
+                                                 className="h-8 w-8 flex items-center justify-center rounded-xl bg-violet-600 hover:bg-violet-700 text-white hover:scale-110 transition-all shadow-sm"
                                              >
                                                  <Icon name="eye" size="xs" color="current" />
                                              </button>

@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useEffect, useMemo } from 'react';
 
 const AuthContext = createContext();
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://wedmegood-u0n7.onrender.com/api';
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -38,7 +40,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/user/auth/login`, {
+      const response = await fetch(`${API_BASE_URL}/user/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -70,7 +72,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/user/auth/register`, {
+      const response = await fetch(`${API_BASE_URL}/user/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -107,9 +109,15 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateUser = (updatedData) => {
-    const updatedUser = { ...user, ...updatedData };
-    localStorage.setItem('user', JSON.stringify(updatedUser));
-    setUser(updatedUser);
+    setUser(prev => {
+      const updatedUser = { ...(prev || {}), ...updatedData, isAuthenticated: true };
+      try {
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+      } catch (e) {
+        console.error('Failed to sync updated user to localStorage', e);
+      }
+      return updatedUser;
+    });
   };
 
   const isAuthenticated = user && user.isAuthenticated;

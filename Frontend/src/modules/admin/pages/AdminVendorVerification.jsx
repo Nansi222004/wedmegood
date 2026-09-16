@@ -14,10 +14,10 @@ const AdminVendorVerification = () => {
     const fetchPendingVendors = async () => {
         try {
             setLoading(true);
-            const res = await adminApi.getVendors(token);
+            const res = await adminApi.getVendors(token, { status: 'Pending', limit: 100 });
             if (res.success) {
-                // Filter for pending vendors
-                const pending = res.data.filter(v => v.status === 'Pending');
+                // Set pending vendors
+                const pending = (res.data || []).filter(v => v.status === 'Pending');
                 setVendors(pending);
             }
         } catch (err) {

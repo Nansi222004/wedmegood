@@ -1,14 +1,31 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../../../contexts/CartContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import { useTheme } from '../../../hooks/useTheme';
 import { useLenisContext } from '../../../providers/LenisProvider';
 import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import Input from '../../../components/ui/Input';
+import userApi from '../../../services/userApi';
+
+const loadRazorpayScript = () => {
+  return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
 
 const Checkout = () => {
   const { cartState, clearCart } = useCart();
+  const { user } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -16,17 +33,19 @@ const Checkout = () => {
   // Get Lenis instance to disable it for this page
   const lenis = useLenisContext();
   
-  // Get checkout items from location state or cart
+  // Passed booking from MyBookings or cart items
+  const bookingData = location.state?.booking;
+  const bookingId = location.state?.bookingId || bookingData?._id;
   const checkoutItems = location.state?.items || cartState.items || [];
 
   const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    eventDate: '',
-    eventLocation: '',
-    guestCount: '',
-    specialRequests: ''
+    name: bookingData?.customerName || user?.name || '',
+    phone: user?.phone || '',
+    email: user?.email || '',
+    eventDate: bookingData?.eventDate ? new Date(bookingData.eventDate).toISOString().split('T')[0] : '',
+    eventLocation: bookingData?.location || 'Indore',
+    guestCount: bookingData?.guestCount ? String(bookingData.guestCount) : '',
+    specialRequests: bookingData?.notes || ''
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -38,7 +57,6 @@ const Checkout = () => {
       lenis.stop();
     }
 
-    // Re-enable Lenis when component unmounts
     return () => {
       if (lenis) {
         lenis.start();
@@ -46,12 +64,12 @@ const Checkout = () => {
     };
   }, [lenis]);
 
-  // Redirect if no items to checkout
+  // Redirect if no items and no booking
   useEffect(() => {
-    if (checkoutItems.length === 0 && !showSuccess) {
+    if (!bookingId && checkoutItems.length === 0 && !showSuccess) {
       navigate('/user/cart', { replace: true });
     }
-  }, [checkoutItems.length, showSuccess, navigate]);
+  }, [bookingId, checkoutItems.length, showSuccess, navigate]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -62,11 +80,16 @@ const Checkout = () => {
   };
 
   const formatPrice = (priceString) => {
+    if (!priceString) return 0;
+    if (typeof priceString === 'number') return priceString;
     const match = priceString.match(/₹([\d,]+)/);
     return match ? parseInt(match[1].replace(/,/g, '')) : 0;
   };
 
   const getTotalPrice = () => {
+    if (bookingData?.totalPrice) {
+      return bookingData.totalPrice;
+    }
     return checkoutItems.reduce((total, item) => {
       const price = formatPrice(item.price);
       return total + (price * (item.quantity || 1));
@@ -75,78 +98,97 @@ const Checkout = () => {
 
   const handleWhatsAppContact = (item) => {
     const message = encodeURIComponent(
-      `Hi! I want to book your ${item.category.toLowerCase()} service "${item.name}" for my wedding.\n\nEvent Details:\n- Date: ${formData.eventDate || 'To be decided'}\n- Location: ${formData.eventLocation || 'To be decided'}\n- Guests: ${formData.guestCount || 'To be decided'}\n- Contact: ${formData.phone}\n\nSpecial Requests: ${formData.specialRequests || 'None'}\n\nPlease confirm availability and share the booking process.`
+      `Hi! I want to confirm payment/booking for "${item.name}". Contact: ${formData.phone}`
     );
-    const whatsappUrl = `https://wa.me/${item.whatsappNumber.replace(/[^0-9]/g, '')}?text=${message}`;
+    const whatsappUrl = `https://wa.me/${(item.whatsappNumber || '919876543210').replace(/[^0-9]/g, '')}?text=${message}`;
     window.open(whatsappUrl, '_blank');
   };
 
   const handleSubmitBooking = async () => {
-    if (!formData.name || !formData.phone) {
-      alert('Please fill in your name and phone number');
+    if (!bookingId) {
+      alert('To complete a secure payment, please accept an official quote from a vendor in "My Bookings" first.');
+      navigate('/user/bookings');
       return;
     }
 
     setIsSubmitting(true);
 
-    // Save to Vendor Side (LocalStorage for prototype)
     try {
-      const STORAGE_KEY = 'vendor-panel-state';
-      const raw = localStorage.getItem(STORAGE_KEY);
-      let vendorState = raw ? JSON.parse(raw) : null;
-      
-      if (vendorState) {
-        // Create new booking record
-        const newBooking = {
-          id: `bk-${Date.now()}`,
-          customerName: formData.name,
-          eventDate: formData.eventDate || 'TBD',
-          location: formData.eventLocation || 'TBD',
-          services: checkoutItems.map(item => item.name),
-          totalPrice: getTotalPrice(),
-          status: 'Pending'
-        };
-
-        // Create notification for vendor
-        const newNotification = {
-          id: `nt-${Date.now()}`,
-          message: `New booking confirmed from ${formData.name} for ${checkoutItems.length} services.`,
-          time: 'Just now'
-        };
-
-        // Update state
-        vendorState.bookings = [newBooking, ...(vendorState.bookings || [])];
-        vendorState.notifications = [newNotification, ...(vendorState.notifications || [])];
-        
-        // Update analytics
-        if (vendorState.analytics) {
-          vendorState.analytics.bookings = (vendorState.analytics.bookings || 0) + 1;
-        }
-
-        // Save back
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(vendorState));
-        console.log('Booking saved to vendor side successfully');
+      // 1. Load Razorpay script
+      const isLoaded = await loadRazorpayScript();
+      if (!isLoaded) {
+        throw new Error('Razorpay SDK failed to load. Please check your internet connection.');
       }
-    } catch (error) {
-      console.error('Error saving to vendor side:', error);
-    }
 
-    // Simulate API call
-    setTimeout(() => {
+      // 2. Create server-side order (Backend is source of truth for money!)
+      const orderRes = await userApi.createPaymentOrder(bookingId);
+      if (!orderRes.success || !orderRes.order) {
+        throw new Error(orderRes.message || 'Failed to create payment order');
+      }
+
+      const { order, key } = orderRes;
+
+      // 3. Open Razorpay Checkout
+      const options = {
+        key: key || import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: order.currency || 'INR',
+        name: 'Utsavo / WedMeGood',
+        description: `Booking Payment: ${orderRes.booking?.customerName || 'Wedding Services'}`,
+        order_id: order.id,
+        prefill: {
+          name: formData.name || user?.name || '',
+          email: formData.email || user?.email || '',
+          contact: formData.phone || user?.phone || ''
+        },
+        theme: {
+          color: '#E91E63'
+        },
+        handler: async (response) => {
+          try {
+            // 4. Server-Side HMAC SHA256 Signature Verification
+            const verifyRes = await userApi.verifyPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              bookingId: bookingId
+            });
+
+            if (verifyRes.success) {
+              clearCart();
+              setShowSuccess(true);
+              setTimeout(() => {
+                navigate('/user/account/payments', { replace: true });
+              }, 2500);
+            } else {
+              throw new Error(verifyRes.message || 'Payment verification failed');
+            }
+          } catch (verErr) {
+            console.error('Payment verification failed:', verErr);
+            alert('Payment verification failed: ' + verErr.message);
+          } finally {
+            setIsSubmitting(false);
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setIsSubmitting(false);
+          }
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', (failRes) => {
+        console.error('Payment failed:', failRes);
+        alert('Payment failed: ' + (failRes.error?.description || 'Transaction unsuccessful'));
+        setIsSubmitting(false);
+      });
+      rzp.open();
+    } catch (err) {
+      console.error('Payment initiation error:', err);
+      alert(err.message || 'Failed to start payment process');
       setIsSubmitting(false);
-      setShowSuccess(true);
-      
-      // Separate cart clearing from navigation
-      setTimeout(() => {
-        // Clear cart first
-        clearCart();
-        
-        // Then navigate after a small delay
-        setTimeout(() => {
-          navigate('/user/home', { replace: true });
-        }, 100);
-      }, 2500);
-    }, 2000);
+    }
   };
 
   if (showSuccess) {
@@ -554,22 +596,22 @@ const Checkout = () => {
       >
         <button
           onClick={handleSubmitBooking}
-          disabled={isSubmitting || !formData.name || !formData.phone}
-          className="w-full py-4 rounded-lg text-base font-bold flex items-center justify-center transition-colors touch-friendly"
+          disabled={isSubmitting}
+          className="w-full py-4 rounded-xl text-base font-bold flex items-center justify-center transition-colors touch-friendly shadow-lg"
           style={{
             backgroundColor: theme.colors.primary[500],
             color: 'white',
-            opacity: (isSubmitting || !formData.name || !formData.phone) ? 0.6 : 1,
+            opacity: isSubmitting ? 0.6 : 1,
             minHeight: '52px'
           }}
         >
           {isSubmitting ? (
             <>
               <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-3"></div>
-              Sending Booking Request...
+              Processing Secure Payment...
             </>
           ) : (
-            'Confirm Booking Request'
+            `Pay ₹${getTotalPrice().toLocaleString()} via Razorpay`
           )}
         </button>
       </div>

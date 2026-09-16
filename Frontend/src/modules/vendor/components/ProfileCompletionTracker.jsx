@@ -4,9 +4,11 @@ import { useVendorState } from '../useVendorState';
 import Icon from '../../../components/ui/Icon';
 import { ClipboardList, ClipboardCheck, ChevronDown, ChevronUp, UploadCloud } from 'lucide-react';
 import ServiceProfileSetupModal from './ServiceProfileSetupModal';
+import { useToast } from '../../../components/ui/Toast';
 
 const ProfileCompletionTracker = ({ onComplete }) => {
   const { vendorState, refreshData } = useVendorState();
+  const { showToast, ToastComponent } = useToast();
   const [progressData, setProgressData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expandedCategory, setExpandedCategory] = useState(null);
@@ -80,14 +82,15 @@ const ProfileCompletionTracker = ({ onComplete }) => {
       const token = localStorage.getItem('vendorToken');
       const res = await vendorApi.requestApproval(token);
       if (res.success) {
+        showToast('Profile submitted for admin approval! 🎉', 'success');
         onComplete && onComplete();
         await refreshData();
       } else {
-        alert(res.message || 'Failed to submit. Please try again.');
+        showToast(res.message || 'Failed to submit profile. Please try again.', 'error');
       }
     } catch (err) {
       console.error('Failed to request approval:', err);
-      alert('Network error. Please try again.');
+      showToast('Network error while requesting verification. Please try again.', 'error');
     } finally {
       setIsSubmittingApproval(false);
     }
@@ -324,6 +327,9 @@ const ProfileCompletionTracker = ({ onComplete }) => {
           }}
         />
       )}
+
+      {/* Toast Component */}
+      <ToastComponent />
     </div>
   );
 };

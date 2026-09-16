@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import { useToast } from '../../../components/ui/Toast';
@@ -6,13 +6,15 @@ import Button from '../../../components/ui/Button';
 import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import VendorCard from '../vendors/VendorCardFixed';
-import { vendors } from '../../../data/vendors';
+import userApi from '../../../services/userApi';
 
 const Decorators = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const { showToast, ToastComponent } = useToast();
   
+  const [allDecorators, setAllDecorators] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [sortBy, setSortBy] = useState('rating');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -24,8 +26,16 @@ const Decorators = () => {
     services: 'all'
   });
 
-  // Get all decorators
-  const allDecorators = vendors.filter(vendor => vendor.category === 'planning-decor');
+  useEffect(() => {
+    userApi.getVendors({ category: 'Decoration', limit: 50 })
+      .then(res => {
+        if (res.success && res.data) {
+          setAllDecorators(res.data);
+        }
+      })
+      .catch(err => console.error('Error fetching decorators:', err))
+      .finally(() => setIsLoading(false));
+  }, []);
 
   // Collections
   const collections = [
@@ -469,7 +479,7 @@ const Decorators = () => {
         {/* Decorators Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 pb-24">
           {sortedDecorators.map((decorator) => (
-            <div key={decorator.id} className="decorator-card">
+            <div key={decorator._id || decorator.id} className="decorator-card">
               <VendorCard vendor={decorator} layout="responsive" />
             </div>
           ))}

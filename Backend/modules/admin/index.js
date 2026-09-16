@@ -3,7 +3,9 @@ const {
     getAllVendors,
     updateVendorStatus,
     toggleVendorActive,
+    updateVendorFeatured,
     getStats,
+    getDashboardSummary,
     getAllSubscriptionPlans,
     createSubscriptionPlan,
     updateSubscriptionPlan,
@@ -14,12 +16,14 @@ const {
     updateCategory,
     deleteCategory,
     getAllReviews,
+    updateReviewStatus,
     deleteReview,
     getAllBanners,
     createBanner,
     updateBanner,
     deleteBanner,
     getAllLogs,
+    getAuditLogs,
     clearLogs,
     getProfile,
     updateProfile,
@@ -30,6 +34,8 @@ const {
     deleteVendor,
     deleteUser,
     getAllUsers,
+    getUserById,
+    updateUserStatus,
     getVendorLedger,
     getPolicy,
     updatePolicy,
@@ -55,7 +61,16 @@ const {
     deleteFormTemplate,
     getAllVendorServices,
     updateVendorServiceStatus,
-    getAllVendorInventories
+    getAllVendorInventories,
+    getAllLeads,
+    getAllQuotes,
+    getAllComplaints,
+    updateComplaintStatus,
+    getPlatformSettings,
+    updatePlatformSettings,
+    getChatReports,
+    getChatReportById,
+    updateChatReportStatus
 } = require('./adminController');
 const router = express.Router();
 
@@ -70,19 +85,38 @@ router.get('/form-templates', getAllFormTemplates);
 router.get('/faqs', getAllFAQs);
 router.get('/support-config', getSupportConfig);
 
-
 // Protect all admin routes
 router.use(protect);
 router.use(authorize('admin'));
 
+// Admin Dashboard Summary
+router.get('/dashboard/summary', getDashboardSummary);
+router.get('/stats', getStats);
+router.get('/analytics', getAnalytics);
 
+// Admin User Management
+router.get('/users', getAllUsers);
+router.get('/users/:id', getUserById);
+router.put('/users/:id/status', updateUserStatus);
+router.delete('/users/:id', deleteUser);
+
+// Admin Vendor Management
 router.get('/vendors', getAllVendors);
 router.get('/vendors-services', getVendorsWithServices);
-router.get('/users', getAllUsers);
 router.put('/vendors/:id/status', updateVendorStatus);
 router.put('/vendors/:id/active', toggleVendorActive);
+router.put('/vendors/:id/featured', updateVendorFeatured);
+router.delete('/vendors/:id', deleteVendor);
 router.put('/services/:id/active', toggleServiceActive);
-router.get('/stats', getStats);
+
+// Admin Marketplace: Leads, Quotes, Bookings
+router.get('/leads', getAllLeads);
+router.get('/quotes', getAllQuotes);
+router.get('/bookings', getAllBookings);
+router.get('/vendor-ledger', getVendorLedger);
+router.get('/payments', getPayments);
+
+// Admin Subscriptions
 router.get('/subscription-plans', getAllSubscriptionPlans);
 router.post('/subscription-plans', createSubscriptionPlan);
 router.put('/subscription-plans/:id', updateSubscriptionPlan);
@@ -111,9 +145,24 @@ router.put('/vendor-services/:id/status', updateVendorServiceStatus);
 // Admin Vendor Inventory Viewer
 router.get('/vendor-inventory', getAllVendorInventories);
 
-// Admin Review Management
+// Admin Review Moderation
 router.get('/reviews', getAllReviews);
+router.put('/reviews/:id/status', updateReviewStatus);
 router.delete('/reviews/:id', deleteReview);
+
+// Admin Complaint Management
+router.get('/complaints', getAllComplaints);
+router.put('/complaints/:id/status', updateComplaintStatus);
+
+// Admin Chat Report Moderation
+router.get('/chat-reports', getChatReports);
+router.get('/chat-reports/:id', getChatReportById);
+router.put('/chat-reports/:id/status', updateChatReportStatus);
+router.patch('/chat-reports/:id/status', updateChatReportStatus);
+
+// Admin Platform Settings
+router.get('/settings', getPlatformSettings);
+router.put('/settings', updatePlatformSettings);
 
 // Admin Banner Management
 router.get('/banners', getAllBanners);
@@ -123,22 +172,13 @@ router.delete('/banners/:id', deleteBanner);
 
 // Admin Audit Logs
 router.get('/logs', getAllLogs);
+router.get('/audit-logs', getAuditLogs);
 router.delete('/logs', clearLogs);
 
 // Admin Profile Management
 router.get('/profile', getProfile);
 router.put('/profile', updateProfile);
 router.put('/profile/password', changePassword);
-
-// Admin Global Bookings
-router.get('/bookings', getAllBookings);
-router.get('/vendor-ledger', getVendorLedger);
-router.get('/analytics', getAnalytics);
-router.get('/payments', getPayments);
-
-// Admin Deletion Protocol
-router.delete('/vendors/:id', deleteVendor);
-router.delete('/users/:id', deleteUser);
 
 // Admin Legal Policy Management
 router.get('/policies/:type', getPolicy);
@@ -158,7 +198,8 @@ router.delete('/faqs/:id', deleteFAQ);
 // Admin Support Config
 router.put('/support-config', updateSupportConfig);
 
+// Admin Financial Control & Ledger (Phase 5 Reused)
+const financialRoutes = require('./financial.routes');
+router.use('/financial', financialRoutes);
 
 module.exports = router;
-
-

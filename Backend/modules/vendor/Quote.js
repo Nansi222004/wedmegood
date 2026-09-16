@@ -36,7 +36,7 @@ const quoteSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['Pending', 'Sent', 'Accepted', 'Rejected', 'Expired'],
+        enum: ['Pending', 'Sent', 'Accepted', 'Rejected', 'Expired', 'Cancelled'],
         default: 'Pending'
     },
     validUntil: {

@@ -5,6 +5,7 @@ import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
 import Card from '../../../components/ui/Card';
 import { useToast } from '../../../components/ui/Toast';
+import userApi from '../../../services/userApi';
 
 const EditInvite = () => {
   const { theme } = useTheme();
@@ -12,7 +13,6 @@ const EditInvite = () => {
   const { id } = useParams();
   const { showToast, ToastComponent } = useToast();
 
-  // Mock data - in real app, fetch from API
   const [inviteData, setInviteData] = useState({
     id: 1,
     name: 'Priya & Rahul Wedding',
@@ -41,6 +41,43 @@ const EditInvite = () => {
   const [activeTab, setActiveTab] = useState('basic');
   const [isSaving, setIsSaving] = useState(false);
 
+  useEffect(() => {
+    if (id && id.length === 24) {
+      userApi.getInviteById(id)
+        .then(res => {
+          if (res.success && res.data) {
+            const inv = res.data;
+            setInviteData({
+              id: inv._id,
+              name: inv.title || inv.name,
+              template: inv.template || 'Royal Elegance',
+              status: inv.status || 'Draft',
+              brideName: inv.eventDetails?.brideName || '',
+              groomName: inv.eventDetails?.groomName || '',
+              weddingDate: inv.eventDetails?.eventDate ? inv.eventDetails.eventDate.split('T')[0] : '',
+              weddingTime: inv.eventDetails?.eventTime || '18:00',
+              venue: inv.eventDetails?.venue || '',
+              venueAddress: inv.eventDetails?.venueAddress || '',
+              message: inv.eventDetails?.message || '',
+              rsvpDeadline: inv.eventDetails?.rsvpDeadline ? inv.eventDetails.rsvpDeadline.split('T')[0] : '',
+              contactPerson: inv.eventDetails?.contactPerson || '',
+              contactPhone: inv.eventDetails?.contactPhone || '',
+              dresscode: inv.eventDetails?.dresscode || '',
+              backgroundColor: inv.design?.backgroundColor || '#8B4513',
+              textColor: inv.design?.textColor || '#FFFFFF',
+              accentColor: inv.design?.accentColor || '#FFD700',
+              musicUrl: inv.design?.musicUrl || '',
+              enableRSVP: inv.settings?.enableRSVP ?? true,
+              enableMap: inv.settings?.enableMap ?? true,
+              enableGallery: inv.settings?.enableGallery ?? false,
+              slug: inv.slug
+            });
+          }
+        })
+        .catch(err => console.error('Error loading invite from MongoDB:', err));
+    }
+  }, [id]);
+
   const tabs = [
     { id: 'basic', name: 'Basic Info', icon: 'edit' },
     { id: 'venue', name: 'Venue Details', icon: 'location' },
@@ -57,19 +94,64 @@ const EditInvite = () => {
 
   const handleSave = async (publish = false) => {
     setIsSaving(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
     const newStatus = publish ? 'Published' : 'Draft';
-    setInviteData(prev => ({ ...prev, status: newStatus }));
-    
-    setIsSaving(false);
-    showToast(
-      publish ? 'Invitation published successfully!' : 'Changes saved as draft',
-      'success',
-      3000
-    );
+    try {
+      if (id && id.length === 24) {
+        const payload = {
+          title: inviteData.name,
+          template: inviteData.template,
+          status: newStatus,
+          eventDetails: {
+            brideName: inviteData.brideName,
+            groomName: inviteData.groomName,
+            eventDate: inviteData.weddingDate,
+            eventTime: inviteData.weddingTime,
+            venue: inviteData.venue,
+            venueAddress: inviteData.venueAddress,
+            message: inviteData.message,
+            rsvpDeadline: inviteData.rsvpDeadline || null,
+            contactPerson: inviteData.contactPerson,
+            contactPhone: inviteData.contactPhone,
+            dresscode: inviteData.dresscode
+          },
+          design: {
+            backgroundColor: inviteData.backgroundColor,
+            textColor: inviteData.textColor,
+            accentColor: inviteData.accentColor,
+            musicUrl: inviteData.musicUrl
+          },
+          settings: {
+            enableRSVP: inviteData.enableRSVP,
+            enableMap: inviteData.enableMap,
+            enableGallery: inviteData.enableGallery
+          }
+        };
+
+        const res = await userApi.updateInvite(id, payload);
+        if (res.success) {
+          setInviteData(prev => ({ ...prev, status: newStatus }));
+          showToast(
+            publish ? 'Invitation published successfully!' : 'Changes saved to MongoDB',
+            'success',
+            3000
+          );
+        } else {
+          throw new Error(res.message || 'Save failed');
+        }
+      } else {
+        setInviteData(prev => ({ ...prev, status: newStatus }));
+        showToast(
+          publish ? 'Invitation published successfully!' : 'Changes saved as draft',
+          'success',
+          3000
+        );
+      }
+    } catch (err) {
+      console.error('Error saving invite:', err);
+      showToast('Failed to save invitation: ' + (err.message || 'Server error'), 'error', 3000);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handlePreview = () => {

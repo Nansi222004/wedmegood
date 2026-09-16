@@ -65,12 +65,8 @@ const VendorBottomNav = ({ isApproved }) => {
     { label: 'Profile', to: '/vendor/profile', icon: 'user' },
   ];
 
-  const handleLinkClick = (e, isDisabled, to) => {
-    if (isDisabled) {
-      e.preventDefault();
-    } else {
-      setShowQuickActions(false);
-    }
+  const handleLinkClick = () => {
+    setShowQuickActions(false);
   };
 
   return (
@@ -154,18 +150,15 @@ const VendorBottomNav = ({ isApproved }) => {
         {/* Left Navigation Tabs (Dashboard, Leads) */}
         <div className="flex flex-1 items-center justify-around">
           {leftItems.map((item) => {
-            const isHome = item.label === 'Dashboard';
-            const isDisabled = !isApproved && !isHome;
-
             return (
               <NavLink
                 key={item.to}
-                to={isDisabled ? '#' : item.to}
-                onClick={(e) => handleLinkClick(e, isDisabled, item.to)}
+                to={item.to}
+                onClick={handleLinkClick}
                 className={({ isActive }) =>
                   `flex flex-col items-center gap-1.5 py-2 px-1.5 rounded-2xl transition-all duration-350 relative flex-1 min-w-0 ${
                     isActive ? 'text-violet-600' : 'text-slate-500 hover:text-slate-700'
-                  } ${isDisabled ? 'opacity-25 grayscale cursor-not-allowed' : 'hover:bg-slate-50/50 active:scale-95'}`
+                  } hover:bg-slate-50/50 active:scale-95`
                 }
               >
                 {({ isActive }) => (
@@ -194,11 +187,10 @@ const VendorBottomNav = ({ isApproved }) => {
         {/* Center Raised Circular Plus FAB */}
         <div className="flex items-center justify-center px-1.5 relative h-10 w-12 flex-shrink-0">
           <button
-            onClick={() => isApproved && setShowQuickActions(!showQuickActions)}
-            disabled={!isApproved}
-            className={`absolute -top-6 h-12 w-12 rounded-full bg-gradient-to-tr from-violet-600 via-purple-600 to-fuchsia-500 flex items-center justify-center text-white border-[3.5px] border-white shadow-[0_8px_20px_rgba(124,58,237,0.45)] active:scale-90 transition-all duration-300 z-30 ${
+            onClick={() => setShowQuickActions(!showQuickActions)}
+            className={`absolute -top-6 h-12 w-12 rounded-full bg-gradient-to-tr from-violet-600 via-purple-600 to-fuchsia-500 flex items-center justify-center text-white border-[3.5px] border-white shadow-[0_8px_20px_rgba(124,58,237,0.45)] active:scale-90 transition-all duration-300 z-30 hover:scale-105 ${
               showQuickActions ? 'rotate-135 bg-gradient-to-tr from-rose-500 to-red-500 shadow-rose-500/35' : ''
-            } ${!isApproved ? 'opacity-30 grayscale cursor-not-allowed' : 'hover:scale-105'}`}
+            }`}
           >
             <svg className="w-5.5 h-5.5 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -209,18 +201,15 @@ const VendorBottomNav = ({ isApproved }) => {
         {/* Right Navigation Tabs (Bookings, Profile) */}
         <div className="flex flex-1 items-center justify-around">
           {rightItems.map((item) => {
-            const isHome = item.label === 'Dashboard';
-            const isDisabled = !isApproved && !isHome;
-
             return (
               <NavLink
                 key={item.to}
-                to={isDisabled ? '#' : item.to}
-                onClick={(e) => handleLinkClick(e, isDisabled, item.to)}
+                to={item.to}
+                onClick={handleLinkClick}
                 className={({ isActive }) =>
                   `flex flex-col items-center gap-1.5 py-2 px-1.5 rounded-2xl transition-all duration-350 relative flex-1 min-w-0 ${
                     isActive ? 'text-violet-600' : 'text-slate-500 hover:text-slate-700'
-                  } ${isDisabled ? 'opacity-25 grayscale cursor-not-allowed' : 'hover:bg-slate-50/50 active:scale-95'}`
+                  } hover:bg-slate-50/50 active:scale-95`
                 }
               >
                 {({ isActive }) => (

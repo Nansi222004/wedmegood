@@ -23,6 +23,8 @@ import VendorProfile from './pages/VendorProfile';
 import VendorSupport from './pages/VendorSupport';
 import VendorSettings from './pages/VendorSettings';
 import VendorInventory from './pages/VendorInventory';
+import VendorNotifications from './pages/VendorNotifications';
+import VendorOperationalGuard from './components/VendorOperationalGuard';
 import { VendorProvider } from './useVendorState';
 
 const VendorRoutes = () => {
@@ -39,21 +41,74 @@ const VendorRoutes = () => {
           <Route path="onboarding/submitted" element={<VendorSubmittedOnboarding />} />
         </Route>
         <Route element={<VendorLayout />}>
+          {/* Storefront & Setup Modules (accessible during review/setup) */}
           <Route path="dashboard" element={<VendorDashboard />} />
+          <Route path="profile" element={<VendorProfile />} />
           <Route path="services" element={<VendorServices />} />
           <Route path="pricing" element={<VendorPricing />} />
           <Route path="portfolio" element={<VendorPortfolio />} />
-          <Route path="leads" element={<VendorLeads />} />
-          <Route path="quotes" element={<VendorQuotes />} />
-          <Route path="bookings" element={<VendorBookings />} />
-          <Route path="calendar" element={<VendorCalendar />} />
-          <Route path="chat" element={<VendorChat />} />
-          <Route path="earnings" element={<VendorEarnings />} />
-          <Route path="reviews" element={<VendorReviews />} />
-          <Route path="profile" element={<VendorProfile />} />
-          <Route path="support" element={<VendorSupport />} />
-          <Route path="settings" element={<VendorSettings />} />
           <Route path="inventory" element={<VendorInventory />} />
+          <Route path="settings" element={<VendorSettings />} />
+          <Route path="support" element={<VendorSupport />} />
+          <Route path="notifications" element={<VendorNotifications />} />
+
+          {/* Operational Modules (require approval & active subscription) */}
+          <Route 
+            path="leads" 
+            element={
+              <VendorOperationalGuard moduleName="Inquiries & Leads">
+                <VendorLeads />
+              </VendorOperationalGuard>
+            } 
+          />
+          <Route 
+            path="quotes" 
+            element={
+              <VendorOperationalGuard moduleName="Quotes">
+                <VendorQuotes />
+              </VendorOperationalGuard>
+            } 
+          />
+          <Route 
+            path="bookings" 
+            element={
+              <VendorOperationalGuard moduleName="Bookings">
+                <VendorBookings />
+              </VendorOperationalGuard>
+            } 
+          />
+          <Route 
+            path="calendar" 
+            element={
+              <VendorOperationalGuard moduleName="Calendar">
+                <VendorCalendar />
+              </VendorOperationalGuard>
+            } 
+          />
+          <Route 
+            path="chat" 
+            element={
+              <VendorOperationalGuard moduleName="Chat & Messaging">
+                <VendorChat />
+              </VendorOperationalGuard>
+            } 
+          />
+          <Route 
+            path="earnings" 
+            element={
+              <VendorOperationalGuard moduleName="Earnings & Payouts">
+                <VendorEarnings />
+              </VendorOperationalGuard>
+            } 
+          />
+          <Route 
+            path="reviews" 
+            element={
+              <VendorOperationalGuard moduleName="Reviews">
+                <VendorReviews />
+              </VendorOperationalGuard>
+            } 
+          />
         </Route>
         <Route path="" element={<Navigate to="/vendor/login" replace />} />
         <Route path="*" element={<Navigate to="/vendor/login" replace />} />

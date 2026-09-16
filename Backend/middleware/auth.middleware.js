@@ -27,7 +27,14 @@ const protect = async (req, res, next) => {
       const decoded = jwt.verify(token, JWT_SECRET);
 
       // Get user from token
-      const user = await User.findById(decoded.id);
+      let user = await User.findById(decoded.id);
+
+      if (!user && decoded.role === 'vendor') {
+        const vendor = await Vendor.findById(decoded.id);
+        if (vendor) {
+          user = vendor;
+        }
+      }
 
       if (!user) {
         return res.status(401).json({
@@ -37,7 +44,7 @@ const protect = async (req, res, next) => {
       }
 
       // Check if user is active
-      if (!user.isActive || user.isBlocked) {
+      if (user.isActive === false || user.isBlocked) {
         return res.status(401).json({
           success: false,
           message: 'Account is deactivated or blocked. Please contact support.'

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import { useCart } from '../../../contexts/CartContext';
@@ -8,11 +8,12 @@ import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import EmptyState from '../../../components/ui/EmptyState';
+import { userApi } from '../../../services/userApi';
 
 const Account = () => {
   const { theme } = useTheme();
   const { cartState } = useCart();
-  const { user, login, logout, isAuthenticated } = useAuth();
+  const { user, login, logout, isAuthenticated, updateUser } = useAuth();
   const navigate = useNavigate();
   
   // Login form state
@@ -22,6 +23,20 @@ const Account = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [user?.profileImage]);
+
+  const formatImageUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+      return url;
+    }
+    const backendBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+    return `${backendBase}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
 
   // Handle login form changes
   const handleChange = (e) => {
@@ -159,10 +174,10 @@ const Account = () => {
   // Use real user data from auth context, with fallbacks
   const userData = {
     name: user?.name || 'User',
-    phone: user?.phone || '+91 98765 43210',
+    phone: user?.phone || '',
     email: user?.email || 'user@email.com',
-    profileImage: user?.profileImage || 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
-    weddingDate: user?.weddingDate || '2024-12-15',
+    profileImage: user?.profileImage || '',
+    weddingDate: user?.weddingDate || null,
     city: user?.city || 'Indore',
     functionsCount: 4, // Haldi, Mehndi, Wedding, Reception
     hasSetBudget: true,
@@ -176,22 +191,57 @@ const Account = () => {
     remaining: 680000 // ₹6,80,000
   });
 
-  // Mock activity data
-  const [activityData] = useState({
+  // Activity data backed by real MongoDB statistics
+  const [activityData, setActivityData] = useState({
     cartItems: cartState.totalItems,
-    bookings: 2,
-    shortlistedVendors: 8,
-    favouriteVendors: 5,
-    unreadMessages: 3,
-    reviewsGiven: 1
+    bookings: 0,
+    shortlistedVendors: 0,
+    favouriteVendors: 0,
+    unreadMessages: 0,
+    reviewsGiven: 0
   });
 
-  // Mock payments data
-  const [paymentsData] = useState({
-    totalPayments: 5,
-    pendingPayments: 2,
-    lastPaymentAmount: 25000
+  // Payments data backed by real MongoDB statistics
+  const [paymentsData, setPaymentsData] = useState({
+    totalPayments: 0,
+    pendingPayments: 0,
+    lastPaymentAmount: 0
   });
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let isMounted = true;
+    const loadData = async () => {
+      try {
+        const [statsRes, profileRes] = await Promise.allSettled([
+          userApi.getUserStats(),
+          userApi.getUserProfile()
+        ]);
+        
+        if (isMounted && profileRes.status === 'fulfilled' && profileRes.value?.success && profileRes.value.data?.user) {
+          updateUser(profileRes.value.data.user);
+        }
+
+        if (isMounted && statsRes.status === 'fulfilled' && statsRes.value?.success && statsRes.value.data?.stats) {
+          const s = statsRes.value.data.stats;
+          setActivityData(prev => ({
+            ...prev,
+            bookings: s.bookingsCount || 0,
+            reviewsGiven: s.reviewsCount || 0
+          }));
+          setPaymentsData(prev => ({
+            ...prev,
+            totalPayments: s.paymentsCount || 0
+          }));
+        }
+      } catch (err) {
+        console.warn('Could not fetch real user data in Account:', err.message);
+      }
+    };
+
+    loadData();
+    return () => { isMounted = false; };
+  }, [isAuthenticated]);
 
   const formatCurrency = (amount) => {
     if (amount >= 100000) {
@@ -205,7 +255,9 @@ const Account = () => {
   };
 
   const formatWeddingDate = (dateString) => {
+    if (!dateString) return 'Not set';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Not set';
     return date.toLocaleDateString('en-IN', { 
       day: 'numeric', 
       month: 'long', 
@@ -281,16 +333,25 @@ const Account = () => {
           <div className="flex flex-col items-center text-center space-y-3">
             {/* High-End Profile Image - Slimmed */}
             <div className="relative group">
-              <div className="w-20 h-20 rounded-full overflow-hidden border-[4px] border-[#EAE1D8]/20 shadow-lg">
-                <img
-                  src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=300&h=300&fit=crop&q=80"
-                  alt={userData.name}
-                  className="w-full h-full object-cover"
-                />
+              <div className="w-20 h-20 rounded-full overflow-hidden border-[4px] border-[#EAE1D8]/20 shadow-lg bg-gray-100 flex items-center justify-center">
+                {userData.profileImage && !imageError ? (
+                  <img
+                    src={formatImageUrl(userData.profileImage)}
+                    alt={userData.name}
+                    className="w-full h-full object-cover"
+                    onError={() => setImageError(true)}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center text-white text-2xl font-bold shadow-inner">
+                    {userData.name ? userData.name.charAt(0).toUpperCase() : 'U'}
+                  </div>
+                )}
               </div>
               <button 
                 onClick={() => handleNavigation('/user/profile/edit')}
-                className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-white shadow-md flex items-center justify-center text-[#3D2B2B] active:scale-90 transition-all border border-gray-100"
+                title="Edit Profile"
+                aria-label="Edit Profile"
+                className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-white shadow-md flex items-center justify-center text-[#3D2B2B] active:scale-90 transition-all border border-gray-100 hover:bg-gray-50"
               >
                  <Icon name="plan" size="xs" />
               </button>

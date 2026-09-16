@@ -4,7 +4,7 @@ import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
-import { familyContacts } from '../../../data/contacts';
+import userApi from '../../../services/userApi';
 
 const CreateGroup = () => {
   const { theme } = useTheme();
@@ -12,33 +12,51 @@ const CreateGroup = () => {
   const location = useLocation();
   const [groupName, setGroupName] = useState('');
   const [groupDescription, setGroupDescription] = useState('');
-  const [selectedContacts, setSelectedContacts] = useState([]);
+  const [selectedMembers, setSelectedMembers] = useState([]);
   const [groupAvatar, setGroupAvatar] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newMember, setNewMember] = useState({ name: '', phone: '', email: '', relation: 'Family', role: 'member' });
 
-  // Get selected contacts from navigation state
+  // Get selected contacts from navigation state or fallback
   useEffect(() => {
-    if (location.state?.selectedContacts) {
-      setSelectedContacts(location.state.selectedContacts);
+    if (location.state?.selectedContactsData && location.state.selectedContactsData.length > 0) {
+      setSelectedMembers(location.state.selectedContactsData);
       
       // Auto-generate group name based on selected contacts
-      const contactNames = location.state.selectedContacts
-        .map(id => familyContacts.find(c => c.id === id)?.name.split(' ')[0])
+      const contactNames = location.state.selectedContactsData
+        .map(c => c.name?.split(' ')[0])
         .filter(Boolean)
         .slice(0, 3);
       
       if (contactNames.length > 0) {
         setGroupName(`${contactNames.join(', ')} Wedding Group`);
       }
-    } else {
-      // Redirect back if no contacts selected
-      navigate('/user/family/contacts');
+    } else if (location.state?.selectedContacts && location.state.selectedContacts.length > 0) {
+      // Fetch guests to resolve IDs
+      userApi.getGuests().then(res => {
+        const guestList = res.data?.guests || res.data || [];
+        const matched = guestList
+          .filter(g => location.state.selectedContacts.includes(g._id || g.id))
+          .map(g => ({
+            id: g._id || g.id,
+            name: g.name,
+            phone: g.phone || '',
+            relation: g.relation || 'Family',
+            avatar: g.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(g.name)}&background=random`
+          }));
+        if (matched.length > 0) {
+          setSelectedMembers(matched);
+          const contactNames = matched.map(c => c.name?.split(' ')[0]).filter(Boolean).slice(0, 3);
+          if (contactNames.length > 0) {
+            setGroupName(`${contactNames.join(', ')} Wedding Group`);
+          }
+        }
+      }).catch(err => {
+        console.error('Failed to load guests for group:', err);
+      });
     }
-  }, [location.state, navigate]);
-
-  const selectedContactsData = selectedContacts
-    .map(id => familyContacts.find(contact => contact.id === id))
-    .filter(Boolean);
+  }, [location.state]);
 
   const handleCreateGroup = async () => {
     if (!groupName.trim()) {
@@ -46,48 +64,90 @@ const CreateGroup = () => {
       return;
     }
 
-    if (selectedContacts.length < 2) {
-      alert('Please select at least 2 contacts');
+    if (selectedMembers.length < 1) {
+      alert('Please add at least 1 member to the group');
       return;
     }
 
     setIsCreating(true);
 
-    // Simulate group creation
-    setTimeout(() => {
-      const newGroup = {
-        id: Date.now(),
+    try {
+      const membersPayload = selectedMembers.map(c => ({
+        name: c.name,
+        phone: c.phone || '',
+        email: c.email || '',
+        role: c.role || 'member',
+        relation: c.relation || 'Family',
+        status: 'accepted'
+      }));
+
+      const payload = {
         name: groupName.trim(),
-        description: groupDescription.trim(),
+        description: groupDescription.trim() || 'Wedding planning group',
         avatar: groupAvatar || 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=150&h=150&fit=crop',
-        members: selectedContacts,
-        createdBy: 1, // Current user
-        createdAt: new Date().toISOString(),
+        members: membersPayload
+      };
+
+      const res = await userApi.createFamilyGroup(payload);
+      const savedGroup = res.data?.group || res.data || {
+        _id: String(Date.now()),
+        ...payload
+      };
+
+      // Also update local copy for backward compatibility with GroupChat
+      const existingGroups = JSON.parse(localStorage.getItem('familyGroups') || '[]');
+      const groupForChat = {
+        id: savedGroup._id || Date.now(),
+        name: savedGroup.name,
+        description: savedGroup.description,
+        avatar: savedGroup.avatar,
+        members: selectedMembers.map(c => c.id || c._id),
+        createdBy: 1,
+        createdAt: savedGroup.createdAt || new Date().toISOString(),
         lastMessage: {
-          text: `${groupName} group created!`,
+          text: `${savedGroup.name} group created!`,
           sender: 'System',
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         },
         unreadCount: 0,
         isActive: true
       };
-
-      // Store group in localStorage (in real app, this would be API call)
-      const existingGroups = JSON.parse(localStorage.getItem('familyGroups') || '[]');
-      existingGroups.push(newGroup);
+      existingGroups.push(groupForChat);
       localStorage.setItem('familyGroups', JSON.stringify(existingGroups));
 
       setIsCreating(false);
-      
-      // Navigate to the created group chat
-      navigate(`/user/family/group/${newGroup.id}`, { 
-        state: { group: newGroup, isNewGroup: true }
+      navigate(`/user/family/group/${groupForChat.id}`, { 
+        state: { group: groupForChat, isNewGroup: true }
       });
-    }, 2000);
+    } catch (err) {
+      console.error('Error creating family group:', err);
+      alert('Failed to create family group: ' + (err.message || 'Server error'));
+      setIsCreating(false);
+    }
   };
 
   const handleRemoveContact = (contactId) => {
-    setSelectedContacts(prev => prev.filter(id => id !== contactId));
+    setSelectedMembers(prev => prev.filter(m => (m.id || m._id) !== contactId));
+  };
+
+  const handleAddMember = (e) => {
+    e.preventDefault();
+    if (!newMember.name.trim()) {
+      alert('Please enter member name');
+      return;
+    }
+    const memberToAdd = {
+      id: 'custom_' + Date.now(),
+      name: newMember.name.trim(),
+      phone: newMember.phone.trim(),
+      email: newMember.email.trim(),
+      relation: newMember.relation,
+      role: newMember.role,
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newMember.name.trim())}&background=random`
+    };
+    setSelectedMembers(prev => [...prev, memberToAdd]);
+    setNewMember({ name: '', phone: '', email: '', relation: 'Family', role: 'member' });
+    setShowAddModal(false);
   };
 
   const predefinedAvatars = [
@@ -223,53 +283,186 @@ const CreateGroup = () => {
         <Card>
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold" style={{ color: theme.semantic.text.primary }}>
-                Group Members ({selectedContactsData.length})
-              </h3>
-              <button
-                onClick={() => navigate('/user/family/contacts', { 
-                  state: { selectedContacts } 
-                })}
-                className="text-sm font-medium px-3 py-1 rounded-lg"
-                style={{
-                  backgroundColor: theme.colors.primary[100],
-                  color: theme.colors.primary[700]
-                }}
-              >
-                Edit
-              </button>
+              <div>
+                <h3 className="font-semibold" style={{ color: theme.semantic.text.primary }}>
+                  Group Members ({selectedMembers.length})
+                </h3>
+                <p className="text-xs" style={{ color: theme.semantic.text.secondary }}>
+                  Select contacts or add family members directly
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(true)}
+                  className="text-xs font-semibold px-2.5 py-1.5 rounded-lg flex items-center gap-1"
+                  style={{
+                    backgroundColor: theme.colors.primary[500],
+                    color: 'white'
+                  }}
+                >
+                  <Icon name="plus" size="xs" />
+                  <span>Add</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/user/family/contacts', { 
+                    state: { selectedContacts: selectedMembers.map(m => m.id || m._id) } 
+                  })}
+                  className="text-xs font-medium px-2.5 py-1.5 rounded-lg"
+                  style={{
+                    backgroundColor: theme.colors.primary[100],
+                    color: theme.colors.primary[700]
+                  }}
+                >
+                  From Guests
+                </button>
+              </div>
             </div>
-            
-            <div className="space-y-3">
-              {selectedContactsData.map((contact) => (
-                <div key={contact.id} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <img
-                      src={contact.avatar}
-                      alt={contact.name}
-                      className="w-10 h-10 rounded-full object-cover"
-                    />
-                    <div>
-                      <p className="font-medium text-sm" style={{ color: theme.semantic.text.primary }}>
-                        {contact.name}
-                      </p>
-                      <p className="text-xs" style={{ color: theme.semantic.text.secondary }}>
-                        {contact.relation}
-                      </p>
+
+            {selectedMembers.length === 0 ? (
+              <div className="text-center py-6 border border-dashed rounded-xl" style={{ borderColor: theme.semantic.border.light }}>
+                <Icon name="users" size="md" className="mx-auto mb-2 opacity-40" />
+                <p className="text-xs font-medium" style={{ color: theme.semantic.text.secondary }}>
+                  No members added yet. Click &quot;Add&quot; or select from guests.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {selectedMembers.map((contact) => {
+                  const contactKey = contact.id || contact._id || contact.name;
+                  return (
+                    <div key={contactKey} className="flex items-center justify-between p-2 rounded-lg" style={{ backgroundColor: theme.semantic.background.secondary || `${theme.semantic.border.light}30` }}>
+                      <div className="flex items-center space-x-3">
+                        <img
+                          src={contact.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(contact.name)}&background=random`}
+                          alt={contact.name}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                        <div>
+                          <p className="font-medium text-sm" style={{ color: theme.semantic.text.primary }}>
+                            {contact.name}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs" style={{ color: theme.semantic.text.secondary }}>
+                            <span>{contact.relation || 'Family'}</span>
+                            {contact.phone && <span>• {contact.phone}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveContact(contactKey)}
+                        className="p-1.5 rounded-full hover:bg-red-100 text-red-500 transition-colors"
+                        title="Remove member"
+                      >
+                        <Icon name="close" size="xs" />
+                      </button>
                     </div>
-                  </div>
-                  
-                  <button
-                    onClick={() => handleRemoveContact(contact.id)}
-                    className="p-1 rounded-full hover:bg-red-100 transition-colors"
-                  >
-                    <Icon name="close" size="xs" style={{ color: theme.semantic.text.secondary }} />
-                  </button>
-                </div>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </Card>
+
+        {/* Add Member Modal */}
+        {showAddModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+            <div className="w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4" style={{ backgroundColor: theme.semantic.card.background }}>
+              <div className="flex justify-between items-center">
+                <h4 className="font-bold text-base" style={{ color: theme.semantic.text.primary }}>Add Family Member</h4>
+                <button onClick={() => setShowAddModal(false)} className="p-1">
+                  <Icon name="close" size="sm" style={{ color: theme.semantic.text.secondary }} />
+                </button>
+              </div>
+              <form onSubmit={handleAddMember} className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium block mb-1" style={{ color: theme.semantic.text.secondary }}>Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newMember.name}
+                    onChange={e => setNewMember({ ...newMember, name: e.target.value })}
+                    placeholder="e.g. Rahul Sharma"
+                    className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
+                    style={{ borderColor: theme.semantic.card.border, color: theme.semantic.text.primary, backgroundColor: theme.semantic.background.primary }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium block mb-1" style={{ color: theme.semantic.text.secondary }}>Phone Number</label>
+                  <input
+                    type="tel"
+                    value={newMember.phone}
+                    onChange={e => setNewMember({ ...newMember, phone: e.target.value })}
+                    placeholder="e.g. +91 9876543210"
+                    className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
+                    style={{ borderColor: theme.semantic.card.border, color: theme.semantic.text.primary, backgroundColor: theme.semantic.background.primary }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium block mb-1" style={{ color: theme.semantic.text.secondary }}>Email (Optional)</label>
+                  <input
+                    type="email"
+                    value={newMember.email}
+                    onChange={e => setNewMember({ ...newMember, email: e.target.value })}
+                    placeholder="e.g. rahul@example.com"
+                    className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
+                    style={{ borderColor: theme.semantic.card.border, color: theme.semantic.text.primary, backgroundColor: theme.semantic.background.primary }}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-medium block mb-1" style={{ color: theme.semantic.text.secondary }}>Relation</label>
+                    <select
+                      value={newMember.relation}
+                      onChange={e => setNewMember({ ...newMember, relation: e.target.value })}
+                      className="w-full px-2 py-2 text-xs rounded-lg border focus:outline-none"
+                      style={{ borderColor: theme.semantic.card.border, color: theme.semantic.text.primary, backgroundColor: theme.semantic.background.primary }}
+                    >
+                      <option value="Family">Family</option>
+                      <option value="Parents">Parents</option>
+                      <option value="Siblings">Siblings</option>
+                      <option value="Bride">Bride</option>
+                      <option value="Groom">Groom</option>
+                      <option value="Friend">Friend</option>
+                      <option value="Relative">Relative</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium block mb-1" style={{ color: theme.semantic.text.secondary }}>Role</label>
+                    <select
+                      value={newMember.role}
+                      onChange={e => setNewMember({ ...newMember, role: e.target.value })}
+                      className="w-full px-2 py-2 text-xs rounded-lg border focus:outline-none"
+                      style={{ borderColor: theme.semantic.card.border, color: theme.semantic.text.primary, backgroundColor: theme.semantic.background.primary }}
+                    >
+                      <option value="member">Member</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(false)}
+                    className="px-3 py-1.5 text-xs rounded-lg border"
+                    style={{ borderColor: theme.semantic.border.light, color: theme.semantic.text.secondary }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 text-xs rounded-lg text-white font-medium"
+                    style={{ backgroundColor: theme.colors.primary[500] }}
+                  >
+                    Add Member
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Group Features Preview */}
         <Card>
@@ -318,14 +511,14 @@ const CreateGroup = () => {
         <div className="max-w-md mx-auto">
           <Button
             onClick={handleCreateGroup}
-            disabled={!groupName.trim() || selectedContacts.length < 2 || isCreating}
+            disabled={!groupName.trim() || selectedMembers.length < 1 || isCreating}
             className="w-full py-4 rounded-xl font-bold text-base flex items-center justify-center gap-3 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
             style={{
-              backgroundColor: (!groupName.trim() || selectedContacts.length < 2 || isCreating) 
+              backgroundColor: (!groupName.trim() || selectedMembers.length < 1 || isCreating) 
                 ? theme.semantic.text.tertiary 
                 : theme.colors.primary[500],
               color: 'white',
-              boxShadow: (!groupName.trim() || selectedContacts.length < 2 || isCreating) 
+              boxShadow: (!groupName.trim() || selectedMembers.length < 1 || isCreating) 
                 ? 'none' 
                 : `0 4px 20px ${theme.colors.primary[500]}40`,
               minHeight: '56px'

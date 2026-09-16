@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Vendor = require('../vendor/Vendor');
 const User = require('../user/user.model');
 const SubscriptionPlan = require('./SubscriptionPlan');
@@ -5,6 +6,31 @@ const Policy = require('./Policy');
 const SupportTicket = require('../vendor/SupportTicket');
 const FAQ = require('./FAQ');
 const SupportConfig = require('./SupportConfig');
+const AdminLog = require('./AdminLog');
+const PlatformSettings = require('./PlatformSettings');
+const Booking = require('../vendor/Booking');
+const Lead = require('../vendor/Lead');
+const Quote = require('../vendor/Quote');
+const Review = require('../vendor/Review');
+const Complaint = require('../user/Complaint');
+const Payment = require('../user/Payment');
+const VendorWallet = require('../vendor/VendorWallet');
+const WithdrawalRequest = require('../vendor/WithdrawalRequest');
+const Category = require('./Category');
+const SubCategory = require('./SubCategory');
+const FormTemplate = require('./FormTemplate');
+const VendorService = require('../vendor/VendorService');
+const Banner = require('./Banner');
+const ChatReport = require('../vendor/ChatReport');
+const { logAdminAction } = require('../../services/audit.service');
+const { getActiveCommissionPercent } = require('../../services/commission.service');
+const { invalidateMaintenanceCache } = require('../../middleware/maintenance.middleware');
+
+// Helper to escape regex special characters
+const escapeRegex = (string) => {
+    if (typeof string !== 'string') return '';
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
 
 
 
@@ -111,47 +137,92 @@ exports.deleteSubscriptionPlan = async (req, res, next) => {
     }
 };
 
-// @desc    Get all vendors
+// @desc    Get all vendors with pagination & filtering
 // @route   GET /api/admin/vendors
 // @access  Private/Admin
-    exports.getAllVendors = async (req, res, next) => {
-        try {
-            const vendors = await Vendor.find({ status: { $ne: 'Incomplete' } }).lean().sort('-createdAt');
-            
-            const VendorService = require('../vendor/VendorService');
-            const vendorServices = await VendorService.find().lean();
-            
-            const mappedVendors = vendors.map(v => {
-                const dServices = vendorServices.filter(s => s.vendorId.toString() === v._id.toString()).map(s => {
-                    let subcategoryName = 'Service Details';
-                    if (v.selectedCategories) {
-                        v.selectedCategories.forEach(cat => {
-                            if (cat.subcategories) {
-                                cat.subcategories.forEach(sub => {
-                                    if (sub.subcategoryId && s.subCategoryId && sub.subcategoryId.toString() === s.subCategoryId.toString()) {
-                                        subcategoryName = sub.subcategoryName;
-                                    }
-                                });
-                            }
-                        });
-                    }
-                    return { ...s, subcategoryName };
-                });
-                return {
-                    ...v,
-                    dynamicServices: dServices
-                };
+exports.getAllVendors = async (req, res, next) => {
+    try {
+        const { page = 1, limit = 10, status, search, city, isFeatured } = req.query;
+        const pageNum = Math.max(1, parseInt(page, 10) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+        const skip = (pageNum - 1) * limitNum;
+
+        const query = { status: { $ne: 'Incomplete' } };
+
+        if (status && status !== 'All') {
+            query.status = status;
+        }
+
+        if (isFeatured === 'true' || isFeatured === true) {
+            query.isFeatured = true;
+        }
+
+        if (city) {
+            query.city = new RegExp(`^${escapeRegex(city.trim())}$`, 'i');
+        }
+
+        if (search && search.trim()) {
+            const escaped = escapeRegex(search.trim());
+            const regex = new RegExp(escaped, 'i');
+            query.$or = [
+                { businessName: regex },
+                { fullName: regex },
+                { email: regex },
+                { phone: regex },
+                { 'selectedCategories.categoryName': regex }
+            ];
+        }
+
+        const total = await Vendor.countDocuments(query);
+        const vendors = await Vendor.find(query)
+            .select('-password')
+            .lean()
+            .sort('-createdAt')
+            .skip(skip)
+            .limit(limitNum);
+
+        const VendorService = require('../vendor/VendorService');
+        const vendorIds = vendors.map(v => v._id);
+        const vendorServices = await VendorService.find({ vendorId: { $in: vendorIds } }).lean();
+
+        const mappedVendors = vendors.map(v => {
+            const dServices = vendorServices.filter(s => s.vendorId.toString() === v._id.toString()).map(s => {
+                let subcategoryName = 'Service Details';
+                if (v.selectedCategories) {
+                    v.selectedCategories.forEach(cat => {
+                        if (cat.subcategories) {
+                            cat.subcategories.forEach(sub => {
+                                if (sub.subcategoryId && s.subCategoryId && sub.subcategoryId.toString() === s.subCategoryId.toString()) {
+                                    subcategoryName = sub.subcategoryName;
+                                }
+                            });
+                        }
+                    });
+                }
+                return { ...s, subcategoryName };
             });
+            return {
+                ...v,
+                dynamicServices: dServices
+            };
+        });
 
         res.status(200).json({
             success: true,
             count: mappedVendors.length,
-            data: mappedVendors
+            data: mappedVendors,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total,
+                totalPages: Math.ceil(total / limitNum) || 1
+            }
         });
     } catch (err) {
         next(err);
     }
 };
+
 
 // @desc    Get all vendors with their actual services populated
 // @route   GET /api/admin/vendors-services
@@ -202,28 +273,78 @@ exports.toggleServiceActive = async (req, res, next) => {
     }
 };
 
-// @desc    Update vendor status (Approve/Reject)
+// @desc    Update vendor status (Approve/Reject/Suspend/Pending)
 // @route   PUT /api/admin/vendors/:id/status
 // @access  Private/Admin
 exports.updateVendorStatus = async (req, res, next) => {
     try {
-        const { status } = req.body;
+        const { status, reason } = req.body;
 
-        if (!['Pending', 'Approved', 'Rejected'].includes(status)) {
+        if (!['Pending', 'Approved', 'Rejected', 'Suspended'].includes(status)) {
             return res.status(400).json({
                 success: false,
-                message: 'Invalid status'
+                message: 'Invalid status. Must be Pending, Approved, Rejected, or Suspended'
             });
         }
 
-        const vendor = await Vendor.findByIdAndUpdate(req.params.id, {
-            status,
-            isVerified: status === 'Approved'
-        }, {
-            new: true,
-            runValidators: true
+        const existingVendor = await Vendor.findById(req.params.id);
+        if (!existingVendor) {
+            return res.status(404).json({
+                success: false,
+                message: 'Vendor not found'
+            });
+        }
+
+        const prevStatus = existingVendor.status;
+        const prevVerified = existingVendor.isVerified;
+        const prevFeatured = existingVendor.isFeatured;
+
+        existingVendor.status = status;
+        existingVendor.isVerified = status === 'Approved';
+
+        // Ineligible vendors can no longer be featured
+        if (status === 'Suspended' || status === 'Rejected' || status === 'Pending') {
+            existingVendor.isFeatured = false;
+        }
+
+        await existingVendor.save();
+
+        await logAdminAction({
+            admin: req.user,
+            action: `Changed vendor status for ${existingVendor.businessName} from ${prevStatus} to ${status}`,
+            entityType: 'Vendor',
+            entityId: existingVendor._id,
+            before: { status: prevStatus, isVerified: prevVerified, isFeatured: prevFeatured },
+            after: { status, isVerified: existingVendor.isVerified, isFeatured: existingVendor.isFeatured },
+            reason: reason || '',
+            req
         });
 
+        res.status(200).json({
+            success: true,
+            data: existingVendor,
+            message: `Vendor status successfully updated to ${status}`
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Toggle vendor featured status
+// @route   PUT /api/admin/vendors/:id/featured
+// @access  Private/Admin
+exports.updateVendorFeatured = async (req, res, next) => {
+    try {
+        const { isFeatured, reason } = req.body;
+
+        if (typeof isFeatured !== 'boolean') {
+            return res.status(400).json({
+                success: false,
+                message: 'isFeatured must be a boolean'
+            });
+        }
+
+        const vendor = await Vendor.findById(req.params.id);
         if (!vendor) {
             return res.status(404).json({
                 success: false,
@@ -231,14 +352,39 @@ exports.updateVendorStatus = async (req, res, next) => {
             });
         }
 
+        // Rule: Only Approved and Active vendors can be featured
+        if (isFeatured && (vendor.status !== 'Approved' || vendor.isActive === false)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Only approved and active vendors can be featured'
+            });
+        }
+
+        const prevFeatured = vendor.isFeatured;
+        vendor.isFeatured = isFeatured;
+        await vendor.save();
+
+        await logAdminAction({
+            admin: req.user,
+            action: `${isFeatured ? 'Featured' : 'Unfeatured'} vendor ${vendor.businessName}`,
+            entityType: 'Vendor',
+            entityId: vendor._id,
+            before: { isFeatured: prevFeatured },
+            after: { isFeatured },
+            reason: reason || '',
+            req
+        });
+
         res.status(200).json({
             success: true,
-            data: vendor
+            data: vendor,
+            message: `Vendor successfully ${isFeatured ? 'featured' : 'unfeatured'}`
         });
     } catch (err) {
         next(err);
     }
 };
+
 
 // @desc    Toggle vendor active status
 // @route   PUT /api/admin/vendors/:id/active
@@ -271,11 +417,6 @@ exports.toggleVendorActive = async (req, res, next) => {
     }
 };
 
-const Category = require('./Category');
-const Review = require('./Review');
-const Banner = require('./Banner');
-const AdminLog = require('./AdminLog');
-
 // Helper to create logs (Internal use)
 const createAdminLog = async ({ user, action, target, level, ip, adminId }) => {
     try {
@@ -285,41 +426,263 @@ const createAdminLog = async ({ user, action, target, level, ip, adminId }) => {
     }
 };
 
-// @desc    Get all users
+// @desc    Get all users with pagination & search
 // @route   GET /api/admin/users
 // @access  Private/Admin
 exports.getAllUsers = async (req, res, next) => {
     try {
-        const users = await User.find().sort('-createdAt');
-        res.status(200).json({ success: true, data: users });
+        const { page = 1, limit = 10, search, status } = req.query;
+        const pageNum = Math.max(1, parseInt(page, 10) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+        const skip = (pageNum - 1) * limitNum;
+
+        const query = {};
+
+        if (status === 'active') {
+            query.isActive = true;
+            query.isBlocked = false;
+        } else if (status === 'blocked') {
+            query.isBlocked = true;
+        } else if (status === 'deactivated') {
+            query.isActive = false;
+        }
+
+        if (search && search.trim()) {
+            const escaped = escapeRegex(search.trim());
+            const regex = new RegExp(escaped, 'i');
+            query.$or = [
+                { name: regex },
+                { email: regex },
+                { phone: regex },
+                { city: regex }
+            ];
+        }
+
+        const total = await User.countDocuments(query);
+        const users = await User.find(query)
+            .select('-password -emailOTP -phoneOTP -passwordResetToken -passwordResetExpires -__v')
+            .sort('-createdAt')
+            .skip(skip)
+            .limit(limitNum)
+            .lean();
+
+        // Compatibility mapping: expose both name and fullName for frontend
+        const mappedUsers = users.map(u => ({
+            ...u,
+            fullName: u.name || ''
+        }));
+
+        res.status(200).json({
+            success: true,
+            count: mappedUsers.length,
+            data: mappedUsers,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total,
+                totalPages: Math.ceil(total / limitNum) || 1
+            }
+        });
     } catch (err) {
         next(err);
     }
 };
 
-// @desc    Get all audit logs
+// @desc    Get single user details with activity summary
+// @route   GET /api/admin/users/:id
+// @access  Private/Admin
+exports.getUserById = async (req, res, next) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID format' });
+        }
+
+        const user = await User.findById(req.params.id)
+            .select('-password -emailOTP -phoneOTP -passwordResetToken -passwordResetExpires -__v')
+            .lean();
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        const [bookingStats, reviewCount, complaintCount, recentBookings] = await Promise.all([
+            Booking.aggregate([
+                { $match: { userId: user._id } },
+                {
+                    $group: {
+                        _id: null,
+                        totalBookings: { $sum: 1 },
+                        totalSpent: { $sum: '$totalPrice' }
+                    }
+                }
+            ]),
+            Review.countDocuments({ userId: user._id }),
+            Complaint.countDocuments({ userId: user._id }),
+            Booking.find({ userId: user._id })
+                .populate('vendorId', 'businessName category city')
+                .sort('-createdAt')
+                .limit(5)
+                .lean()
+        ]);
+
+        const stats = bookingStats[0] || { totalBookings: 0, totalSpent: 0 };
+
+        res.status(200).json({
+            success: true,
+            data: {
+                ...user,
+                fullName: user.name,
+                activity: {
+                    totalBookings: stats.totalBookings,
+                    totalSpent: stats.totalSpent,
+                    reviewCount,
+                    complaintCount,
+                    recentBookings
+                }
+            }
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Update user status (block/unblock, activate/deactivate)
+// @route   PUT /api/admin/users/:id/status
+// @access  Private/Admin
+exports.updateUserStatus = async (req, res, next) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID format' });
+        }
+
+        const { isBlocked, isActive, reason } = req.body;
+
+        // Admin self-protection
+        if (req.params.id.toString() === req.user._id.toString()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Administrators cannot deactivate or block their own account'
+            });
+        }
+
+        const targetUser = await User.findById(req.params.id);
+        if (!targetUser) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // Prevent deactivating the last active administrator
+        if (targetUser.role === 'admin' && (isActive === false || isBlocked === true)) {
+            const activeAdminCount = await User.countDocuments({
+                role: 'admin',
+                isActive: true,
+                isBlocked: false,
+                _id: { $ne: targetUser._id }
+            });
+
+            if (activeAdminCount === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Cannot deactivate or block the last active administrator'
+                });
+            }
+        }
+
+        const beforeState = {
+            isActive: targetUser.isActive,
+            isBlocked: targetUser.isBlocked
+        };
+
+        if (typeof isBlocked === 'boolean') targetUser.isBlocked = isBlocked;
+        if (typeof isActive === 'boolean') targetUser.isActive = isActive;
+
+        await targetUser.save();
+
+        await logAdminAction({
+            admin: req.user,
+            action: `Updated user account status for ${targetUser.name} (${targetUser.email})`,
+            entityType: 'User',
+            entityId: targetUser._id,
+            before: beforeState,
+            after: { isActive: targetUser.isActive, isBlocked: targetUser.isBlocked },
+            reason: reason || '',
+            req
+        });
+
+        res.status(200).json({
+            success: true,
+            data: {
+                _id: targetUser._id,
+                name: targetUser.name,
+                fullName: targetUser.name,
+                email: targetUser.email,
+                isActive: targetUser.isActive,
+                isBlocked: targetUser.isBlocked
+            },
+            message: `User status updated successfully`
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Get all audit logs with pagination & filtering
 // @route   GET /api/admin/logs
+// @route   GET /api/admin/audit-logs
 // @access  Private/Admin
 exports.getAllLogs = async (req, res, next) => {
     try {
-        const logs = await AdminLog.find().sort('-createdAt').limit(100);
-        res.status(200).json({ success: true, data: logs });
+        const { page = 1, limit = 20, entityType, action, adminId, startDate, endDate } = req.query;
+        const pageNum = Math.max(1, parseInt(page, 10) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+        const skip = (pageNum - 1) * limitNum;
+
+        const query = {};
+        if (entityType && entityType !== 'ALL') query.entityType = entityType;
+        if (action) query.action = new RegExp(escapeRegex(action.trim()), 'i');
+        if (adminId && mongoose.Types.ObjectId.isValid(adminId)) query.adminId = adminId;
+
+        if (startDate || endDate) {
+            query.createdAt = {};
+            if (startDate) query.createdAt.$gte = new Date(startDate);
+            if (endDate) query.createdAt.$lte = new Date(endDate);
+        }
+
+        const total = await AdminLog.countDocuments(query);
+        const logs = await AdminLog.find(query)
+            .sort('-createdAt')
+            .skip(skip)
+            .limit(limitNum)
+            .lean();
+
+        res.status(200).json({
+            success: true,
+            count: logs.length,
+            data: logs,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total,
+                totalPages: Math.ceil(total / limitNum) || 1
+            }
+        });
     } catch (err) {
         next(err);
     }
 };
 
-// @desc    Clear log buffer
+// Alias for getAuditLogs
+exports.getAuditLogs = exports.getAllLogs;
+
+// @desc    Clear log buffer (Disabled for append-only audit compliance)
 // @route   DELETE /api/admin/logs
 // @access  Private/Admin
 exports.clearLogs = async (req, res, next) => {
-    try {
-        await AdminLog.deleteMany({});
-        res.status(200).json({ success: true, message: 'Logs cleared' });
-    } catch (err) {
-        next(err);
-    }
+    return res.status(403).json({
+        success: false,
+        message: 'Security policy: Audit logs are append-only and cannot be cleared or deleted'
+    });
 };
+
 
 // @desc    Get all banners
 // @route   GET /api/admin/banners
@@ -421,16 +784,111 @@ exports.deleteBanner = async (req, res, next) => {
     }
 };
 
-// @desc    Get all reviews
+// @desc    Get all reviews with pagination & filtering
 // @route   GET /api/admin/reviews
 // @access  Private/Admin
 exports.getAllReviews = async (req, res, next) => {
     try {
-        const reviews = await Review.find()
-            .populate('user', 'fullName email')
-            .populate('vendor', 'businessName')
-            .sort('-createdAt');
-        res.status(200).json({ success: true, data: reviews });
+        const { page = 1, limit = 10, status, rating, vendorId } = req.query;
+        const pageNum = Math.max(1, parseInt(page, 10) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+        const skip = (pageNum - 1) * limitNum;
+
+        const query = {};
+        if (status && status !== 'ALL') query.status = status;
+        if (rating) query.rating = Number(rating);
+        if (vendorId && mongoose.Types.ObjectId.isValid(vendorId)) query.vendorId = vendorId;
+
+        const total = await Review.countDocuments(query);
+        const reviews = await Review.find(query)
+            .populate('userId', 'name email profileImage')
+            .populate('vendorId', 'businessName category city')
+            .sort('-createdAt')
+            .skip(skip)
+            .limit(limitNum)
+            .lean();
+
+        // Provide user and vendor aliases for frontend backward compatibility
+        const mappedReviews = reviews.map(r => ({
+            ...r,
+            user: r.userId ? { ...r.userId, fullName: r.userId.name } : null,
+            vendor: r.vendorId || null
+        }));
+
+        res.status(200).json({
+            success: true,
+            count: mappedReviews.length,
+            data: mappedReviews,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total,
+                totalPages: Math.ceil(total / limitNum) || 1
+            }
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Moderate review status (Approved / Rejected / Pending)
+// @route   PUT /api/admin/reviews/:id/status
+// @access  Private/Admin
+exports.updateReviewStatus = async (req, res, next) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid review ID format' });
+        }
+
+        const { status, reason } = req.body;
+        if (!['Pending', 'Approved', 'Rejected'].includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid status. Must be Pending, Approved, or Rejected'
+            });
+        }
+
+        const review = await Review.findById(req.params.id);
+        if (!review) {
+            return res.status(404).json({ success: false, message: 'Review not found' });
+        }
+
+        const prevStatus = review.status;
+        review.status = status;
+        await review.save();
+
+        // Requirement 11: Recalculate vendor average rating and review count from only 'Approved' reviews
+        const approvedReviews = await Review.find({ vendorId: review.vendorId, status: 'Approved' });
+        const approvedCount = approvedReviews.length;
+        const avgRating = approvedCount > 0
+            ? Math.round((approvedReviews.reduce((acc, r) => acc + (r.rating || 0), 0) / approvedCount) * 10) / 10
+            : 0;
+
+        await Vendor.findByIdAndUpdate(review.vendorId, {
+            rating: avgRating,
+            reviewCount: approvedCount
+        });
+
+        await logAdminAction({
+            admin: req.user,
+            action: `Moderated review status from ${prevStatus} to ${status}`,
+            entityType: 'Review',
+            entityId: review._id,
+            before: { status: prevStatus },
+            after: { status, newVendorRating: avgRating, newVendorReviewCount: approvedCount },
+            reason: reason || '',
+            req
+        });
+
+        res.status(200).json({
+            success: true,
+            data: review,
+            vendorStats: {
+                rating: avgRating,
+                reviewCount: approvedCount
+            },
+            message: `Review marked as ${status}`
+        });
     } catch (err) {
         next(err);
     }
@@ -441,15 +899,43 @@ exports.getAllReviews = async (req, res, next) => {
 // @access  Private/Admin
 exports.deleteReview = async (req, res, next) => {
     try {
-        const review = await Review.findByIdAndDelete(req.params.id);
+        const review = await Review.findById(req.params.id);
         if (!review) {
             return res.status(404).json({ success: false, message: 'Review not found' });
         }
+
+        const vendorId = review.vendorId;
+        await review.deleteOne();
+
+        // Recalculate vendor stats
+        if (vendorId) {
+            const approvedReviews = await Review.find({ vendorId, status: 'Approved' });
+            const approvedCount = approvedReviews.length;
+            const avgRating = approvedCount > 0
+                ? Math.round((approvedReviews.reduce((acc, r) => acc + (r.rating || 0), 0) / approvedCount) * 10) / 10
+                : 0;
+
+            await Vendor.findByIdAndUpdate(vendorId, {
+                rating: avgRating,
+                reviewCount: approvedCount
+            });
+        }
+
+        await logAdminAction({
+            admin: req.user,
+            action: `Deleted review ID ${req.params.id}`,
+            entityType: 'Review',
+            entityId: req.params.id,
+            before: review,
+            req
+        });
+
         res.status(200).json({ success: true, message: 'Review deleted' });
     } catch (err) {
         next(err);
     }
 };
+
 
 // @desc    Get all categories
 // @route   GET /api/admin/categories
@@ -537,20 +1023,52 @@ exports.updateCategory = async (req, res, next) => {
     }
 };
 
-// @desc    Delete category
+// @desc    Delete category (Safe reference validation)
 // @route   DELETE /api/admin/categories/:id
 // @access  Private/Admin
 exports.deleteCategory = async (req, res, next) => {
     try {
-        const category = await Category.findByIdAndDelete(req.params.id);
+        const category = await Category.findById(req.params.id);
         if (!category) {
             return res.status(404).json({ success: false, message: 'Category not found' });
         }
-        res.status(200).json({ success: true, message: 'Category deleted' });
+
+        // Requirement 7: Safety check against referencing records
+        const [vendorCount, leadCount, subCount] = await Promise.all([
+            Vendor.countDocuments({
+                $or: [
+                    { 'selectedCategories.categoryId': category._id },
+                    { category: category.name }
+                ]
+            }),
+            Lead.countDocuments({ category: category.name }),
+            SubCategory.countDocuments({ categoryId: category._id })
+        ]);
+
+        if (vendorCount > 0 || leadCount > 0 || subCount > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot delete category in active use (${vendorCount} vendor(s), ${leadCount} lead(s), ${subCount} subcategory(ies)). Please deactivate it (set isActive: false) instead.`
+            });
+        }
+
+        await category.deleteOne();
+
+        await logAdminAction({
+            admin: req.user,
+            action: `Deleted category: ${category.name}`,
+            entityType: 'Category',
+            entityId: category._id,
+            before: category,
+            req
+        });
+
+        res.status(200).json({ success: true, message: 'Category deleted successfully' });
     } catch (err) {
         next(err);
     }
 };
+
 
 // @desc    Get admin profile
 // @route   GET /api/admin/profile
@@ -612,28 +1130,53 @@ exports.changePassword = async (req, res, next) => {
     }
 };
 
-// @desc    Get all bookings
-// @route   GET /api/admin/bookings
-// @desc    Get all bookings
+// @desc    Get all bookings with pagination & filtering
 // @route   GET /api/admin/bookings
 // @access  Private/Admin
 exports.getAllBookings = async (req, res, next) => {
     try {
-        const Booking = require('../vendor/Booking');
-        const bookings = await Booking.find()
-            .populate('vendorId', 'businessName')
-            .populate('userId', 'fullName email')
-            .sort({ createdAt: -1 });
+        const { page = 1, limit = 10, status, paymentStatus, vendorId, userId } = req.query;
+        const pageNum = Math.max(1, parseInt(page, 10) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+        const skip = (pageNum - 1) * limitNum;
+
+        const query = {};
+        if (status && status !== 'ALL') query.status = status;
+        if (paymentStatus && paymentStatus !== 'ALL') query.paymentStatus = paymentStatus;
+        if (vendorId && mongoose.Types.ObjectId.isValid(vendorId)) query.vendorId = vendorId;
+        if (userId && mongoose.Types.ObjectId.isValid(userId)) query.userId = userId;
+
+        const total = await Booking.countDocuments(query);
+        const bookings = await Booking.find(query)
+            .populate('vendorId', 'businessName fullName email phone city')
+            .populate('userId', 'name email phone')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum)
+            .lean();
+
+        // Compatibility mapping for user.fullName
+        const mappedBookings = bookings.map(b => ({
+            ...b,
+            userId: b.userId ? { ...b.userId, fullName: b.userId.name } : null
+        }));
 
         res.status(200).json({
             success: true,
-            count: bookings.length,
-            data: bookings
+            count: mappedBookings.length,
+            data: mappedBookings,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total,
+                totalPages: Math.ceil(total / limitNum) || 1
+            }
         });
     } catch (err) {
         next(err);
     }
 };
+
 
 // @desc    Get detailed vendor ledger (Vendors with their bookings)
 // @route   GET /api/admin/vendor-ledger
@@ -1109,10 +1652,6 @@ exports.updateSupportConfig = async (req, res, next) => {
     }
 };
 
-const SubCategory = require('./SubCategory');
-const FormTemplate = require('./FormTemplate');
-const VendorService = require('../vendor/VendorService');
-
 // @desc    Get all subcategories (optionally filter by categoryId)
 // @route   GET /api/admin/subcategories
 // @access  Public (for registration) / Admin
@@ -1299,3 +1838,643 @@ exports.getAllVendorInventories = async (req, res, next) => {
         next(err);
     }
 };
+
+// ==========================================
+// Phase 6: Ecosystem Oversight & Settings
+// ==========================================
+
+// @desc    Get complete administrative dashboard summary
+// @route   GET /api/admin/dashboard/summary
+// @access  Private/Admin
+exports.getDashboardSummary = async (req, res, next) => {
+    try {
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+        const [
+            // User metrics
+            userTotal,
+            userActive,
+            userBlocked,
+            userNew,
+
+            // Vendor metrics
+            vendorTotal,
+            vendorPending,
+            vendorApproved,
+            vendorRejected,
+            vendorSuspended,
+            vendorFeatured,
+
+            // Marketplace metrics
+            leadsTotal,
+            leadsNew,
+            quotesTotal,
+            bookingsConfirmed,
+            bookingsCompleted,
+            bookingsCancelled,
+
+            // Financial metrics (Payment aggregate)
+            paymentStats,
+            refundStats,
+            walletStats,
+            withdrawalStats,
+
+            // Reviews & Complaints
+            reviewsTotal,
+            reviewsPending,
+            complaintsOpen,
+            complaintsResolved
+        ] = await Promise.all([
+            // Users
+            User.countDocuments(),
+            User.countDocuments({ isActive: true, isBlocked: false }),
+            User.countDocuments({ isBlocked: true }),
+            User.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
+
+            // Vendors
+            Vendor.countDocuments({ status: { $ne: 'Incomplete' } }),
+            Vendor.countDocuments({ status: 'Pending' }),
+            Vendor.countDocuments({ status: 'Approved' }),
+            Vendor.countDocuments({ status: 'Rejected' }),
+            Vendor.countDocuments({ status: 'Suspended' }),
+            Vendor.countDocuments({ isFeatured: true, status: 'Approved', isActive: true }),
+
+            // Marketplace
+            Lead.countDocuments(),
+            Lead.countDocuments({ status: 'New' }),
+            Quote.countDocuments(),
+            Booking.countDocuments({ status: 'Confirmed' }),
+            Booking.countDocuments({ status: 'Completed' }),
+            Booking.countDocuments({ status: 'Cancelled' }),
+
+            // Financial
+            Payment.aggregate([
+                { $match: { status: { $in: ['Completed', 'Paid'] } } },
+                {
+                    $group: {
+                        _id: null,
+                        totalGMV: { $sum: '$amount' },
+                        totalCommission: { $sum: '$commissionAmount' },
+                        totalVendorEarnings: { $sum: '$vendorEarning' },
+                        count: { $sum: 1 }
+                    }
+                }
+            ]),
+            Payment.aggregate([
+                { $match: { status: 'Refunded' } },
+                {
+                    $group: {
+                        _id: null,
+                        totalRefunded: { $sum: '$refundAmount' },
+                        count: { $sum: 1 }
+                    }
+                }
+            ]),
+            VendorWallet.aggregate([
+                {
+                    $group: {
+                        _id: null,
+                        totalAvailable: { $sum: '$availableBalance' },
+                        totalPending: { $sum: '$pendingBalance' },
+                        totalLocked: { $sum: '$lockedBalance' },
+                        totalWithdrawn: { $sum: '$totalWithdrawn' }
+                    }
+                }
+            ]),
+            WithdrawalRequest.aggregate([
+                {
+                    $group: {
+                        _id: '$status',
+                        totalAmount: { $sum: '$amount' },
+                        count: { $sum: 1 }
+                    }
+                }
+            ]),
+
+            // Reviews & Complaints
+            Review.countDocuments(),
+            Review.countDocuments({ status: 'Pending' }),
+            Complaint.countDocuments({ status: { $in: ['Pending', 'In-Review'] } }),
+            Complaint.countDocuments({ status: 'Resolved' })
+        ]);
+
+        const payments = paymentStats[0] || { totalGMV: 0, totalCommission: 0, totalVendorEarnings: 0, count: 0 };
+        const refunds = refundStats[0] || { totalRefunded: 0, count: 0 };
+        const wallets = walletStats[0] || { totalAvailable: 0, totalPending: 0, totalLocked: 0, totalWithdrawn: 0 };
+
+        const withdrawalsByStatus = {};
+        withdrawalStats.forEach(item => {
+            withdrawalsByStatus[item._id] = { amount: item.totalAmount, count: item.count };
+        });
+
+        const pendingPayouts = ['Requested', 'Pending', 'Approved', 'Processing']
+            .reduce((sum, st) => sum + (withdrawalsByStatus[st]?.amount || 0), 0);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                users: {
+                    total: userTotal,
+                    active: userActive,
+                    blocked: userBlocked,
+                    new: userNew
+                },
+                vendors: {
+                    total: vendorTotal,
+                    pending: vendorPending,
+                    approved: vendorApproved,
+                    rejected: vendorRejected,
+                    suspended: vendorSuspended,
+                    featured: vendorFeatured
+                },
+                marketplace: {
+                    totalLeads: leadsTotal,
+                    newLeads: leadsNew,
+                    totalQuotes: quotesTotal,
+                    confirmedBookings: bookingsConfirmed,
+                    completedBookings: bookingsCompleted,
+                    cancelledBookings: bookingsCancelled
+                },
+                financial: {
+                    totalGMV: payments.totalGMV,
+                    successfulPayments: payments.count,
+                    platformCommission: payments.totalCommission,
+                    vendorEarnings: payments.totalVendorEarnings,
+                    pendingSettlements: wallets.totalPending,
+                    availableBalances: wallets.totalAvailable,
+                    pendingPayouts,
+                    completedPayouts: withdrawalsByStatus['Paid']?.amount || wallets.totalWithdrawn,
+                    totalRefunds: refunds.totalRefunded,
+                    refundCount: refunds.count
+                },
+                reviews: {
+                    total: reviewsTotal,
+                    pending: reviewsPending
+                },
+                complaints: {
+                    open: complaintsOpen,
+                    resolved: complaintsResolved
+                }
+            }
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Get all leads with pagination & filtering
+// @route   GET /api/admin/leads
+// @access  Private/Admin
+exports.getAllLeads = async (req, res, next) => {
+    try {
+        const { page = 1, limit = 10, status, category, assignedType, search } = req.query;
+        const pageNum = Math.max(1, parseInt(page, 10) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+        const skip = (pageNum - 1) * limitNum;
+
+        const query = {};
+        if (status && status !== 'ALL') query.status = status;
+        if (category && category !== 'ALL') query.category = new RegExp(`^${escapeRegex(category.trim())}$`, 'i');
+        if (assignedType && assignedType !== 'ALL') query.assignedType = assignedType;
+
+        if (search && search.trim()) {
+            const escaped = escapeRegex(search.trim());
+            const regex = new RegExp(escaped, 'i');
+            query.$or = [
+                { customerName: regex },
+                { phone: regex },
+                { eventLocation: regex },
+                { message: regex }
+            ];
+        }
+
+        const total = await Lead.countDocuments(query);
+        const leads = await Lead.find(query)
+            .populate('vendorId', 'businessName fullName email phone city')
+            .populate('userId', 'name email phone')
+            .sort('-createdAt')
+            .skip(skip)
+            .limit(limitNum)
+            .lean();
+
+        res.status(200).json({
+            success: true,
+            count: leads.length,
+            data: leads,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total,
+                totalPages: Math.ceil(total / limitNum) || 1
+            }
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Get all quotes with pagination & filtering
+// @route   GET /api/admin/quotes
+// @access  Private/Admin
+exports.getAllQuotes = async (req, res, next) => {
+    try {
+        const { page = 1, limit = 10, status, vendorId } = req.query;
+        const pageNum = Math.max(1, parseInt(page, 10) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+        const skip = (pageNum - 1) * limitNum;
+
+        const query = {};
+        if (status && status !== 'ALL') query.status = status;
+        if (vendorId && mongoose.Types.ObjectId.isValid(vendorId)) query.vendorId = vendorId;
+
+        const total = await Quote.countDocuments(query);
+        const quotes = await Quote.find(query)
+            .populate('vendorId', 'businessName fullName email phone city')
+            .populate('userId', 'name email phone')
+            .populate('leadId', 'customerName eventDate eventLocation')
+            .sort('-createdAt')
+            .skip(skip)
+            .limit(limitNum)
+            .lean();
+
+        res.status(200).json({
+            success: true,
+            count: quotes.length,
+            data: quotes,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total,
+                totalPages: Math.ceil(total / limitNum) || 1
+            }
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Get all complaints with pagination & filtering
+// @route   GET /api/admin/complaints
+// @access  Private/Admin
+exports.getAllComplaints = async (req, res, next) => {
+    try {
+        const { page = 1, limit = 10, status, category } = req.query;
+        const pageNum = Math.max(1, parseInt(page, 10) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+        const skip = (pageNum - 1) * limitNum;
+
+        const query = {};
+        if (status && status !== 'ALL') query.status = status;
+        if (category && category !== 'ALL') query.category = category;
+
+        const total = await Complaint.countDocuments(query);
+        const complaints = await Complaint.find(query)
+            .populate('userId', 'name email phone')
+            .populate('vendorId', 'businessName fullName email phone city')
+            .populate('bookingId', 'totalPrice eventDate status')
+            .sort('-createdAt')
+            .skip(skip)
+            .limit(limitNum)
+            .lean();
+
+        const mappedComplaints = complaints.map(c => ({
+            ...c,
+            user: c.userId ? { ...c.userId, fullName: c.userId.name } : null,
+            vendor: c.vendorId || null
+        }));
+
+        res.status(200).json({
+            success: true,
+            count: mappedComplaints.length,
+            data: mappedComplaints,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total,
+                totalPages: Math.ceil(total / limitNum) || 1
+            }
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Update complaint status & resolution notes
+// @route   PUT /api/admin/complaints/:id/status
+// @access  Private/Admin
+exports.updateComplaintStatus = async (req, res, next) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid complaint ID format' });
+        }
+
+        const { status, adminNotes } = req.body;
+        // Exact Phase 3 enum: ['Pending', 'In-Review', 'Resolved', 'Dismissed']
+        if (!['Pending', 'In-Review', 'Resolved', 'Dismissed'].includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid status. Must be Pending, In-Review, Resolved, or Dismissed'
+            });
+        }
+
+        const complaint = await Complaint.findById(req.params.id);
+        if (!complaint) {
+            return res.status(404).json({ success: false, message: 'Complaint not found' });
+        }
+
+        const prevStatus = complaint.status;
+        complaint.status = status;
+        if (adminNotes !== undefined) complaint.adminNotes = adminNotes;
+        if (status === 'Resolved' || status === 'Dismissed') {
+            complaint.resolvedAt = new Date();
+        }
+
+        await complaint.save();
+
+        await logAdminAction({
+            admin: req.user,
+            action: `Updated complaint status from ${prevStatus} to ${status}`,
+            entityType: 'Complaint',
+            entityId: complaint._id,
+            before: { status: prevStatus, adminNotes: complaint.adminNotes },
+            after: { status, adminNotes: complaint.adminNotes, resolvedAt: complaint.resolvedAt },
+            reason: adminNotes || '',
+            req
+        });
+
+        res.status(200).json({
+            success: true,
+            data: complaint,
+            message: `Complaint status updated to ${status}`
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Get current platform settings
+// @route   GET /api/admin/settings
+// @access  Private/Admin
+exports.getPlatformSettings = async (req, res, next) => {
+    try {
+        let settings = await PlatformSettings.findOne().lean();
+        const activeCommission = await getActiveCommissionPercent();
+
+        if (!settings) {
+            settings = {
+                platformCommissionPercent: null,
+                serviceGstPercent: null,
+                minWithdrawalAmount: null,
+                maintenanceMode: false,
+                autoPayouts: false
+            };
+        }
+
+        res.status(200).json({
+            success: true,
+            data: {
+                ...settings,
+                effectiveCommissionPercent: activeCommission
+            }
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Update platform settings with strict validation
+// @route   PUT /api/admin/settings
+// @access  Private/Admin
+exports.updatePlatformSettings = async (req, res, next) => {
+    try {
+        const allowedKeys = [
+            'platformCommissionPercent',
+            'serviceGstPercent',
+            'minWithdrawalAmount',
+            'maintenanceMode',
+            'autoPayouts',
+            'reason'
+        ];
+
+        // Reject unexpected keys
+        for (const key of Object.keys(req.body)) {
+            if (!allowedKeys.includes(key)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Unexpected parameter '${key}' in settings payload`
+                });
+            }
+        }
+
+        const updateData = {};
+
+        // Commission validation: 0 <= commission <= 100 or null
+        if (req.body.platformCommissionPercent !== undefined) {
+            const val = req.body.platformCommissionPercent;
+            if (val === null || val === '') {
+                updateData.platformCommissionPercent = null;
+            } else {
+                const num = Number(val);
+                if (isNaN(num) || !isFinite(num) || num < 0 || num > 100) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Platform commission percent must be a valid number between 0 and 100'
+                    });
+                }
+                updateData.platformCommissionPercent = Math.round(num * 100) / 100;
+            }
+        }
+
+        // GST validation: 0 <= GST <= 100 or null
+        if (req.body.serviceGstPercent !== undefined) {
+            const val = req.body.serviceGstPercent;
+            if (val === null || val === '') {
+                updateData.serviceGstPercent = null;
+            } else {
+                const num = Number(val);
+                if (isNaN(num) || !isFinite(num) || num < 0 || num > 100) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Service GST percent must be a valid number between 0 and 100'
+                    });
+                }
+                updateData.serviceGstPercent = Math.round(num * 100) / 100;
+            }
+        }
+
+        // Minimum withdrawal validation: >= 0 or null
+        if (req.body.minWithdrawalAmount !== undefined) {
+            const val = req.body.minWithdrawalAmount;
+            if (val === null || val === '') {
+                updateData.minWithdrawalAmount = null;
+            } else {
+                const num = Number(val);
+                if (isNaN(num) || !isFinite(num) || num < 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Minimum withdrawal amount must be a positive number or zero'
+                    });
+                }
+                updateData.minWithdrawalAmount = Math.round(num * 100) / 100;
+            }
+        }
+
+        if (typeof req.body.maintenanceMode === 'boolean') {
+            updateData.maintenanceMode = req.body.maintenanceMode;
+        }
+
+        if (typeof req.body.autoPayouts === 'boolean') {
+            updateData.autoPayouts = req.body.autoPayouts;
+        }
+
+        updateData.updatedBy = req.user._id;
+
+        const previousSettings = await PlatformSettings.findOne().lean();
+
+        let updatedSettings = await PlatformSettings.findOneAndUpdate(
+            {},
+            updateData,
+            { new: true, upsert: true, runValidators: true }
+        );
+
+        // Invalidate maintenance mode cache immediately on settings change
+        invalidateMaintenanceCache();
+
+        await logAdminAction({
+            admin: req.user,
+            action: 'Updated platform configuration settings',
+            entityType: 'Settings',
+            entityId: updatedSettings._id,
+            before: previousSettings,
+            after: updatedSettings,
+            reason: req.body.reason || '',
+            req
+        });
+
+        const effectiveCommission = await getActiveCommissionPercent();
+
+        res.status(200).json({
+            success: true,
+            data: {
+                ...updatedSettings.toObject(),
+                effectiveCommissionPercent: effectiveCommission
+            },
+            message: 'Platform settings updated successfully'
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Get all chat reports
+// @route   GET /api/admin/chat-reports
+// @access  Private (Admin)
+exports.getChatReports = async (req, res, next) => {
+    try {
+        const { status, page = 1, limit = 20 } = req.query;
+        const query = {};
+        if (status && status !== 'all') {
+            query.status = status;
+        }
+
+        const pageNum = Math.max(1, parseInt(page, 10) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+        const skip = (pageNum - 1) * limitNum;
+
+        const total = await ChatReport.countDocuments(query);
+        const reports = await ChatReport.find(query)
+            .populate('conversationId', 'userId vendorId status')
+            .populate('messageId', 'text type attachments senderId senderRole')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum)
+            .lean();
+
+        res.status(200).json({
+            success: true,
+            total,
+            page: pageNum,
+            limit: limitNum,
+            totalPages: Math.ceil(total / limitNum) || 1,
+            data: reports
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Get single chat report by ID
+// @route   GET /api/admin/chat-reports/:id
+// @access  Private (Admin)
+exports.getChatReportById = async (req, res, next) => {
+    try {
+        const report = await ChatReport.findById(req.params.id)
+            .populate('conversationId', 'userId vendorId status')
+            .populate('messageId', 'text type attachments senderId senderRole')
+            .populate('resolvedBy', 'name email')
+            .lean();
+
+        if (!report) {
+            return res.status(404).json({ success: false, message: 'Chat report not found' });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: report
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Update chat report status & record audit log
+// @route   PUT /api/admin/chat-reports/:id/status
+// @access  Private (Admin)
+exports.updateChatReportStatus = async (req, res, next) => {
+    try {
+        const { status, adminNotes } = req.body;
+        if (!['Pending', 'In-Review', 'Resolved', 'Dismissed'].includes(status)) {
+            return res.status(400).json({ success: false, message: 'Invalid status' });
+        }
+
+        const report = await ChatReport.findById(req.params.id);
+        if (!report) {
+            return res.status(404).json({ success: false, message: 'Chat report not found' });
+        }
+
+        const previousReport = report.toObject();
+
+        report.status = status;
+        if (adminNotes !== undefined) {
+            report.adminNotes = adminNotes;
+        }
+        if (['Resolved', 'Dismissed'].includes(status)) {
+            report.resolvedAt = new Date();
+            report.resolvedBy = req.user._id;
+        }
+
+        await report.save();
+
+        const actionName = status === 'Resolved' ? 'CHAT_REPORT_RESOLVED' : (status === 'Dismissed' ? 'CHAT_REPORT_DISMISSED' : `Updated chat report status to ${status}`);
+        await logAdminAction({
+            admin: req.user,
+            action: actionName,
+            entityType: 'ChatReport',
+            entityId: report._id.toString(),
+            before: previousReport,
+            after: report.toObject(),
+            reason: adminNotes || req.body.moderatorNotes || '',
+            req
+        });
+
+        res.status(200).json({
+            success: true,
+            data: report,
+            message: `Report status updated to ${status}`
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+

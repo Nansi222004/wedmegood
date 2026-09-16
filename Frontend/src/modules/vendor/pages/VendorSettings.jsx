@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import Icon from '../../../components/ui/Icon';
 import { useVendorState } from '../useVendorState';
 import { vendorApi } from '../vendorApi';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
 
 const VendorSettings = () => {
     const { vendorState, refreshData } = useVendorState();
     const [activeTab, setActiveTab] = useState('account');
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
+    const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
     const [token] = useState(localStorage.getItem('vendorToken'));
 
     const [settings, setSettings] = useState({
@@ -83,11 +85,9 @@ const VendorSettings = () => {
         const activeToken = localStorage.getItem('vendorToken');
         
         if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-            alert('Passwords do not match');
             return showMessage('error', 'Passwords do not match');
         }
         if (passwordForm.newPassword.length < 8) {
-            alert('Minimum security requirement: 8 characters');
             return showMessage('error', 'Minimum security requirement: 8 characters');
         }
 
@@ -98,38 +98,38 @@ const VendorSettings = () => {
             console.log('Rotation response:', res);
             
             if (res.success) {
-                alert('Security keys rotated successfully!');
                 showMessage('success', 'Security keys rotated successfully');
                 setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
             } else {
-                alert(`Security Error: ${res.message || 'Protocol rejection'}`);
                 showMessage('error', res.message || 'Security protocol rejection');
             }
         } catch (err) {
             console.error('Password change error:', err);
-            alert('Authentication node error. Check console.');
-            showMessage('error', 'Authentication node error');
+            showMessage('error', 'Authentication node error. Please try again.');
         } finally {
             setIsSaving(false);
         }
     };
 
-    const handleDeactivate = async () => {
-        const confirmMsg = vendorState?.isActive ? 'Deactivate your business node? You will go offline.' : 'Reactivate your business node?';
-        if (!window.confirm(confirmMsg)) return;
+    const handleDeactivate = () => {
+        setShowDeactivateConfirm(true);
+    };
 
+    const confirmDeactivate = async () => {
         setIsSaving(true);
         try {
-            const res = await vendorApi.deactivateAccount(token);
+            const activeToken = localStorage.getItem('vendorToken');
+            const res = await vendorApi.deactivateAccount(activeToken);
             if (res.success) {
-                alert(res.message);
-                showMessage('success', res.message);
+                showMessage('success', res.message || 'Account status updated');
                 refreshData();
+                setShowDeactivateConfirm(false);
             } else {
                 showMessage('error', res.message || 'Operation failed');
             }
         } catch (err) {
-            showMessage('error', 'Transmission error');
+            console.error('Deactivate account error:', err);
+            showMessage('error', 'Transmission error. Please try again.');
         } finally {
             setIsSaving(false);
         }
@@ -377,6 +377,22 @@ const VendorSettings = () => {
                     )}
                 </div>
             </div>
+
+            {/* Confirm Deactivate Modal */}
+            <ConfirmModal
+                isOpen={showDeactivateConfirm}
+                title={vendorState?.isActive ? "Deactivate Account?" : "Reactivate Account?"}
+                message={vendorState?.isActive 
+                    ? "Are you sure you want to deactivate your business account? Your storefront will temporarily go offline." 
+                    : "Are you sure you want to reactivate your business account? Your storefront will go back online."
+                }
+                confirmText={vendorState?.isActive ? "Deactivate" : "Activate"}
+                cancelText="Cancel"
+                isDanger={Boolean(vendorState?.isActive)}
+                isLoading={isSaving}
+                onConfirm={confirmDeactivate}
+                onCancel={() => !isSaving && setShowDeactivateConfirm(false)}
+            />
         </div>
     );
 };

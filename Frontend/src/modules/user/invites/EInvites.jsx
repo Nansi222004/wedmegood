@@ -1,15 +1,69 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
 import Card from '../../../components/ui/Card';
+import userApi from '../../../services/userApi';
 
 const EInvites = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [myInvites, setMyInvites] = useState([]);
+  const [isLoadingInvites, setIsLoadingInvites] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
+
+  const fetchMyInvites = async () => {
+    try {
+      setIsLoadingInvites(true);
+      const res = await userApi.getInvites();
+      if (res.success && Array.isArray(res.data)) {
+        setMyInvites(res.data);
+      }
+    } catch (err) {
+      console.error('Error fetching invites from MongoDB:', err);
+    } finally {
+      setIsLoadingInvites(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMyInvites();
+  }, []);
+
+  const handleCreateNewInvite = async (templateObj) => {
+    const tName = templateObj?.name || 'Royal Elegance';
+    const tThumb = templateObj?.image || 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=400&h=600&fit=crop&q=80';
+    setIsCreating(true);
+    try {
+      const res = await userApi.createInvite({
+        title: `${tName} Invitation`,
+        template: tName,
+        eventDetails: {
+          brideName: 'Priya Sharma',
+          groomName: 'Rahul Verma',
+          eventDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+          venue: 'Royal Palace Banquets',
+          venueAddress: 'AB Road, Indore, Madhya Pradesh'
+        },
+        design: {
+          thumbnail: tThumb,
+          themeColor: '#8B4513'
+        },
+        status: 'Draft'
+      });
+      if (res.success && res.data?._id) {
+        navigate(`/user/e-invites/edit/${res.data._id}`);
+      }
+    } catch (err) {
+      console.error('Failed to create invite:', err);
+      alert('Could not create invitation: ' + (err.message || 'Server error'));
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   const categories = [
     { id: 'all', name: 'All Templates', icon: 'grid' },
@@ -147,29 +201,6 @@ const EInvites = () => {
     ? templates 
     : templates.filter(t => t.category === selectedCategory);
 
-  const myInvites = [
-    {
-      id: 1,
-      name: 'Priya & Rahul Wedding',
-      template: 'Royal Elegance',
-      status: 'Published',
-      views: 234,
-      rsvps: 156,
-      date: '15 March 2026',
-      thumbnail: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=300&h=400&fit=crop&q=80'
-    },
-    {
-      id: 2,
-      name: 'Sangeet Ceremony',
-      template: 'Floral Dreams',
-      status: 'Draft',
-      views: 0,
-      rsvps: 0,
-      date: '13 March 2026',
-      thumbnail: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=300&h=400&fit=crop&q=80'
-    }
-  ];
-
   const features = [
     { icon: 'edit', title: 'Easy Customization', description: 'Personalize every detail' },
     { icon: 'share', title: 'Easy Sharing', description: 'Share via WhatsApp, Email, SMS' },
@@ -206,10 +237,15 @@ const EInvites = () => {
             </div>
           </div>
           <button
-            onClick={() => navigate('/user/e-invites/create')}
-            className="w-12 h-12 rounded-full bg-[#3D2B2B] flex items-center justify-center shadow-xl active:scale-95 transition-all"
+            onClick={() => handleCreateNewInvite(templates[0])}
+            disabled={isCreating}
+            className="w-12 h-12 rounded-full bg-[#3D2B2B] flex items-center justify-center shadow-xl active:scale-95 transition-all text-white"
           >
-            <Icon name="plus" size="sm" color="white" />
+            {isCreating ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent animate-spin rounded-full" />
+            ) : (
+              <Icon name="plus" size="sm" color="white" />
+            )}
           </button>
         </div>
       </div>
@@ -224,58 +260,65 @@ const EInvites = () => {
             </div>
             
             <div className="space-y-6">
-              {myInvites.map((invite) => (
-                <div key={invite.id} className="bg-white rounded-[3rem] overflow-hidden shadow-sm ring-1 ring-black/5 flex flex-col sm:flex-row">
-                  <div className="sm:w-48 h-48 sm:h-auto relative">
-                    <img
-                      src={invite.thumbnail}
-                      alt={invite.name}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute top-4 left-4">
-                       <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${invite.status === 'Published' ? 'bg-[#25D366] text-white' : 'bg-[#EAE1D8] text-[#3D2B2B]'}`}>
-                         {invite.status}
-                       </span>
-                    </div>
-                  </div>
-                  <div className="p-8 flex-1 flex flex-col justify-center space-y-4">
-                    <div>
-                      <h3 className="text-xl font-bold text-[#3D2B2B] mb-1" style={{ fontFamily: '"Playfair Display", serif' }}>
-                        {invite.name}
-                      </h3>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-[#3D2B2B]/30">
-                        {invite.template} • {invite.date}
-                      </p>
-                    </div>
+              {myInvites.map((invite) => {
+                const inviteId = invite._id || invite.id;
+                const rsvpCount = invite.rsvpCount ?? (Array.isArray(invite.rsvps) ? invite.rsvps.length : 0);
+                const thumb = invite.design?.thumbnail || invite.thumbnail || templates[0].image;
+                const evDate = invite.eventDetails?.eventDate || invite.date || 'TBD';
 
-                    <div className="flex items-center gap-6">
-                      <div className="flex items-center gap-2">
-                        <Icon name="eye" size="xs" style={{ color: '#BE185D' }} />
-                        <span className="text-[11px] font-bold text-[#3D2B2B]">{invite.views}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Icon name="users" size="xs" style={{ color: '#BE185D' }} />
-                        <span className="text-[11px] font-bold text-[#3D2B2B]">{invite.rsvps} RSVPs</span>
+                return (
+                  <div key={inviteId} className="bg-white rounded-[3rem] overflow-hidden shadow-sm ring-1 ring-black/5 flex flex-col sm:flex-row">
+                    <div className="sm:w-48 h-48 sm:h-auto relative">
+                      <img
+                        src={thumb}
+                        alt={invite.title || invite.name}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute top-4 left-4">
+                         <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${invite.status === 'Published' ? 'bg-[#25D366] text-white' : 'bg-[#EAE1D8] text-[#3D2B2B]'}`}>
+                           {invite.status || 'Draft'}
+                         </span>
                       </div>
                     </div>
+                    <div className="p-8 flex-1 flex flex-col justify-center space-y-4">
+                      <div>
+                        <h3 className="text-xl font-bold text-[#3D2B2B] mb-1" style={{ fontFamily: '"Playfair Display", serif' }}>
+                          {invite.title || invite.name}
+                        </h3>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-[#3D2B2B]/30">
+                          {invite.template} • {evDate}
+                        </p>
+                      </div>
 
-                    <div className="flex gap-3 pt-2">
-                      <button
-                        onClick={() => navigate(`/user/e-invites/edit/${invite.id}`)}
-                        className="flex-1 py-3 rounded-full bg-[#EAE1D8]/30 border border-[#EAE1D8] text-[9px] font-black uppercase tracking-widest text-[#3D2B2B]"
-                      >
-                        Refine
-                      </button>
-                      <button
-                        onClick={() => navigate(`/user/e-invites/preview/${invite.id}`)}
-                        className="flex-1 py-3 rounded-full bg-[#3D2B2B] text-white text-[9px] font-black uppercase tracking-widest shadow-lg"
-                      >
-                        Presenter
-                      </button>
+                      <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-2">
+                          <Icon name="eye" size="xs" style={{ color: '#BE185D' }} />
+                          <span className="text-[11px] font-bold text-[#3D2B2B]">{invite.views || 0}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Icon name="users" size="xs" style={{ color: '#BE185D' }} />
+                          <span className="text-[11px] font-bold text-[#3D2B2B]">{rsvpCount} RSVPs</span>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3 pt-2">
+                        <button
+                          onClick={() => navigate(`/user/e-invites/edit/${inviteId}`)}
+                          className="flex-1 py-3 rounded-full bg-[#EAE1D8]/30 border border-[#EAE1D8] text-[9px] font-black uppercase tracking-widest text-[#3D2B2B] hover:bg-[#EAE1D8]/50 transition-colors"
+                        >
+                          Refine
+                        </button>
+                        <button
+                          onClick={() => navigate(`/user/e-invites/preview/${inviteId}`)}
+                          className="flex-1 py-3 rounded-full bg-[#3D2B2B] text-white text-[9px] font-black uppercase tracking-widest shadow-lg hover:bg-black transition-colors"
+                        >
+                          Presenter
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -301,8 +344,8 @@ const EInvites = () => {
             {filteredTemplates.map((template) => (
               <div 
                 key={template.id} 
-                className="bg-white rounded-[2.5rem] overflow-hidden shadow-sm group active:scale-95 transition-all"
-                onClick={() => navigate(`/user/e-invites/customize/${template.id}`)}
+                className="bg-white rounded-[2.5rem] overflow-hidden shadow-sm group active:scale-95 transition-all cursor-pointer"
+                onClick={() => handleCreateNewInvite(template)}
               >
                 <div className="relative aspect-[3/4] overflow-hidden">
                   <img

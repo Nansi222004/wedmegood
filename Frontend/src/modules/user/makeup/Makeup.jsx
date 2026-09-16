@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import { useToast } from '../../../components/ui/Toast';
@@ -6,13 +6,15 @@ import Button from '../../../components/ui/Button';
 import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import VendorCard from '../vendors/VendorCardFixed';
-import { vendors } from '../../../data/vendors';
+import userApi from '../../../services/userApi';
 
 const Makeup = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const { showToast, ToastComponent } = useToast();
   
+  const [allMakeupArtists, setAllMakeupArtists] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [sortBy, setSortBy] = useState('rating');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -24,8 +26,16 @@ const Makeup = () => {
     services: 'all'
   });
 
-  // Get all makeup artists
-  const allMakeupArtists = vendors.filter(vendor => vendor.category === 'makeup');
+  useEffect(() => {
+    userApi.getVendors({ category: 'Makeup', limit: 50 })
+      .then(res => {
+        if (res.success && res.data) {
+          setAllMakeupArtists(res.data);
+        }
+      })
+      .catch(err => console.error('Error fetching makeup artists:', err))
+      .finally(() => setIsLoading(false));
+  }, []);
 
   // Collections
   const collections = [
@@ -467,7 +477,7 @@ const Makeup = () => {
         {/* Makeup Artists Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 pb-24">
           {sortedMakeupArtists.map((artist) => (
-            <div key={artist.id} className="makeup-artist-card">
+            <div key={artist._id || artist.id} className="makeup-artist-card">
               <VendorCard vendor={artist} layout="responsive" />
             </div>
           ))}
