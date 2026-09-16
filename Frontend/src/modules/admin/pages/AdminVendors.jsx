@@ -18,9 +18,9 @@ const AdminVendors = () => {
     const fetchVendors = async () => {
         try {
             setLoading(true);
-            const res = await adminApi.getVendors(token);
+            const res = await adminApi.getVendors(token, { limit: 100 });
             if (res.success) {
-                setVendors(res.data);
+                setVendors(res.data || []);
             }
         } catch (err) {
             console.error('Failed to fetch vendors:', err);

@@ -54,7 +54,10 @@ const {
     getVendorInventory,
     createInventoryItem,
     updateInventoryItem,
-    deleteInventoryItem
+    deleteInventoryItem,
+    getBlockedDates,
+    addBlockedDate,
+    removeBlockedDate
 } = require('./vendorController');
 
 
@@ -125,6 +128,11 @@ router.get('/bookings', protectVendor, requireSubscription, requireVendorApprova
 router.post('/bookings', protectVendor, requireSubscription, requireVendorApproval, createBooking);
 router.put('/bookings/:id/status', protectVendor, requireSubscription, requireVendorApproval, updateBookingStatus);
 
+// Calendar Blocked Dates
+router.get('/calendar/blocked-dates', protectVendor, requireSubscription, requireVendorApproval, getBlockedDates);
+router.post('/calendar/blocked-dates', protectVendor, requireSubscription, requireVendorApproval, addBlockedDate);
+router.delete('/calendar/blocked-dates/:date', protectVendor, requireSubscription, requireVendorApproval, removeBlockedDate);
+
 // Profile Progress Tracker
 router.get('/profile-progress', protectVendor, getProfileProgress);
 router.post('/upload-document', protectVendor, uploadMissingDocuments);
@@ -136,8 +144,8 @@ router.get('/reviews', protectVendor, requireSubscription, requireVendorApproval
 router.put('/reviews/:id/reply', protectVendor, requireSubscription, requireVendorApproval, replyToReview);
 
 // Notifications
-router.get('/notifications', protectVendor, requireSubscription, requireVendorApproval, getNotifications);
-router.put('/notifications/:id/read', protectVendor, requireSubscription, requireVendorApproval, markNotificationRead);
+router.get('/notifications', protectVendor, getNotifications);
+router.put('/notifications/:id/read', protectVendor, markNotificationRead);
 
 // Chat & Messaging
 router.get('/conversations', protectVendor, requireSubscription, requireVendorApproval, getConversations);

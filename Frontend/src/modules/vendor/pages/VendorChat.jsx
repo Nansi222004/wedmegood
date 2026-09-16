@@ -3,8 +3,10 @@ import Icon from '../../../components/ui/Icon';
 import { vendorApi } from '../vendorApi';
 import { chatApi } from '../../../services/chatApi';
 import { socketService } from '../../../services/socket';
+import { useToast } from '../../../components/ui/Toast';
 
 const VendorChat = () => {
+  const { showToast, ToastComponent } = useToast();
   const [conversations, setConversations] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -238,7 +240,7 @@ const VendorChat = () => {
       }
     } catch (err) {
       console.error('Upload failed:', err);
-      alert(err.message || 'File upload failed');
+      showToast(err.message || 'File upload failed.', 'error');
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -276,10 +278,11 @@ const VendorChat = () => {
       if (res.success && res.data) {
         setMessages(prev => [...prev, res.data]);
         setShowQuoteModal(false);
+        showToast('Quote shared successfully in chat.', 'success');
       }
     } catch (err) {
       console.error('Failed to share quote:', err);
-      alert(err.message || 'Failed to share quote');
+      showToast(err.message || 'Failed to share quote.', 'error');
     } finally {
       setSharingQuoteId(null);
     }
@@ -302,6 +305,7 @@ const VendorChat = () => {
 
       if (res.success) {
         setReportSuccess(true);
+        showToast('Report submitted successfully.', 'success');
         setTimeout(() => {
           setShowReportModal(false);
           setReportSuccess(false);
@@ -310,7 +314,7 @@ const VendorChat = () => {
       }
     } catch (err) {
       console.error('Report submission failed:', err);
-      alert(err.message || 'Failed to submit report');
+      showToast(err.message || 'Failed to submit report.', 'error');
     } finally {
       setSubmittingReport(false);
     }
@@ -793,6 +797,9 @@ const VendorChat = () => {
           <img src={previewImage} alt="Enlarged preview" className="max-w-[90vw] max-h-[85vh] rounded-2xl shadow-2xl object-contain" />
         </div>
       )}
+
+      {/* Toast Component */}
+      <ToastComponent />
     </div>
   );
 };

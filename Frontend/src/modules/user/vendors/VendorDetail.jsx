@@ -179,23 +179,27 @@ const VendorDetail = () => {
     const list = [];
     if (vendor?.services && vendor.services.length > 0) {
       vendor.services.forEach((srv, srvIdx) => {
+        const catName = typeof srv.category === 'object' ? (srv.category?.name || '') : (srv.category || '');
         if (srv.packages && srv.packages.length > 0) {
           srv.packages.forEach((pkg, pkgIdx) => {
             list.push({
               id: `${srvIdx}-${pkgIdx}`,
               name: pkg.name || srv.name,
-              description: (pkg.features || []).join(' • ') || srv.category || '',
+              description: (pkg.features || []).join(' • ') || catName,
               price: pkg.price ? `₹${pkg.price.toLocaleString()}` : (vendor.pricing?.range ? `₹${vendor.pricing.range}` : 'Contact for price'),
               unit: 'per event',
               icon: 'camera'
             });
           });
         } else {
+          const srvPrice = (typeof srv.price === 'number')
+            ? srv.price
+            : (srv.price?.discounted || srv.price?.original);
           list.push({
-            id: srvIdx,
+            id: srv._id || srvIdx,
             name: srv.name || 'Service Package',
-            description: (srv.features || []).join(' • ') || srv.category || '',
-            price: vendor.pricing?.range ? `₹${vendor.pricing.range}` : (vendor.startingPrice ? `Starting ₹${vendor.startingPrice.toLocaleString()}` : 'Contact for price'),
+            description: (srv.features || []).join(' • ') || srv.shortDescription || catName,
+            price: srvPrice ? `₹${srvPrice.toLocaleString()}` : (vendor.pricing?.range ? `₹${vendor.pricing.range}` : (vendor.startingPrice ? `Starting ₹${vendor.startingPrice.toLocaleString()}` : 'Contact for price')),
             unit: 'per event',
             icon: 'camera'
           });

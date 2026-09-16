@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useLenisContext } from '../../../providers/LenisProvider';
 import { useToast } from '../../../components/ui/Toast';
+import { useAuth } from '../../../contexts/AuthContext';
 import Button from '../../../components/ui/Button';
 import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
@@ -14,6 +15,7 @@ const VendorsList = () => {
   const { category } = useParams();
   const navigate = useNavigate();
   const { theme } = useTheme();
+  const { user } = useAuth();
   const { showToast, ToastComponent } = useToast();
 
   // Get global Lenis instance
@@ -26,7 +28,6 @@ const VendorsList = () => {
   const [sortBy, setSortBy] = useState('rating');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [savedVendors, setSavedVendors] = useState([]);
   const [showMap, setShowMap] = useState(false);
   const [subCategories, setSubCategories] = useState([]);
   const [selectedSubCategory, setSelectedSubCategory] = useState('all');
@@ -163,6 +164,30 @@ const VendorsList = () => {
     return Object.values(filters).filter(value => value !== 'all').length + (searchQuery ? 1 : 0);
   };
 
+  const toggleSaveVendor = async (vendorId, isCurrentlySaved) => {
+    if (!user) {
+      showToast('Please log in to save vendors to your favourites', 'error', 3000);
+      navigate('/login', { state: { from: location.pathname } });
+      return false;
+    }
+
+    try {
+      if (isCurrentlySaved) {
+        await userApi.removeFavorite(vendorId);
+        showToast('Vendor removed from favourites', 'info', 2000);
+        return false;
+      } else {
+        await userApi.addFavorite(vendorId);
+        showToast('Vendor saved to favourites!', 'success', 2000);
+        return true;
+      }
+    } catch (err) {
+      console.error('Error toggling favorite:', err);
+      showToast(err.message || 'Failed to update favourites', 'error', 2500);
+      throw err;
+    }
+  };
+
   return (
     <div
       className="min-h-screen"
@@ -185,7 +210,12 @@ const VendorsList = () => {
           </div>
 
           <div className="flex items-center gap-3">
-             <button className="w-10 h-10 rounded-full bg-white/40 flex items-center justify-center text-[#3D2B2B]">
+             <button 
+               onClick={() => navigate('/user/favourites')}
+               title="View Saved Favourites"
+               aria-label="View Saved Favourites"
+               className="w-10 h-10 rounded-full bg-white/40 flex items-center justify-center text-[#3D2B2B] hover:bg-white/60 transition-all active:scale-90"
+             >
                 <Icon name="heart" size="sm" />
              </button>
           </div>

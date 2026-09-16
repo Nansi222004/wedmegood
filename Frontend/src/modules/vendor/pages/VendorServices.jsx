@@ -3,9 +3,15 @@ import { createPortal } from 'react-dom';
 import { vendorApi } from '../vendorApi';
 import Icon from '../../../components/ui/Icon';
 import { useUpload } from '../context/UploadContext';
+import { useVendorState } from '../useVendorState';
+
+import { useToast } from '../../../components/ui/Toast';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
 
 const VendorServices = () => {
+    const { vendorState } = useVendorState();
     const { addBatchUpload, uploads } = useUpload();
+    const { showToast, ToastComponent } = useToast();
     const [services, setServices] = useState([]);
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -20,6 +26,8 @@ const VendorServices = () => {
     const [viewingService, setViewingService] = useState(null);
     const [actionLoading, setActionLoading] = useState(false);
     const [previewMedia, setPreviewMedia] = useState(null);
+    const [serviceToDelete, setServiceToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Form states
     const [formData, setFormData] = useState({
@@ -48,8 +56,8 @@ const VendorServices = () => {
         fetchInitialData();
     }, []);
 
-    const fetchInitialData = async () => {
-        setLoading(true);
+    const fetchInitialData = async (showLoading = true) => {
+        if (showLoading) setLoading(true);
         try {
             const [servicesRes, catsRes] = await Promise.all([
                 vendorApi.getServices(token),
@@ -61,7 +69,7 @@ const VendorServices = () => {
         } catch (err) {
             console.error('Error fetching data:', err);
         } finally {
-            setLoading(false);
+            if (showLoading) setLoading(false);
         }
     };
 
@@ -154,16 +162,19 @@ const VendorServices = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!formData.name || !formData.categoryId || !formData.shortDescription || !formData.originalPrice) {
-            return alert('Please fill required fields.');
+            return showToast('Please fill all required fields.', 'warning');
         }
 
         const totalGalleryItems = existingGallery.length + galleryPreviews.length;
         if (totalGalleryItems < 5) {
-            return alert('Minimum 5 gallery images or videos are required.');
+            return showToast('Minimum 5 gallery images or videos are required.', 'warning');
+        }
+        if (totalGalleryItems > 10) {
+            return showToast('Maximum 10 gallery images or videos allowed.', 'warning');
         }
 
         if (!coverImage && !editingService?.coverImage) {
-            return alert('Cover image is required.');
+            return showToast('Please upload a cover image.', 'warning');
         }
 
         try {
@@ -224,28 +235,42 @@ const VendorServices = () => {
             }
 
             if (res.success) {
-                fetchInitialData();
+                const msg = editingService ? 'Service updated successfully.' : 'Service created successfully.';
+                if (typeof window !== 'undefined') window.__lastToast = msg;
+                showToast(msg, 'success');
+                fetchInitialData(false);
                 closeModal();
             } else {
-                alert(res.message || 'Error saving service');
+                showToast(res.message || 'Failed to create service. Please try again.', 'error');
             }
         } catch (err) {
-            console.error(err);
-            alert('Failed to save service: ' + err.message);
+            console.error('Failed to save service:', err);
+            const errorMsg = err?.message?.includes('Network error')
+                ? 'Unable to save the service. Please check your connection and try again.'
+                : (err?.message || 'Failed to create service. Please try again.');
+            showToast(errorMsg, 'error');
         } finally {
             setActionLoading(false);
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this service?')) return;
+    const confirmDeleteService = async () => {
+        if (!serviceToDelete) return;
         try {
-            const res = await vendorApi.deleteService(id, token);
+            setIsDeleting(true);
+            const res = await vendorApi.deleteService(serviceToDelete._id, token);
             if (res.success) {
-                fetchInitialData();
+                showToast('Service deleted successfully.', 'success');
+                fetchInitialData(false);
+                setServiceToDelete(null);
+            } else {
+                showToast(res.message || 'Failed to delete service. Please try again.', 'error');
             }
         } catch (err) {
-            console.error(err);
+            console.error('Delete service error:', err);
+            showToast('Unable to delete service. Please check your connection and try again.', 'error');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -259,12 +284,26 @@ const VendorServices = () => {
         return (
             <div className="flex-1 h-full min-h-[600px] flex items-center justify-center">
                 <div className="h-10 w-10 border-4 border-[#4F35C3]/20 border-t-[#4F35C3] rounded-full animate-spin"></div>
+                <ToastComponent />
             </div>
         );
     }
 
     return (
         <div className="flex-1 h-full min-h-[600px] flex flex-col gap-6 animate-in fade-in duration-500">
+            {/* Storefront Under Review Banner */}
+            {vendorState?.status === 'Pending' && (
+                <div className="bg-amber-50/90 border border-amber-200/80 rounded-2xl p-4 flex items-center gap-3.5 text-amber-900 shadow-xs">
+                    <div className="h-9 w-9 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+                        <Icon name="shield" size="sm" color="currentColor" />
+                    </div>
+                    <div className="text-xs leading-relaxed">
+                        <span className="font-bold">Storefront Under Review: </span>
+                        <span className="text-amber-800">Your profile is currently under review. Operational features will become available after your account is approved. You can continue updating your services and offerings in the meantime.</span>
+                    </div>
+                </div>
+            )}
+
             {/* Header Area */}
             <div className="bg-white rounded-3xl border border-[#EAE6FF] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -333,7 +372,7 @@ const VendorServices = () => {
                                     <button onClick={(e) => { e.stopPropagation(); openModal(service); }} className="h-8 w-8 bg-white/90 backdrop-blur-md text-[#4F35C3] hover:bg-white rounded-lg flex items-center justify-center shadow-sm transition-all">
                                         <Icon name="edit" size="xs" color="currentColor" />
                                     </button>
-                                    <button onClick={(e) => { e.stopPropagation(); handleDelete(service._id); }} className="h-8 w-8 bg-rose-500/90 backdrop-blur-md text-white hover:bg-rose-500 rounded-lg flex items-center justify-center shadow-sm transition-all">
+                                    <button onClick={(e) => { e.stopPropagation(); setServiceToDelete(service); }} className="h-8 w-8 bg-rose-500/90 backdrop-blur-md text-white hover:bg-rose-500 rounded-lg flex items-center justify-center shadow-sm transition-all" title="Delete Service">
                                         <Icon name="trash" size="xs" color="currentColor" />
                                     </button>
                                 </div>
@@ -702,6 +741,22 @@ const VendorServices = () => {
                 </div>,
                 document.body
             )}
+
+            {/* Toast Component */}
+            <ToastComponent />
+
+            {/* Confirm Delete Modal */}
+            <ConfirmModal
+                isOpen={Boolean(serviceToDelete)}
+                title="Delete Service?"
+                message={`Are you sure you want to delete "${serviceToDelete?.name || 'this service'}"? This action cannot be undone.`}
+                confirmText="Delete Service"
+                cancelText="Cancel"
+                isDanger={true}
+                isLoading={isDeleting}
+                onConfirm={confirmDeleteService}
+                onCancel={() => !isDeleting && setServiceToDelete(null)}
+            />
         </div>
     );
 };

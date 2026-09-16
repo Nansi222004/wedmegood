@@ -3,13 +3,18 @@ import { createPortal } from 'react-dom';
 import { vendorApi } from '../vendorApi';
 import { useVendorState } from '../useVendorState';
 import Icon from '../../../components/ui/Icon';
+import { useToast } from '../../../components/ui/Toast';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
 
 const VendorInventory = () => {
+    const { showToast, ToastComponent } = useToast();
     const [inventory, setInventory] = useState([]);
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [formError, setFormError] = useState('');
+    const [itemToDelete, setItemToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     const token = localStorage.getItem('vendorToken');
     const { vendorState } = useVendorState();
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -168,15 +173,27 @@ const VendorInventory = () => {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this item?')) return;
+    const handleDelete = (item) => {
+        setItemToDelete(item);
+    };
+
+    const confirmDeleteItem = async () => {
+        if (!itemToDelete) return;
         try {
-            const res = await vendorApi.deleteInventoryItem(id, token);
+            setIsDeleting(true);
+            const res = await vendorApi.deleteInventoryItem(itemToDelete._id, token);
             if (res.success) {
                 fetchInventory();
+                showToast('Inventory item deleted successfully.', 'success');
+                setItemToDelete(null);
+            } else {
+                showToast(res.message || 'Failed to delete item.', 'error');
             }
         } catch (error) {
             console.error('Error deleting inventory item:', error);
+            showToast('Unable to delete item. Please try again.', 'error');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -262,7 +279,7 @@ const VendorInventory = () => {
                                         <td className="p-4 text-right">
                                             <div className="flex justify-end gap-2">
                                                 <button 
-                                                    onClick={() => handleDelete(item._id)} 
+                                                    onClick={() => handleDelete(item)} 
                                                     title="Delete item"
                                                     className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
                                                 >
@@ -435,6 +452,22 @@ const VendorInventory = () => {
                 </div>,
                 document.body
             )}
+
+            {/* Toast Component */}
+            <ToastComponent />
+
+            {/* Confirm Delete Item Modal */}
+            <ConfirmModal
+                isOpen={Boolean(itemToDelete)}
+                title="Delete Inventory Item?"
+                message={`Are you sure you want to delete "${itemToDelete?.itemName || 'this item'}"? This action cannot be undone.`}
+                confirmText="Delete Item"
+                cancelText="Cancel"
+                isDanger={true}
+                isLoading={isDeleting}
+                onConfirm={confirmDeleteItem}
+                onCancel={() => !isDeleting && setItemToDelete(null)}
+            />
         </div>
     );
 };

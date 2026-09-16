@@ -170,7 +170,8 @@ const AppRouter = () => {
                     <Route path="tools/inspiration" element={<InspirationBoard />} />
 
                     {/* Quick Access Routes */}
-                    <Route path="bookings" element={<MyBookings />} />
+                    <Route path="bookings" element={<MyBookings initialTab="bookings" />} />
+                    <Route path="quotes" element={<MyBookings initialTab="quotes" />} />
                     <Route path="shortlist" element={<Shortlist />} />
                     <Route path="favourites" element={<Favourites />} />
 

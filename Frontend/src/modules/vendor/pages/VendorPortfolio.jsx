@@ -379,6 +379,19 @@ const VendorPortfolio = () => {
         }
       `}</style>
 
+      {/* Storefront Under Review Banner */}
+      {vendorState?.status === 'Pending' && (
+        <div className="bg-amber-50/90 border border-amber-200/80 rounded-xl p-3.5 mx-1 mt-1 flex items-center gap-3 text-amber-900 shadow-xs">
+          <div className="h-8 w-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+            <Icon name="shield" size="xs" color="currentColor" />
+          </div>
+          <div className="text-[11px] leading-relaxed">
+            <span className="font-bold">Storefront Under Review: </span>
+            <span className="text-amber-800">Your profile is currently under review. Operational features will become available after your account is approved. You can continue updating your portfolio projects.</span>
+          </div>
+        </div>
+      )}
+
       {/* ── Hero Banner ──────────────────────────────────────── */}
       <div className="pf-fadein mx-1 mt-1 rounded-md px-3 py-2.5 relative overflow-hidden"
         style={{ background: 'linear-gradient(135deg, #f5f0ff 0%, #fdf4ff 50%, #f0f4ff 100%)' }}>

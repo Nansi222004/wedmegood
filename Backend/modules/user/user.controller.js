@@ -124,8 +124,15 @@ exports.updateProfile = async (req, res) => {
       if (req.body.weddingDetails.weddingDate) {
         filteredData.weddingDate = new Date(req.body.weddingDetails.weddingDate);
       }
+    } else if (req.body.weddingDate === null || req.body.weddingDate === '') {
+      filteredData.weddingDate = null;
     } else if (filteredData.weddingDate) {
       filteredData.weddingDate = new Date(filteredData.weddingDate);
+    }
+
+    // Handle profileImage empty/null
+    if (req.body.profileImage === '' || req.body.profileImage === null) {
+      delete filteredData.profileImage;
     }
 
     const user = await User.findByIdAndUpdate(

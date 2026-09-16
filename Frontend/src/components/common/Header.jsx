@@ -19,6 +19,15 @@ const Header = () => {
   // Dynamic notification unread count
   const [unreadCount, setUnreadCount] = useState(0);
 
+  const formatImageUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+      return url;
+    }
+    const backendBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+    return `${backendBase}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
+
   const fetchUnreadCount = useCallback(async () => {
     if (!isAuthenticated) {
       setUnreadCount(0);
@@ -189,15 +198,22 @@ const Header = () => {
                     e.target.style.backgroundColor = 'transparent';
                   }}
                 >
-                  <div className="w-8 h-8 rounded-full overflow-hidden">
-                    <img
-                      src={user.profileImage}
-                      alt={user.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.src = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=64&h=64&fit=crop&face=center&q=80';
-                      }}
-                    />
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
+                    {user.profileImage ? (
+                      <img
+                        src={formatImageUrl(user.profileImage)}
+                        alt={user.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.style.display = 'none';
+                          if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div className={`w-full h-full bg-rose-100 items-center justify-center text-rose-600 text-xs font-bold ${user.profileImage ? 'hidden' : 'flex'}`}>
+                      {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                    </div>
                   </div>
                   <span className="text-sm font-medium">{user.name}</span>
                 </Link>
@@ -358,15 +374,22 @@ const Header = () => {
               {isAuthenticated ? (
                 <div className="space-y-3">
                   <div className="flex items-center space-x-3 px-2">
-                    <div className="w-10 h-10 rounded-full overflow-hidden">
-                      <img
-                        src={user.profileImage}
-                        alt={user.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.src = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&face=center&q=80';
-                        }}
-                      />
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
+                      {user.profileImage ? (
+                        <img
+                          src={formatImageUrl(user.profileImage)}
+                          alt={user.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.style.display = 'none';
+                            if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <div className={`w-full h-full bg-rose-100 items-center justify-center text-rose-600 text-sm font-bold ${user.profileImage ? 'hidden' : 'flex'}`}>
+                        {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                      </div>
                     </div>
                     <div>
                       <p

@@ -2,15 +2,20 @@ import { useState, useEffect, useMemo } from 'react';
 import Icon from '../../../components/ui/Icon';
 import { useVendorState } from '../useVendorState';
 import { vendorApi } from '../vendorApi';
+import { useToast } from '../../../components/ui/Toast';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
 
 const VendorQuotes = () => {
   const { refreshData } = useVendorState();
+  const { showToast, ToastComponent } = useToast();
   const [quotes, setQuotes] = useState([]);
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
+  const [quoteToDelete, setQuoteToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Form State
   const [selectedLeadId, setSelectedLeadId] = useState('');
@@ -53,7 +58,7 @@ const VendorQuotes = () => {
 
   const handleSaveQuote = async () => {
     if (!selectedLeadId) {
-      alert('Please select a lead first');
+      showToast('Please select a lead first.', 'warning');
       return;
     }
 
@@ -78,29 +83,44 @@ const VendorQuotes = () => {
       }
 
       if (res.success) {
+        showToast(isEditing ? 'Proposal updated successfully.' : 'Proposal created successfully.', 'success');
         fetchData();
         setShowModal(false);
         resetForm();
         refreshData();
+      } else {
+        showToast(res.message || 'Failed to save proposal. Please try again.', 'error');
       }
     } catch (err) {
       console.error('Error saving quote:', err);
+      showToast('Unable to save proposal. Please try again.', 'error');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDeleteQuote = async (id) => {
-    if (!window.confirm('Are you sure you want to permanently delete this proposal?')) return;
-    
+  const handleDeleteQuote = (id) => {
+    setQuoteToDelete(id);
+  };
+
+  const confirmDeleteQuote = async () => {
+    if (!quoteToDelete) return;
     try {
-      const res = await vendorApi.deleteQuote(id, token);
+      setIsDeleting(true);
+      const res = await vendorApi.deleteQuote(quoteToDelete, token);
       if (res.success) {
-        setQuotes(prev => prev.filter(q => q._id !== id));
+        setQuotes(prev => prev.filter(q => q._id !== quoteToDelete));
         refreshData();
+        showToast('Proposal deleted successfully.', 'success');
+        setQuoteToDelete(null);
+      } else {
+        showToast(res.message || 'Failed to delete proposal.', 'error');
       }
     } catch (err) {
       console.error('Delete error:', err);
+      showToast('Unable to delete proposal. Please try again.', 'error');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -456,6 +476,22 @@ const VendorQuotes = () => {
           </div>
         </div>
       )}
+
+      {/* Toast Component */}
+      <ToastComponent />
+
+      {/* Confirm Delete Proposal Modal */}
+      <ConfirmModal
+        isOpen={Boolean(quoteToDelete)}
+        title="Delete Proposal?"
+        message="Are you sure you want to permanently delete this proposal? This action cannot be undone."
+        confirmText="Delete Proposal"
+        cancelText="Cancel"
+        isDanger={true}
+        isLoading={isDeleting}
+        onConfirm={confirmDeleteQuote}
+        onCancel={() => !isDeleting && setQuoteToDelete(null)}
+      />
     </div>
   );
 };

@@ -106,7 +106,38 @@ exports.acceptQuote = async (req, res, next) => {
             });
         }
 
-        // 3. Verify related Lead belongs to the same user
+        if (quote.status === 'Expired') {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot accept an expired quote'
+            });
+        }
+
+        if (quote.status === 'Cancelled') {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot accept a cancelled quote'
+            });
+        }
+
+        if (quote.status !== 'Sent' && quote.status !== 'Pending') {
+            return res.status(400).json({
+                success: false,
+                message: 'Quote is not available for acceptance'
+            });
+        }
+
+        // Check if quote has passed its validity date
+        if (quote.validUntil && new Date(quote.validUntil) < new Date()) {
+            quote.status = 'Expired';
+            await quote.save();
+            return res.status(400).json({
+                success: false,
+                message: 'Quote has expired and cannot be accepted'
+            });
+        }
+
+        // 3. Verify related Lead belongs to the same user and vendor
         const lead = await Lead.findById(quote.leadId);
         if (!lead) {
             return res.status(404).json({
@@ -122,7 +153,14 @@ exports.acceptQuote = async (req, res, next) => {
             });
         }
 
-        // 4. Verify Vendor
+        if (lead.vendorId && lead.vendorId.toString() !== quote.vendorId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Unauthorized: Vendor mismatch between quote and lead'
+            });
+        }
+
+        // 4. Verify Vendor status, activity, and active subscription
         const vendor = await Vendor.findById(quote.vendorId);
         if (!vendor) {
             return res.status(404).json({
@@ -131,54 +169,170 @@ exports.acceptQuote = async (req, res, next) => {
             });
         }
 
-        // 5. Ensure duplicate Booking does not already exist
-        const existingBooking = await Booking.findOne({ quoteId: quote._id });
-        if (existingBooking) {
+        if (vendor.status !== 'Approved') {
             return res.status(400).json({
                 success: false,
-                message: 'Booking already exists for this quote',
-                data: { booking: existingBooking }
+                message: 'Vendor is not currently approved to accept bookings'
             });
         }
 
-        // 6. Update Quote & Lead statuses
-        quote.status = 'Accepted';
-        await quote.save();
+        if (!vendor.isActive) {
+            return res.status(400).json({
+                success: false,
+                message: 'Vendor account is currently inactive'
+            });
+        }
 
-        lead.status = 'Booked';
-        await lead.save();
+        if (vendor.subscription && vendor.subscription.status === 'Expired') {
+            return res.status(400).json({
+                success: false,
+                message: 'Vendor subscription has expired and cannot accept bookings'
+            });
+        }
 
-        // 7. Create real MongoDB Booking
-        const servicesList = (quote.items && quote.items.length > 0)
-            ? quote.items.map(item => item.service || 'Service')
-            : [lead.category || 'Wedding Service'];
+        // 5. Check date availability against vendor calendar
+        const targetDate = new Date(lead.eventDate);
+        if (isNaN(targetDate.getTime())) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid event date on lead inquiry'
+            });
+        }
 
-        const booking = await Booking.create({
-            vendorId: quote.vendorId,
-            userId: req.user._id,
-            customerName: req.user.name || lead.customerName || 'Customer',
-            leadId: lead._id,
-            quoteId: quote._id,
-            eventDate: lead.eventDate,
-            location: lead.eventLocation,
-            eventType: 'Wedding',
-            services: servicesList,
-            guestCount: lead.guestCount || 0,
-            notes: quote.notes || lead.message || '',
-            totalPrice: quote.totalAmount || 0,
-            status: 'Confirmed',
-            paymentStatus: 'Pending'
+        const startOfDay = new Date(targetDate);
+        startOfDay.setUTCHours(0, 0, 0, 0);
+        const endOfDay = new Date(targetDate);
+        endOfDay.setUTCHours(23, 59, 59, 999);
+
+        // Check if vendor blocked this date
+        const isBlocked = (vendor.blockedDates || []).some(bDate => {
+            const b = new Date(bDate);
+            return b >= startOfDay && b <= endOfDay;
         });
 
-        // 8. Create Vendor notification
+        if (isBlocked) {
+            return res.status(409).json({
+                success: false,
+                message: 'Vendor is unavailable on this date (marked as blocked)'
+            });
+        }
+
+        // 6. Atomic Execution with MongoDB Session / Transaction
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        let booking;
+
+        try {
+            // Lock Vendor document for the duration of this transaction to serialize concurrent bookings
+            await Vendor.findOneAndUpdate(
+                { _id: quote.vendorId },
+                { $set: { updatedAt: new Date() } },
+                { session }
+            );
+
+            // Check for existing booking for this quote
+            const existingBooking = await Booking.findOne({ quoteId: quote._id }).session(session);
+            if (existingBooking) {
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(400).json({
+                    success: false,
+                    message: 'Booking already exists for this quote',
+                    data: { booking: existingBooking }
+                });
+            }
+
+            // Check for conflicting confirmed/in-progress booking on the same date
+            const conflictingBooking = await Booking.findOne({
+                vendorId: quote.vendorId,
+                eventDate: { $gte: startOfDay, $lte: endOfDay },
+                status: { $in: ['Confirmed', 'In Progress'] }
+            }).session(session);
+
+            if (conflictingBooking) {
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(409).json({
+                    success: false,
+                    message: 'Vendor already has a confirmed booking on this date'
+                });
+            }
+
+            // Atomically update Quote status
+            const updatedQuote = await Quote.findOneAndUpdate(
+                { _id: quote._id, status: { $in: ['Pending', 'Sent'] } },
+                { status: 'Accepted' },
+                { new: true, session }
+            );
+
+            if (!updatedQuote) {
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(400).json({
+                    success: false,
+                    message: 'Quote is no longer available for acceptance'
+                });
+            }
+
+            // Update Lead status
+            await Lead.findByIdAndUpdate(lead._id, { status: 'Booked' }, { session });
+
+            // Create real MongoDB Booking
+            const servicesList = (quote.items && quote.items.length > 0)
+                ? quote.items.map(item => item.service || 'Service')
+                : [lead.category || 'Wedding Service'];
+
+            const createdBookings = await Booking.create([{
+                vendorId: quote.vendorId,
+                userId: req.user._id,
+                customerName: req.user.name || lead.customerName || 'Customer',
+                leadId: lead._id,
+                quoteId: quote._id,
+                eventDate: targetDate,
+                location: lead.eventLocation || 'Venue to be confirmed',
+                eventType: 'Wedding',
+                services: servicesList,
+                guestCount: lead.guestCount || 0,
+                notes: quote.notes || lead.message || '',
+                totalPrice: quote.totalAmount || 0,
+                status: 'Confirmed',
+                paymentStatus: 'Pending'
+            }], { session });
+
+            booking = createdBookings[0];
+
+            await session.commitTransaction();
+            session.endSession();
+        } catch (txError) {
+            await session.abortTransaction();
+            session.endSession();
+
+            if (txError.code === 11000 || txError.message?.includes('duplicate key')) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Booking already exists for this quote'
+                });
+            }
+
+            if (txError.code === 112 || txError.codeName === 'WriteConflict' || txError.hasErrorLabel?.('TransientTransactionError') || txError.message?.includes('WriteConflict')) {
+                return res.status(409).json({
+                    success: false,
+                    message: 'Concurrent booking conflict on this date. Vendor already booked.'
+                });
+            }
+
+            throw txError;
+        }
+
+        // 7. Post-commit side-effects: Vendor notification
         await Notification.create({
             vendorId: quote.vendorId,
             message: `Quote accepted by ${booking.customerName}! New booking confirmed for ₹${(booking.totalPrice || 0).toLocaleString()}`,
             type: 'Booking',
             isRead: false
-        });
+        }).catch(() => {});
 
-        // 9. Link Booking to Conversation and record System message
+        // 8. Link Booking to Conversation and record System message
         try {
             const chatService = require('../chat/chat.service');
             const conv = await chatService.getOrCreateConversation({
@@ -201,6 +355,9 @@ exports.acceptQuote = async (req, res, next) => {
 
         // 9. Create User Notification & Activity
         try {
+            const servicesList = (quote.items && quote.items.length > 0)
+                ? quote.items.map(item => item.service || 'Service')
+                : [lead.category || 'Wedding Service'];
             const { notifyAndLogActivity } = require('../../services/notification.service');
             await notifyAndLogActivity({
                 userId: req.user._id,

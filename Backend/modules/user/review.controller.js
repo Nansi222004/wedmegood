@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Review = require('../vendor/Review');
 const Booking = require('../vendor/Booking');
 const Notification = require('../vendor/Notification');
+const Vendor = require('../vendor/Vendor');
 
 // @desc    Create a verified review for a completed/eligible booking
 // @route   POST /api/user/reviews
@@ -87,6 +88,18 @@ exports.createReview = async (req, res, next) => {
             comment: comment.trim(),
             photos: Array.isArray(photos) ? photos : [],
             status: 'Approved'
+        });
+
+        // Recalculate vendor average rating and review count from 'Approved' reviews
+        const approvedReviews = await Review.find({ vendorId: booking.vendorId, status: 'Approved' });
+        const approvedCount = approvedReviews.length;
+        const avgRating = approvedCount > 0
+            ? Math.round((approvedReviews.reduce((acc, r) => acc + (r.rating || 0), 0) / approvedCount) * 10) / 10
+            : 0;
+
+        await Vendor.findByIdAndUpdate(booking.vendorId, {
+            rating: avgRating,
+            reviewCount: approvedCount
         });
 
         // 6. Notify Vendor

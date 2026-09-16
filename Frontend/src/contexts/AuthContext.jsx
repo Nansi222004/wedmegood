@@ -109,9 +109,15 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateUser = (updatedData) => {
-    const updatedUser = { ...user, ...updatedData };
-    localStorage.setItem('user', JSON.stringify(updatedUser));
-    setUser(updatedUser);
+    setUser(prev => {
+      const updatedUser = { ...(prev || {}), ...updatedData, isAuthenticated: true };
+      try {
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+      } catch (e) {
+        console.error('Failed to sync updated user to localStorage', e);
+      }
+      return updatedUser;
+    });
   };
 
   const isAuthenticated = user && user.isAuthenticated;

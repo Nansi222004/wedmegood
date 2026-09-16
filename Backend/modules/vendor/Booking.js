@@ -19,7 +19,9 @@ const bookingSchema = new mongoose.Schema({
     },
     quoteId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Quote'
+        ref: 'Quote',
+        unique: true,
+        sparse: true
     },
     eventDate: {
         type: Date,
@@ -51,7 +53,7 @@ const bookingSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['Confirmed', 'Completed', 'Cancelled'],
+        enum: ['Confirmed', 'In Progress', 'Completed', 'Cancelled'],
         default: 'Confirmed'
     },
     paymentStatus: {

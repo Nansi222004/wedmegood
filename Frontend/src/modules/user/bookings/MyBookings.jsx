@@ -7,12 +7,18 @@ import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 import userApi from '../../../services/userApi';
 
-const MyBookings = () => {
+const MyBookings = ({ initialTab = 'quotes' }) => {
   const { theme } = useTheme();
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState('quotes'); // 'quotes' or 'bookings'
+  const [activeTab, setActiveTab] = useState(initialTab); // 'quotes' or 'bookings'
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
   const [inquiries, setInquiries] = useState([]);
   const [quotes, setQuotes] = useState([]);
   const [bookings, setBookings] = useState([]);

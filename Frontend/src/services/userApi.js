@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
 
 /**
  * Helper to get the current authenticated user's JWT token
@@ -46,7 +46,16 @@ const request = async (endpoint, options = {}) => {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      const errorMessage = data?.message || data?.error || `HTTP ${response.status}: Request failed`;
+      let errorMessage = data?.message || data?.error;
+      if (Array.isArray(data?.errors) && data.errors.length > 0) {
+        const errorDetails = data.errors.map(err => err.msg || err.message).filter(Boolean).join(', ');
+        if (errorDetails) {
+          errorMessage = errorMessage ? `${errorMessage}: ${errorDetails}` : errorDetails;
+        }
+      }
+      if (!errorMessage) {
+        errorMessage = `HTTP ${response.status}: Request failed`;
+      }
       const error = new Error(errorMessage);
       error.status = response.status;
       error.data = data;

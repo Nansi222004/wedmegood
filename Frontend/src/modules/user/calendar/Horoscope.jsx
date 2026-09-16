@@ -17,7 +17,7 @@ const Horoscope = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [dailyHoroscope, setDailyHoroscope] = useState(null);
 
-  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5000/api' : '/api')}/user/astrology`;
+  const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5001/api' : '/api')}/user/astrology`;
 
   const zodiacSigns = [
     { id: 'aries', name: 'Aries', symbol: '♈', dates: 'Mar 21 - Apr 19', element: 'Fire', color: '#FF6B6B' },

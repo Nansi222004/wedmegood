@@ -4,12 +4,14 @@ import Button from '../../../components/ui/Button';
 import Icon from '../../../components/ui/Icon';
 import { useTheme } from '../../../hooks/useTheme';
 import { useCart } from '../../../contexts/CartContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import userApi from '../../../services/userApi';
 
 const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
   const { theme } = useTheme();
   const { addToCart, isInCart } = useCart();
+  const { user } = useAuth();
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const navigate = useNavigate();
@@ -33,7 +35,10 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
 
   // Check if vendor is saved in MongoDB
   useEffect(() => {
-    if (!id) return;
+    if (!id || !user) {
+      setIsSaved(false);
+      return;
+    }
     userApi.checkFavorite(id)
       .then(res => {
         if (res.success) {
@@ -41,25 +46,42 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
         }
       })
       .catch(() => {});
-  }, [id]);
+  }, [id, user]);
 
   // Toggle save vendor
   const toggleSave = async () => {
     if (!id) return;
-    if (onToggleSave) {
-      onToggleSave(id);
-      setIsSaved(!isSaved);
+
+    // Guard: Prevent unauthenticated users from creating favorites
+    if (!user) {
+      if (onToggleSave) {
+        onToggleSave(id, isSaved);
+      } else {
+        navigate('/login', { state: { from: window.location.pathname } });
+      }
       return;
     }
+
+    const prevSaved = isSaved;
     try {
-      if (isSaved) {
-        setIsSaved(false);
-        await userApi.removeFavorite(id);
+      if (onToggleSave) {
+        const nextState = await onToggleSave(id, isSaved);
+        if (typeof nextState === 'boolean') {
+          setIsSaved(nextState);
+        } else {
+          setIsSaved(!prevSaved);
+        }
       } else {
-        setIsSaved(true);
-        await userApi.addFavorite(id);
+        if (prevSaved) {
+          setIsSaved(false);
+          await userApi.removeFavorite(id);
+        } else {
+          setIsSaved(true);
+          await userApi.addFavorite(id);
+        }
       }
     } catch (err) {
+      setIsSaved(prevSaved);
       console.error('Error toggling favorite:', err);
     }
   };
@@ -151,9 +173,14 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
                 e.stopPropagation();
                 toggleSave();
               }}
-              className="absolute top-3 right-3 w-8 h-8 rounded-lg bg-white/80 backdrop-blur-xl flex items-center justify-center text-[#3D2B2B] shadow-sm active:scale-90 transition-all z-10"
+              className="absolute top-3 right-3 w-8 h-8 rounded-lg bg-white/80 backdrop-blur-xl flex items-center justify-center text-[#3D2B2B] shadow-sm active:scale-90 transition-all z-10 hover:bg-white"
+              aria-label={isSaved ? 'Remove from favorites' : 'Save to favorites'}
             >
-              <Icon name={isSaved ? 'checkList' : 'menu'} size="xs" className={isSaved ? 'opacity-100' : 'opacity-40'} />
+              <Icon 
+                name="heart" 
+                size="xs" 
+                className={`transition-colors ${isSaved ? 'text-rose-600 fill-rose-600' : 'text-[#3D2B2B]/60'}`} 
+              />
             </button>
           </div>
             

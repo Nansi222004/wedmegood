@@ -83,6 +83,7 @@ exports.createLead = async (req, res, next) => {
             const eligibleVendors = await Vendor.find({
                 status: 'Approved',
                 isActive: true,
+                'subscription.status': 'Active',
                 ...categoryFilter
             }).sort('_id');
 

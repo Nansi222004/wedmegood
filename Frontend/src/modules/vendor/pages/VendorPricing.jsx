@@ -60,6 +60,19 @@ const VendorPricing = () => {
         .pf-fadein { animation: pfFadeUp 0.4s cubic-bezier(0.16,1,0.3,1) both; }
       `}</style>
 
+      {/* Storefront Under Review Banner */}
+      {vendorState?.status === 'Pending' && (
+        <div className="bg-amber-50/90 border border-amber-200/80 rounded-xl p-4 flex items-center gap-3.5 text-amber-900 shadow-xs">
+          <div className="h-9 w-9 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+            <Icon name="shield" size="sm" color="currentColor" />
+          </div>
+          <div className="text-xs leading-relaxed">
+            <span className="font-bold">Storefront Under Review: </span>
+            <span className="text-amber-800">Your profile is currently under review. Operational features will become available after your account is approved. You can continue updating your pricing structures.</span>
+          </div>
+        </div>
+      )}
+
       {/* Header Card - Sleek & Compact */}
       <div className="pf-fadein rounded p-3.5 relative overflow-hidden border border-rose-100"
         style={{ background: 'linear-gradient(135deg, #FFF5F7 0%, #FFF9FA 100%)', borderRadius: '4px' }}>

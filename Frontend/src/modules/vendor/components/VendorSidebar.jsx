@@ -1,6 +1,18 @@
 import { useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import Icon from '../../../components/ui/Icon';
+import { useVendorState } from '../useVendorState';
+
+const STOREFRONT_ITEMS = new Set([
+  'Dashboard',
+  'Profile',
+  'Services',
+  'Pricing',
+  'Portfolio',
+  'Inventory',
+  'Settings',
+  'Support'
+]);
 
 const navItems = [
   { label: 'Dashboard', to: '/vendor/dashboard', icon: 'home' },
@@ -20,9 +32,14 @@ const navItems = [
   { label: 'Settings', to: '/vendor/settings', icon: 'edit' }
 ];
 
-const VendorSidebar = ({ onClose, isApproved, counts = {} }) => {
+const VendorSidebar = ({ onClose, counts = {} }) => {
   const navigate = useNavigate();
   const navRef = useRef(null);
+  const { vendorState } = useVendorState();
+  
+  const isApproved = vendorState?.status === 'Approved';
+  const isSubscribed = vendorState?.subscription?.status === 'Active';
+  const isOperationalAllowed = isApproved && isSubscribed;
   
   useEffect(() => {
     let lenisInstance;
@@ -100,40 +117,45 @@ const VendorSidebar = ({ onClose, isApproved, counts = {} }) => {
         {/* Navigation */}
         <nav ref={navRef} className="flex-1 overflow-y-auto px-3 pt-2 pb-3 space-y-0.5 custom-scrollbar">
           {dynamicNavItems.map((item) => {
-            const isHome = item.label === 'Dashboard' || item.label === 'Profile';
-            const isDisabled = !isApproved && !isHome;
+            const isOperational = !STOREFRONT_ITEMS.has(item.label);
+            const isLocked = isOperational && !isOperationalAllowed;
 
             return (
               <NavLink
                 key={item.to}
-                to={isDisabled ? '#' : item.to}
-                onClick={(e) => {
-                  if (isDisabled) e.preventDefault();
-                  else onClose?.();
-                }}
+                to={item.to}
+                onClick={() => onClose?.()}
                 className={({ isActive }) =>
                   `group flex items-center gap-3 text-[13px] font-medium transition-all duration-200 px-3.5 py-2.5 rounded-xl ${
-                    isActive && !isDisabled
+                    isActive
                     ? 'bg-[#F3E8FF] text-[#581C87] font-semibold shadow-xs'
-                    : isDisabled ? 'text-slate-300' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                   }`
                 }
               >
                 {({ isActive }) => (
                   <>
                     <div className={`flex items-center justify-center transition-colors duration-200 ${
-                      isActive && !isDisabled
+                      isActive
                       ? 'text-[#581C87]'
-                      : isDisabled ? 'text-slate-300' : 'text-slate-400 group-hover:text-slate-600'
+                      : 'text-slate-400 group-hover:text-slate-600'
                       }`}>
-                      <Icon name={isDisabled ? 'lock' : item.icon} size="md" color="currentColor" />
+                      <Icon name={item.icon} size="md" color="currentColor" />
                     </div>
-                    <span>{item.label}</span>
-                    {item.badge && !isDisabled && (
+                    <span className="flex-1 truncate">{item.label}</span>
+                    {isLocked ? (
+                      <span 
+                        className="ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-tight bg-amber-50 text-amber-700 border border-amber-200/60"
+                        title="Operational module locked"
+                      >
+                        <Icon name="lock" size="xs" color="currentColor" />
+                        <span>Locked</span>
+                      </span>
+                    ) : item.badge ? (
                       <span className="ml-auto h-5 w-5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shadow-xs">
                         {item.badge}
                       </span>
-                    )}
+                    ) : null}
                   </>
                 )}
               </NavLink>

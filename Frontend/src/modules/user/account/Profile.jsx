@@ -29,6 +29,15 @@ const Profile = () => {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('success');
 
+  const formatImageUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+      return url;
+    }
+    const backendBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+    return `${backendBase}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
+
   // Security & Account Management states
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -173,8 +182,21 @@ const Profile = () => {
       const imageUrl = res.data?.url || res.url;
       if (imageUrl) {
         setFormData(prev => ({ ...prev, profileImage: imageUrl }));
-        setMessage('Image uploaded! Click "Update Profile" to save.');
-        setMessageType('success');
+        // Automatically save new avatar to MongoDB and AuthContext so it persists immediately
+        try {
+          const updateRes = await userApi.updateUserProfile({ profileImage: imageUrl });
+          if (updateRes.success && updateRes.data?.user) {
+            updateUser(updateRes.data.user);
+            setMessage('Profile photo updated and saved successfully!');
+            setMessageType('success');
+          } else {
+            setMessage('Image uploaded! Click "Update Profile" to save.');
+            setMessageType('success');
+          }
+        } catch (saveErr) {
+          setMessage('Image uploaded! Click "Update Profile" below to save.');
+          setMessageType('success');
+        }
       } else {
         throw new Error('No image URL returned by upload server');
       }
@@ -193,12 +215,15 @@ const Profile = () => {
 
     try {
       const payload = {
-        name: formData.name,
-        phone: formData.phone,
-        city: formData.city,
-        weddingDate: formData.weddingDate ? new Date(formData.weddingDate) : null,
-        profileImage: formData.profileImage
+        name: formData.name ? formData.name.trim() : '',
+        phone: formData.phone ? formData.phone.trim() : '',
+        city: formData.city ? formData.city.trim() : '',
+        weddingDate: formData.weddingDate ? formData.weddingDate : null
       };
+
+      if (formData.profileImage && formData.profileImage.trim()) {
+        payload.profileImage = formData.profileImage.trim();
+      }
 
       const res = await userApi.updateUserProfile(payload);
       
@@ -278,7 +303,7 @@ const Profile = () => {
               <div className="relative inline-block">
                 {formData.profileImage ? (
                   <img
-                    src={formData.profileImage}
+                    src={formatImageUrl(formData.profileImage)}
                     alt="Profile"
                     className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg"
                   />

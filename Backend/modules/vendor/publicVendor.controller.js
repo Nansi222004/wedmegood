@@ -5,6 +5,7 @@ const Booking = require('./Booking');
 const Lead = require('./Lead');
 const Category = require('../admin/Category');
 const Favorite = require('../user/Favorite');
+const Service = require('./Service');
 
 // Helper to escape special regex characters to prevent ReDoS
 const escapeRegex = (string) => {
@@ -37,6 +38,12 @@ const computeVendorStartingPrice = (vendor) => {
         vendor.services.forEach(srv => {
             if (typeof srv.price === 'number' && srv.price > 0) {
                 prices.push(srv.price);
+            }
+            if (srv.price && typeof srv.price === 'object') {
+                const srvP = srv.price.discounted || srv.price.original;
+                if (typeof srvP === 'number' && srvP > 0) {
+                    prices.push(srvP);
+                }
             }
             if (Array.isArray(srv.packages)) {
                 srv.packages.forEach(pkg => {
@@ -356,12 +363,28 @@ exports.getPublicVendorById = async (req, res, next) => {
             ? Math.round((reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length) * 10) / 10
             : 0;
 
-        const startingPrice = computeVendorStartingPrice(vendor);
+        // Fetch real active services created by this vendor from the canonical Service model
+        const dbServices = await Service.find({ vendor: id, isActive: { $ne: false } })
+            .populate('category', 'name')
+            .sort('-createdAt')
+            .lean();
+
+        // If Service model records exist, prioritize them; otherwise fallback to embedded vendor.services
+        const activeServices = (dbServices && dbServices.length > 0)
+            ? dbServices
+            : (vendor.services || []);
+
+        const vendorWithServices = {
+            ...vendor,
+            services: activeServices
+        };
+
+        const startingPrice = computeVendorStartingPrice(vendorWithServices);
 
         res.status(200).json({
             success: true,
             data: {
-                ...vendor,
+                ...vendorWithServices,
                 reviews,
                 rating: avgRating,
                 reviewCount: reviews.length,

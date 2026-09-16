@@ -14,7 +14,7 @@ class SocketService {
 
         const backendUrl = import.meta.env.VITE_API_BASE_URL 
             ? import.meta.env.VITE_API_BASE_URL.replace(/\/api\/?$/, '') 
-            : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : window.location.origin);
+            : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5001' : window.location.origin);
 
         this.socket = io(backendUrl, {
             auth: { token },
