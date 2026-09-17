@@ -133,6 +133,15 @@ export const userApi = {
     return request('/categories', { method: 'GET' });
   },
 
+  getBanners: async (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.placement) query.append('placement', params.placement);
+    if (params.platform) query.append('platform', params.platform);
+    if (params.category) query.append('category', params.category);
+    const qs = query.toString();
+    return request(`/public/banners${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
   // Leads & Inquiries
   createLead: async (leadData) => {
     return request('/user/leads', {

@@ -380,6 +380,14 @@ const VendorDetail = () => {
     navigate(`/user/chats/${vendorId}`);
   };
 
+  const handleInquireService = (item) => {
+    setFormData(prev => ({
+      ...prev,
+      message: `Inquiry for package "${item.name}" (${item.price}): `
+    }));
+    setIsRequestModalOpen(true);
+  };
+
   const handleSendRequest = async () => {
     if (!user) {
       alert('Please log in first to submit an inquiry to this vendor');
@@ -687,7 +695,7 @@ const VendorDetail = () => {
                     </div>
                   </div>
 
-                  <div className="text-right flex-shrink-0">
+                  <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
                     <div
                       className="font-bold text-sm sm:text-lg"
                       style={{ color: theme.semantic.text.primary }}
@@ -700,6 +708,13 @@ const VendorDetail = () => {
                     >
                       {item.unit}
                     </div>
+                    <button
+                      onClick={() => handleInquireService(item)}
+                      className="px-3 py-1 text-xs font-semibold rounded-lg shadow-xs hover:opacity-90 active:scale-95 transition-all mt-1"
+                      style={{ backgroundColor: theme.colors.primary[600], color: 'white' }}
+                    >
+                      Request Quote
+                    </button>
                   </div>
                 </div>
               ))

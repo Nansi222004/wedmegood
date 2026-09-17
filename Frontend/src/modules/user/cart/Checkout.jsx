@@ -271,6 +271,27 @@ const Checkout = () => {
         className="px-4 py-4 pb-32"
       >
         <div className="w-full max-w-7xl mx-auto">
+          {!bookingId && (
+            <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+                  <Icon name="lightbulb" size="sm" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-amber-900">Official Vendor Quote Required for Payment</h3>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    To guarantee pricing accuracy and confirmed date reservation, secure payment requires an accepted quote from the vendor. Check 'My Bookings' to review and accept pending quotes.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/user/bookings')}
+                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold whitespace-nowrap shrink-0 shadow-sm transition-colors"
+              >
+                Go to My Bookings
+              </button>
+            </div>
+          )}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left Column - Forms (Mobile: Full width, Desktop: 2/3) */}
             <div className="lg:col-span-2 space-y-6 w-full">

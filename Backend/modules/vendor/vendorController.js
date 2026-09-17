@@ -1253,6 +1253,13 @@ exports.createQuote = async (req, res, next) => {
         const discount = Math.max(0, Number(discountAmount) || 0);
         const totalAmount = Math.max(0, subtotal + tax - discount);
 
+        if (totalAmount <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Quote total amount must be greater than zero'
+            });
+        }
+
         // Derive authoritative userId from lead
         const userId = lead.userId;
 

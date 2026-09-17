@@ -16,6 +16,8 @@ const rsvpLimiter = rateLimit({
   }
 });
 
+const bannerController = require('./banner.controller');
+
 // Public read invitation by slug
 router.get('/invites/:slug', inviteController.getPublicInvite);
 
@@ -24,5 +26,8 @@ router.post('/invites/:slug/rsvp', rsvpLimiter, inviteController.submitPublicRSV
 
 // Public track share link action
 router.post('/invites/:slug/share', inviteController.trackShare);
+
+// Public active banners for home and discover pages
+router.get('/banners', bannerController.getPublicBanners);
 
 module.exports = router;
