@@ -121,13 +121,20 @@ exports.createLead = async (req, res, next) => {
         }
 
         // Create Lead
+        const resolvedCustomerName = (req.body.customerName && req.body.customerName !== 'Customer' && req.body.customerName !== 'Valued Customer')
+            ? req.body.customerName
+            : (req.user?.name || req.body.customerName || 'Customer');
+
+        const resolvedLocation = eventLocation || req.user?.city || 'Indore';
+        const resolvedPhone = phone || req.user?.phone || 'Not Provided';
+
         const lead = await Lead.create({
             vendorId: assignedVendorId,
             userId: req.user._id,
-            customerName: req.user.name || req.body.customerName || 'Customer',
-            phone: phone || req.user.phone || 'Not Provided',
+            customerName: resolvedCustomerName,
+            phone: resolvedPhone,
             eventDate: new Date(eventDate),
-            eventLocation: eventLocation || 'Indore',
+            eventLocation: resolvedLocation,
             category: category || 'General',
             guestCount: Number(guestCount) || 0,
             budget: Number(budget) || 0,

@@ -226,14 +226,15 @@ export const vendorApi = {
         return response.json();
     },
 
-    updateLeadStatus: async (id, status, token) => {
+    updateLeadStatus: async (id, payload, token) => {
+        const bodyData = typeof payload === 'object' ? payload : { status: payload };
         const response = await fetch(`${BASE_URL}/leads/${id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ status })
+            body: JSON.stringify(bodyData)
         });
         return response.json();
     },

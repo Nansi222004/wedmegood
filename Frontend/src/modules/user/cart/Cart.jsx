@@ -63,10 +63,12 @@ const Cart = () => {
       const res = await userApi.createLead({
         vendorId: quoteModalVendor.id,
         category: quoteModalVendor.category,
+        customerName: user?.name,
         eventDate: quoteForm.eventDate,
-        eventLocation: quoteModalVendor.location || 'Indore',
+        eventLocation: user?.city || quoteModalVendor.location || 'Indore',
         guestCount: parseInt(quoteForm.guestCount) || 150,
-        phone: quoteForm.phone,
+        phone: quoteForm.phone || user?.phone,
+        budget: quoteModalVendor.price || 0,
         message: quoteForm.requirements || `Inquiry for ${quoteModalVendor.name}`,
         requirements: quoteForm.requirements
       });

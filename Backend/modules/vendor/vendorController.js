@@ -501,6 +501,28 @@ const sanitizeLeadForVendor = (leadDoc) => {
     if (!isPermitted && lead.phone) {
         lead.phone = maskCustomerPhone(lead.phone);
     }
+
+    // Enrich with actual populated customer profile data (respecting privacy: no password, tokens, etc.)
+    if (lead.userId && typeof lead.userId === 'object') {
+        const userObj = lead.userId;
+        lead.customerProfile = {
+            id: userObj._id,
+            name: userObj.name || lead.customerName,
+            profileImage: userObj.profileImage || null,
+            city: userObj.city || null,
+            email: isPermitted ? userObj.email : undefined,
+            weddingDate: userObj.weddingDate || null
+        };
+        // Ensure top-level customerName and profileImage match actual profile if generic
+        if (!lead.customerName || lead.customerName === 'Customer' || lead.customerName === 'Valued Customer') {
+            lead.customerName = userObj.name || lead.customerName;
+        }
+        lead.customerImage = userObj.profileImage || null;
+        if (!lead.eventLocation && userObj.city) {
+            lead.eventLocation = userObj.city;
+        }
+    }
+
     return lead;
 };
 
@@ -509,7 +531,9 @@ const sanitizeLeadForVendor = (leadDoc) => {
 // @access  Private
 exports.getLeads = async (req, res, next) => {
     try {
-        const leads = await Lead.find({ vendorId: req.vendor.id }).sort('-createdAt');
+        const leads = await Lead.find({ vendorId: req.vendor.id })
+            .populate('userId', 'name email phone city profileImage weddingDate')
+            .sort('-createdAt');
 
         res.status(200).json({
             success: true,
@@ -525,7 +549,8 @@ exports.getLeads = async (req, res, next) => {
 // @access  Private
 exports.getLeadById = async (req, res, next) => {
     try {
-        const lead = await Lead.findOne({ _id: req.params.id, vendorId: req.vendor.id });
+        const lead = await Lead.findOne({ _id: req.params.id, vendorId: req.vendor.id })
+            .populate('userId', 'name email phone city profileImage weddingDate');
 
         if (!lead) {
             return res.status(404).json({
@@ -543,13 +568,13 @@ exports.getLeadById = async (req, res, next) => {
     }
 };
 
-// @desc    Update lead status
+// @desc    Update lead status, importance flag, or notes
 // @route   PUT /api/vendor/leads/:id
 // @access  Private
 exports.updateLeadStatus = async (req, res, next) => {
     try {
-        const { status } = req.body;
-        if (!status) {
+        const { status, isImportant, notes } = req.body;
+        if (!status && isImportant === undefined && notes === undefined) {
             return res.status(400).json({
                 success: false,
                 message: 'Status is required'
@@ -563,8 +588,8 @@ exports.updateLeadStatus = async (req, res, next) => {
             });
         }
 
-        const allowedVendorStatuses = ['Contacted', 'Quote Sent', 'Rejected'];
-        if (!allowedVendorStatuses.includes(status)) {
+        const allowedVendorStatuses = ['Contacted', 'Quote Sent', 'Rejected', 'New'];
+        if (status && !allowedVendorStatuses.includes(status)) {
             return res.status(400).json({
                 success: false,
                 message: `Invalid lead status. Allowed values: ${allowedVendorStatuses.join(', ')}`
@@ -579,15 +604,25 @@ exports.updateLeadStatus = async (req, res, next) => {
             });
         }
 
-        if (existingLead.status === 'Booked') {
+        if (existingLead.status === 'Booked' && status && status !== 'Booked') {
             return res.status(400).json({
                 success: false,
                 message: 'Cannot modify status of an already booked lead'
             });
         }
 
-        existingLead.status = status;
+        if (status) {
+            existingLead.status = status;
+        }
+        if (isImportant !== undefined) {
+            existingLead.isImportant = Boolean(isImportant);
+        }
+        if (notes !== undefined) {
+            existingLead.notes = String(notes).trim();
+        }
+
         await existingLead.save();
+        await existingLead.populate('userId', 'name email phone city profileImage weddingDate');
 
         res.status(200).json({
             success: true,

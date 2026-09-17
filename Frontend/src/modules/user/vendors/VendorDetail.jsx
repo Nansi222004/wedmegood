@@ -150,25 +150,38 @@ const VendorDetail = () => {
     };
   }, [isRequestModalOpen, isReportModalOpen]);
 
-  // Pre-fill form from localStorage
+  // Pre-fill form from authenticated user profile and localStorage
   useEffect(() => {
+    let userName = user?.name || '';
+    let userEmail = user?.email || '';
+    let userPhone = user?.phone || '';
+    let userDate = user?.weddingDate ? new Date(user.weddingDate).toISOString().split('T')[0] : '';
+    let userCity = user?.city || '';
+
     const savedDetails = localStorage.getItem('eventDetails');
     if (savedDetails) {
       try {
         const parsed = JSON.parse(savedDetails);
-        setFormData(prev => ({
-          ...prev,
-          name: parsed.fullName || parsed.name || '',
-          email: parsed.email || '',
-          phone: parsed.phone || '',
-          date: parsed.weddingDate || '',
-          message: `Hey there! We are interested in potentially hosting our wedding at your ${vendor?.category || 'venue'}. Could you send through information on your packages? Thanks!`
-        }));
+        userName = userName || parsed.fullName || parsed.name || '';
+        userEmail = userEmail || parsed.email || '';
+        userPhone = userPhone || parsed.phone || '';
+        userDate = userDate || parsed.weddingDate || '';
+        userCity = userCity || parsed.city || '';
       } catch (e) {
         console.error('Error parsing event details', e);
       }
     }
-  }, [vendor]);
+
+    setFormData(prev => ({
+      ...prev,
+      name: userName || prev.name,
+      email: userEmail || prev.email,
+      phone: userPhone || prev.phone,
+      date: userDate || prev.date,
+      location: userCity || prev.location || '',
+      message: prev.message || `Hey there! We are interested in potentially hosting our wedding with ${vendor?.businessName || vendor?.name || 'your services'}. Could you send through information on your packages? Thanks!`
+    }));
+  }, [vendor, user]);
 
   // Dynamic data for vendor details derived strictly from MongoDB document (NO MOCKS)
   const vendorImages = (vendor?.portfolio && vendor.portfolio.length > 0)
@@ -406,12 +419,12 @@ const VendorDetail = () => {
       const guestNum = parseInt(formData.guestCount) || 150;
       const res = await userApi.createLead({
         vendorId: vendor?._id || vendorId,
-        customerName: formData.name || user?.name || 'Valued Customer',
+        customerName: formData.name || user?.name || 'Customer',
         phone: formData.phone || user?.phone,
         eventDate: formData.date,
-        eventLocation: vendor?.city || 'Indore',
+        eventLocation: formData.location || user?.city || vendor?.city || 'Indore',
         guestCount: guestNum,
-        budget: 0,
+        budget: Number(formData.budget) || 0,
         requirements: formData.guestCount ? `Approx ${formData.guestCount} guests` : '',
         message: formData.message || `Inquiry for ${vendor?.businessName || 'wedding services'}`,
         referencePhotos: referencePhotos

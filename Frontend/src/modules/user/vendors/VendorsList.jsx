@@ -26,7 +26,14 @@ const VendorsList = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sortBy, setSortBy] = useState('rating');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('search') || location.state?.search || '';
+  });
+  const [debouncedSearch, setDebouncedSearch] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('search') || location.state?.search || '';
+  });
   const [showFilters, setShowFilters] = useState(false);
   const [showMap, setShowMap] = useState(false);
   const [subCategories, setSubCategories] = useState([]);
@@ -46,6 +53,14 @@ const VendorsList = () => {
     experience: 'all',
     eventDate: ''
   });
+
+  // Debounce search query changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Fetch subcategories for current category from database
   useEffect(() => {
@@ -97,7 +112,7 @@ const VendorsList = () => {
         category: category && category !== 'all' ? category : undefined,
         subCategory: selectedSubCategory !== 'all' ? selectedSubCategory : undefined,
         city: filters.location !== 'all' ? filters.location : undefined,
-        search: searchQuery.trim() || undefined,
+        search: debouncedSearch.trim() || undefined,
         sort: sortBy,
         minPrice,
         maxPrice,
@@ -128,10 +143,11 @@ const VendorsList = () => {
 
   useEffect(() => {
     fetchVendors();
-  }, [category, selectedSubCategory, sortBy, filters.location, filters.priceRange, filters.rating, filters.experience, filters.availability, filters.eventDate, currentPage]);
+  }, [category, selectedSubCategory, sortBy, filters.location, filters.priceRange, filters.rating, filters.experience, filters.availability, filters.eventDate, currentPage, debouncedSearch]);
 
   const handleSearchSubmit = (e) => {
     if (e) e.preventDefault();
+    setDebouncedSearch(searchQuery);
     setCurrentPage(1);
     fetchVendors();
   };
@@ -223,20 +239,46 @@ const VendorsList = () => {
 
         {/* Search Bar (Pill Style) */}
         <form onSubmit={handleSearchSubmit} className="relative group">
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
-            <Icon name="search" size="sm" className="text-[#3D2B2B]/40" />
-          </div>
+          <button
+            type="submit"
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-[#3D2B2B]/60 hover:text-[#BE185D] transition-colors cursor-pointer"
+            title="Submit search"
+            aria-label="Submit search"
+          >
+            <Icon name="search" size="sm" />
+          </button>
           <input
             type="text"
             placeholder={`Search ${categoryTitle.toLowerCase()} by name, service, or location...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-3.5 rounded-full border-none text-sm shadow-sm transition-all focus:ring-2 focus:ring-[#3D2B2B]/20"
+            className="w-full pl-12 pr-28 py-3.5 rounded-full border-none text-sm shadow-sm transition-all focus:ring-2 focus:ring-[#3D2B2B]/20"
             style={{
               backgroundColor: 'white',
               color: '#3D2B2B'
             }}
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setDebouncedSearch('');
+                setCurrentPage(1);
+              }}
+              className="absolute right-20 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs px-2 py-1 cursor-pointer"
+              title="Clear search"
+              aria-label="Clear search"
+            >
+              ✕
+            </button>
+          )}
+          <button
+            type="submit"
+            className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 rounded-full bg-[#3D2B2B] text-white text-xs font-bold hover:bg-[#251a1a] active:scale-95 transition-all shadow-xs cursor-pointer"
+          >
+            Search
+          </button>
         </form>
 
         {/* Dynamic Subcategories Pill Bar */}
@@ -620,15 +662,32 @@ const VendorsList = () => {
                   className="text-sm sm:text-base mb-6 px-4"
                   style={{ color: theme.semantic.text.secondary }}
                 >
-                  We couldn't find any {categoryTitle.toLowerCase()} in your area. Try browsing other categories.
+                  {debouncedSearch
+                    ? `No matching vendors found for "${debouncedSearch}" in ${categoryTitle}. Try adjusting your search term or filters.`
+                    : `We couldn't find any ${categoryTitle.toLowerCase()} in your area. Try browsing other categories.`}
                 </p>
-                <Button
-                  onClick={() => navigate('/user/vendors')}
-                  variant="primary"
-                  className="px-6 py-2"
-                >
-                  Browse All Categories
-                </Button>
+                <div className="flex items-center justify-center gap-3">
+                  {debouncedSearch && (
+                    <Button
+                      onClick={() => {
+                        setSearchQuery('');
+                        setDebouncedSearch('');
+                        setCurrentPage(1);
+                      }}
+                      variant="secondary"
+                      className="px-4 py-2 text-xs"
+                    >
+                      Clear Search
+                    </Button>
+                  )}
+                  <Button
+                    onClick={() => navigate('/user/vendors')}
+                    variant="primary"
+                    className="px-6 py-2 text-xs"
+                  >
+                    Browse All Categories
+                  </Button>
+                </div>
               </div>
             )}
           </>

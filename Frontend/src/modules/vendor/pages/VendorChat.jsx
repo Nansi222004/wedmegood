@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import Icon from '../../../components/ui/Icon';
 import { vendorApi } from '../vendorApi';
 import { chatApi } from '../../../services/chatApi';
@@ -6,6 +7,7 @@ import { socketService } from '../../../services/socket';
 import { useToast } from '../../../components/ui/Toast';
 
 const VendorChat = () => {
+  const location = useLocation();
   const { showToast, ToastComponent } = useToast();
   const [conversations, setConversations] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
@@ -42,13 +44,36 @@ const VendorChat = () => {
       const res = await chatApi.getVendorConversations();
       if (res.success && Array.isArray(res.data)) {
         setConversations(res.data);
+
+        // Check if navigated with a specific conversation, lead, or user
+        const targetConvId = location.state?.conversationId;
+        const targetLeadId = location.state?.leadId;
+        const targetUserId = location.state?.userId;
+
+        if (targetConvId) {
+          const match = res.data.find(c => c._id?.toString() === targetConvId.toString());
+          if (match) setActiveChat(match);
+        } else if (targetLeadId) {
+          const match = res.data.find(c => 
+            (c.leadId?._id?.toString() === targetLeadId.toString()) ||
+            (c.leadId?.toString() === targetLeadId.toString()) ||
+            (targetUserId && (c.userId?._id?.toString() === targetUserId.toString() || c.userId?.toString() === targetUserId.toString()))
+          );
+          if (match) setActiveChat(match);
+        } else if (targetUserId) {
+          const match = res.data.find(c => 
+            (c.userId?._id?.toString() === targetUserId.toString()) ||
+            (c.userId?.toString() === targetUserId.toString())
+          );
+          if (match) setActiveChat(match);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch conversations:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [location.state]);
 
   // 2. Fetch Messages for Active Chat
   const fetchMessages = useCallback(async (conversationId) => {
