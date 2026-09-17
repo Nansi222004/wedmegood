@@ -85,6 +85,7 @@ const verifyConversationMembership = async (req, res, next) => {
 // -----------------------------------------------------------------
 const userRouter = express.Router();
 userRouter.use(protect);
+userRouter.post('/', chatController.createConversation);
 userRouter.get('/', chatController.getUserConversations);
 userRouter.get('/:id', chatController.getUserConversationById);
 userRouter.get('/:id/messages', chatController.getConversationMessages);

@@ -186,6 +186,42 @@ function initSocketService(io) {
         socket.on('leave:conversation', handleLeave);
 
         // ----------------------------------------------------
+        // EVENT: family_group:join & family_group:leave
+        // ----------------------------------------------------
+        const handleFamilyGroupJoin = async (data, callback) => {
+            try {
+                const groupId = typeof data === 'string' ? data : data?.groupId;
+                if (!groupId) {
+                    if (callback) callback({ success: false, error: 'groupId required' });
+                    return;
+                }
+                const FamilyGroup = require('../user/FamilyGroup');
+                const group = await FamilyGroup.findById(groupId);
+                if (!group) throw new Error('Group not found');
+                
+                const isMember = group.userId.equals(user.id) || group.members.some(m => m.userId && m.userId.equals(user.id) && m.status === 'accepted');
+                if (!isMember) throw new Error('Not a member of this group');
+
+                const roomName = `family_group_${groupId}`;
+                socket.join(roomName);
+
+                if (callback) callback({ success: true, groupId });
+            } catch (err) {
+                if (callback) callback({ success: false, error: err.message });
+            }
+        };
+        socket.on('family_group:join', handleFamilyGroupJoin);
+
+        const handleFamilyGroupLeave = (data, callback) => {
+            const groupId = typeof data === 'string' ? data : data?.groupId;
+            if (groupId) {
+                socket.leave(`family_group_${groupId}`);
+            }
+            if (callback) callback({ success: true });
+        };
+        socket.on('family_group:leave', handleFamilyGroupLeave);
+
+        // ----------------------------------------------------
         // EVENT: message:send
         // ----------------------------------------------------
         socket.on('message:send', async (data, callback) => {

@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
-import { familyContacts, groupMessages } from '../../../data/contacts';
+import userApi from '../../../services/userApi';
+import { socketService } from '../../../services/socket';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const GroupChat = () => {
   const { theme } = useTheme();
@@ -10,6 +12,9 @@ const GroupChat = () => {
   const location = useLocation();
   const { groupId } = useParams();
   const messagesEndRef = useRef(null);
+  
+  const { user } = useAuth();
+  const token = localStorage.getItem('token');
   
   const [group, setGroup] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -26,9 +31,8 @@ const GroupChat = () => {
 
   // Check if current user is admin
   const isCurrentUserAdmin = () => {
-    const currentUserId = 1; // Current user ID
-    const currentUserContact = familyContacts.find(c => c.id === currentUserId);
-    return currentUserContact?.role === 'admin' || group?.createdBy === currentUserId;
+    const currentUserId = user?.id || user?._id;
+    return group?.userId === currentUserId || group?.userId?._id === currentUserId;
   };
 
   // Detect keyboard open/close on mobile
@@ -67,124 +71,86 @@ const GroupChat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Initialize group and messages
+  // Connect Socket and Fetch Messages
   useEffect(() => {
-    if (location.state?.group) {
-      setGroup(location.state.group);
-      
-      // If it's a new group, add welcome message
-      if (location.state.isNewGroup) {
-        const welcomeMessage = {
-          id: Date.now(),
-          senderId: 'system',
-          senderName: 'System',
-          senderAvatar: '',
-          message: `🎉 Welcome to ${location.state.group.name}! Start planning your dream wedding together.`,
-          timestamp: new Date().toISOString(),
-          type: 'system'
-        };
-        setMessages([welcomeMessage]);
-      } else {
-        // Load existing messages
-        setMessages(groupMessages[groupId] || []);
-      }
-    } else {
-      // Load group from localStorage or API
-      const savedGroups = JSON.parse(localStorage.getItem('familyGroups') || '[]');
-      const foundGroup = savedGroups.find(g => g.id === parseInt(groupId));
-      
-      if (foundGroup) {
-        setGroup(foundGroup);
-        setMessages(groupMessages[groupId] || []);
-      } else {
-        navigate('/user/family/contacts');
-      }
+    if (token) {
+      socketService.connect(token);
     }
 
-    // Simulate online members
-    const memberIds = location.state?.group?.members || [];
-    const online = memberIds.filter(() => Math.random() > 0.3);
-    setOnlineMembers(online);
+    if (location.state?.group) {
+      setGroup(location.state.group);
+    } else {
+      userApi.getFamilyGroups().then(res => {
+        if (res.success) {
+          const groupsData = Array.isArray(res.data) ? res.data : (res.data?.groups || []);
+          const foundGroup = groupsData.find(g => g._id === groupId || g.id === groupId);
+          if (foundGroup) {
+            setGroup({ ...foundGroup, id: foundGroup._id });
+          } else {
+            navigate('/user/family/groups');
+          }
+        }
+      });
+    }
 
-    // Set available contacts for adding members (exclude current members)
-    const currentMembers = location.state?.group?.members || [];
-    const available = familyContacts.filter(contact => !currentMembers.includes(contact.id));
-    setAvailableContacts(available);
-  }, [groupId, location.state, navigate]);
+    // Load existing messages
+    if (groupId) {
+      userApi.getFamilyGroupMessages(groupId).then(res => {
+        if (res.success && res.data) {
+          setMessages(res.data);
+        }
+      }).catch(err => console.error('Error fetching messages', err));
+      
+      socketService.joinFamilyGroup(groupId);
 
-  const handleSendMessage = () => {
-    if (!newMessage.trim()) return;
+      const unsubMsg = socketService.onFamilyGroupMessage(({ message }) => {
+        if (message.groupId === groupId) {
+          setMessages(prev => {
+            // Prevent duplicate messages if optimistic update was fast
+            if (prev.some(m => m._id === message._id || (message.clientMessageId && m.clientMessageId === message.clientMessageId))) {
+              return prev.map(m => (m._id === message._id || (message.clientMessageId && m.clientMessageId === message.clientMessageId)) ? message : m);
+            }
+            return [...prev, message];
+          });
+        }
+      });
+      
+      return () => {
+        socketService.leaveFamilyGroup(groupId);
+        if (unsubMsg) unsubMsg();
+      };
+    }
+  }, [groupId, location.state, navigate, token]);
 
-    const message = {
-      id: Date.now(),
-      senderId: 1, // Current user
-      senderName: 'Priya Sharma',
-      senderAvatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=50&h=50&fit=crop&crop=face',
-      message: newMessage.trim(),
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !groupId) return;
+    const messageText = newMessage.trim();
+    setNewMessage('');
+    setShowSuggestions(false);
+
+    const clientMsgId = 'client_' + Date.now();
+    const optimisticMessage = {
+      _id: clientMsgId,
+      clientMessageId: clientMsgId,
+      senderId: user?._id || user?.id,
+      senderName: user?.name || 'You',
+      senderAvatar: user?.profileImage || '',
+      message: messageText,
       timestamp: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
       type: 'text'
     };
+    setMessages(prev => [...prev, optimisticMessage]);
 
-    setMessages(prev => [...prev, message]);
-    setNewMessage('');
-    setShowSuggestions(false); // Hide suggestions after first message
-
-    // Simulate typing indicator and response
-    setIsTyping(true);
-    setTimeout(() => {
-      const responses = [
-        "That sounds great! 👍",
-        "I agree with that plan!",
-        "Perfect timing! ✨",
-        "Let me check and get back to you.",
-        "Wonderful idea! 💕",
-        "Count me in! 🎉",
-        "I'm so excited for this! 😍",
-        "Great suggestion! Let's do it.",
-        "That works perfectly for me!",
-        "Love this idea! 💖"
-      ];
-      
-      const randomMember = group?.members?.find(id => id !== 1);
-      const memberData = familyContacts.find(c => c.id === randomMember);
-      
-      if (memberData && Math.random() > 0.3) { // 70% chance of response
-        const responseMessage = {
-          id: Date.now() + 1,
-          senderId: memberData.id,
-          senderName: memberData.name,
-          senderAvatar: memberData.avatar,
-          message: responses[Math.floor(Math.random() * responses.length)],
-          timestamp: new Date().toISOString(),
-          type: 'text'
-        };
-        
-        setMessages(prev => [...prev, responseMessage]);
-        
-        // Sometimes add a second response from another member
-        if (Math.random() > 0.7 && group?.members?.length > 2) {
-          setTimeout(() => {
-            const anotherMember = group.members.find(id => id !== 1 && id !== memberData.id);
-            const anotherMemberData = familyContacts.find(c => c.id === anotherMember);
-            
-            if (anotherMemberData) {
-              const secondResponse = {
-                id: Date.now() + 2,
-                senderId: anotherMemberData.id,
-                senderName: anotherMemberData.name,
-                senderAvatar: anotherMemberData.avatar,
-                message: responses[Math.floor(Math.random() * responses.length)],
-                timestamp: new Date().toISOString(),
-                type: 'text'
-              };
-              
-              setMessages(prev => [...prev, secondResponse]);
-            }
-          }, 1000 + Math.random() * 2000);
-        }
-      }
-      setIsTyping(false);
-    }, 1500 + Math.random() * 2000);
+    try {
+      await userApi.sendFamilyGroupMessage(groupId, {
+        message: messageText,
+        type: 'text',
+        clientMessageId: clientMsgId
+      });
+    } catch (err) {
+      console.error('Failed to send message', err);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -218,107 +184,25 @@ const GroupChat = () => {
 
   // Delete group function
   const handleDeleteGroup = () => {
-    const savedGroups = JSON.parse(localStorage.getItem('familyGroups') || '[]');
-    const updatedGroups = savedGroups.filter(g => g.id !== parseInt(groupId));
-    localStorage.setItem('familyGroups', JSON.stringify(updatedGroups));
-    
-    // Show success message and navigate back
+    alert('Deleting group is now managed via backend API.');
     setShowDeleteConfirm(false);
-    navigate('/user/family/groups', { 
-      state: { message: 'Group deleted successfully' }
-    });
   };
 
   // Add members function
   const handleAddMembers = () => {
-    if (selectedNewMembers.length === 0) return;
-
-    const updatedGroup = {
-      ...group,
-      members: [...group.members, ...selectedNewMembers]
-    };
-
-    // Update localStorage
-    const savedGroups = JSON.parse(localStorage.getItem('familyGroups') || '[]');
-    const updatedGroups = savedGroups.map(g => 
-      g.id === parseInt(groupId) ? updatedGroup : g
-    );
-    localStorage.setItem('familyGroups', JSON.stringify(updatedGroups));
-
-    // Update local state
-    setGroup(updatedGroup);
-    
-    // Add system message about new members
-    const newMemberNames = selectedNewMembers
-      .map(id => familyContacts.find(c => c.id === id)?.name)
-      .filter(Boolean)
-      .join(', ');
-    
-    const systemMessage = {
-      id: Date.now(),
-      senderId: 'system',
-      senderName: 'System',
-      senderAvatar: '',
-      message: `${newMemberNames} ${selectedNewMembers.length === 1 ? 'has' : 'have'} been added to the group! 🎉`,
-      timestamp: new Date().toISOString(),
-      type: 'system'
-    };
-    
-    setMessages(prev => [...prev, systemMessage]);
-
-    // Update available contacts
-    const newAvailable = availableContacts.filter(contact => !selectedNewMembers.includes(contact.id));
-    setAvailableContacts(newAvailable);
-    
-    // Reset and close modal
-    setSelectedNewMembers([]);
+    alert('Adding members is now managed via backend API.');
     setShowAddMembers(false);
   };
 
   // Remove member function (admin only)
   const handleRemoveMember = (memberId) => {
-    if (!isCurrentUserAdmin() || memberId === 1) return; // Can't remove self or if not admin
-
-    const updatedGroup = {
-      ...group,
-      members: group.members.filter(id => id !== memberId)
-    };
-
-    // Update localStorage
-    const savedGroups = JSON.parse(localStorage.getItem('familyGroups') || '[]');
-    const updatedGroups = savedGroups.map(g => 
-      g.id === parseInt(groupId) ? updatedGroup : g
-    );
-    localStorage.setItem('familyGroups', JSON.stringify(updatedGroups));
-
-    // Update local state
-    setGroup(updatedGroup);
-    
-    // Add system message about member removal
-    const removedMember = familyContacts.find(c => c.id === memberId);
-    if (removedMember) {
-      const systemMessage = {
-        id: Date.now(),
-        senderId: 'system',
-        senderName: 'System',
-        senderAvatar: '',
-        message: `${removedMember.name} has been removed from the group.`,
-        timestamp: new Date().toISOString(),
-        type: 'system'
-      };
-      
-      setMessages(prev => [...prev, systemMessage]);
-    }
-
-    // Update available contacts
-    const removedContact = familyContacts.find(c => c.id === memberId);
-    if (removedContact) {
-      setAvailableContacts(prev => [...prev, removedContact]);
-    }
+    alert('Removing members is now managed via backend API.');
   };
 
   const groupedMessages = messages.reduce((groups, message) => {
-    const date = formatDate(message.timestamp);
+    const timeToUse = message.createdAt || message.timestamp;
+    if (!timeToUse) return groups;
+    const date = formatDate(timeToUse);
     if (!groups[date]) {
       groups[date] = [];
     }
@@ -432,7 +316,8 @@ const GroupChat = () => {
             {/* Messages for this date */}
             <div className="space-y-4">
               {dayMessages.map((message) => {
-                const isCurrentUser = message.senderId === 1;
+                const currentUserId = user?.id || user?._id;
+                const isCurrentUser = message.senderId?.toString() === currentUserId?.toString();
                 const isSystem = message.type === 'system';
 
                 if (isSystem) {
@@ -454,18 +339,25 @@ const GroupChat = () => {
                 return (
                   <div key={message.id} className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[80%] ${isCurrentUser ? 'order-2' : 'order-1'}`}>
-                      {!isCurrentUser && (
-                        <div className="flex items-center mb-1">
+                      <div className={`flex items-center mb-1 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                        {!isCurrentUser && (
                           <img
-                            src={message.senderAvatar}
+                            src={message.senderAvatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=50&h=50&fit=crop&crop=face'}
                             alt={message.senderName}
-                            className="w-6 h-6 rounded-full mr-2"
+                            className="w-6 h-6 rounded-full mr-2 object-cover"
                           />
-                          <span className="text-xs font-medium" style={{ color: theme.semantic.text.secondary }}>
-                            {message.senderName}
-                          </span>
-                        </div>
-                      )}
+                        )}
+                        <span className="text-xs font-medium" style={{ color: theme.semantic.text.secondary }}>
+                          {message.senderName || (isCurrentUser ? 'You' : 'Member')}
+                        </span>
+                        {isCurrentUser && (
+                          <img
+                            src={message.senderAvatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=50&h=50&fit=crop&crop=face'}
+                            alt={message.senderName}
+                            className="w-6 h-6 rounded-full ml-2 object-cover"
+                          />
+                        )}
+                      </div>
                       
                       <div
                         className={`p-3 rounded-2xl ${
@@ -487,7 +379,7 @@ const GroupChat = () => {
                       
                       <div className={`text-xs mt-1 ${isCurrentUser ? 'text-right' : 'text-left'}`}>
                         <span style={{ color: theme.semantic.text.tertiary }}>
-                          {formatTime(message.timestamp)}
+                          {formatTime(message.createdAt || message.timestamp)}
                         </span>
                       </div>
                     </div>
@@ -672,31 +564,21 @@ const GroupChat = () => {
                 Members ({group.members?.length || 0})
               </h4>
               <div className="space-y-3">
-                {group.members?.map(memberId => {
-                  const member = familyContacts.find(c => c.id === memberId);
-                  if (!member) return null;
-                  
-                  return (
-                    <div key={memberId} className="flex items-center space-x-3">
+                {group.members?.map(member => (
+                    <div key={member.userId || member._id || Math.random()} className="flex items-center space-x-3">
                       <div className="relative">
                         <img
-                          src={member.avatar}
+                          src={member.avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=50&h=50&fit=crop&crop=face'}
                           alt={member.name}
                           className="w-10 h-10 rounded-full object-cover"
                         />
-                        {member.isOnline && (
-                          <div 
-                            className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white"
-                            style={{ backgroundColor: theme.colors.accent[500] }}
-                          />
-                        )}
                       </div>
                       <div className="flex-1">
                         <p className="font-medium text-sm" style={{ color: theme.semantic.text.primary }}>
                           {member.name}
                         </p>
                         <p className="text-xs" style={{ color: theme.semantic.text.secondary }}>
-                          {member.relation}
+                          {member.relation || 'Member'}
                         </p>
                       </div>
                       {member.role === 'admin' && (
@@ -710,18 +592,8 @@ const GroupChat = () => {
                           Admin
                         </div>
                       )}
-                      {isCurrentUserAdmin() && member.id !== 1 && member.role !== 'admin' && (
-                        <button
-                          onClick={() => handleRemoveMember(member.id)}
-                          className="p-1 rounded-full hover:bg-red-100 transition-colors"
-                          title="Remove member"
-                        >
-                          <Icon name="close" size="xs" style={{ color: '#dc2626' }} />
-                        </button>
-                      )}
                     </div>
-                  );
-                })}
+                  ))}
               </div>
             </div>
             

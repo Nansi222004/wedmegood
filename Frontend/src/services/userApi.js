@@ -477,6 +477,17 @@ export const userApi = {
     });
   },
 
+  getFamilyGroupMessages: async (groupId) => {
+    return request(`/user/family-groups/${groupId}/messages`, { method: 'GET' });
+  },
+
+  sendFamilyGroupMessage: async (groupId, data) => {
+    return request(`/user/family-groups/${groupId}/messages`, {
+      method: 'POST',
+      body: data
+    });
+  },
+
   // 9. E-Invites (Owner)
   getInvites: async () => {
     return request('/user/invites', { method: 'GET' });

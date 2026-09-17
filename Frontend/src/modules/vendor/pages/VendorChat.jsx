@@ -78,7 +78,7 @@ const VendorChat = () => {
   // 2. Fetch Messages for Active Chat
   const fetchMessages = useCallback(async (conversationId) => {
     try {
-      const res = await chatApi.getMessages(conversationId);
+      const res = await chatApi.getMessages(conversationId, {}, true);
       if (res.success) {
         setMessages(res.data || []);
       }
@@ -109,7 +109,7 @@ const VendorChat = () => {
     fetchMessages(activeChat._id);
     socketService.joinConversation(activeChat._id);
     socketService.markAsRead(activeChat._id);
-    chatApi.markAsRead(activeChat._id).catch(() => {});
+    chatApi.markAsRead(activeChat._id, true).catch(() => {});
 
     // Listen for incoming messages
     const unsubMsg = socketService.onMessage(({ message }) => {
@@ -152,25 +152,40 @@ const VendorChat = () => {
     });
 
     // Listen for typing events
-    const unsubTyping = socketService.onTyping(({ conversationId, isTyping, user }) => {
-      if (conversationId?.toString() === activeChat._id?.toString() && user?.role === 'User') {
-        setIsClientTyping(isTyping);
+    const unsubTypingStart = socketService.onTypingStart(({ conversationId, sender }) => {
+      if (conversationId?.toString() === activeChat._id?.toString() && sender?.role === 'User') {
+        setIsClientTyping(true);
+      }
+    });
+
+    const unsubTypingStop = socketService.onTypingStop(({ conversationId, sender }) => {
+      if (conversationId?.toString() === activeChat._id?.toString() && sender?.role === 'User') {
+        setIsClientTyping(false);
       }
     });
 
     // Listen for presence updates
-    const unsubPresence = socketService.onPresence(({ isOnline, role, id }) => {
+    const unsubOnline = socketService.onUserOnline(({ id, role }) => {
       const otherUserId = activeChat.userId?._id || activeChat.userId;
       if (role === 'User' && id?.toString() === otherUserId?.toString()) {
-        setIsClientOnline(isOnline);
+        setIsClientOnline(true);
+      }
+    });
+
+    const unsubOffline = socketService.onUserOffline(({ id, role }) => {
+      const otherUserId = activeChat.userId?._id || activeChat.userId;
+      if (role === 'User' && id?.toString() === otherUserId?.toString()) {
+        setIsClientOnline(false);
       }
     });
 
     return () => {
       unsubMsg();
       unsubRead();
-      unsubTyping();
-      unsubPresence();
+      unsubTypingStart();
+      unsubTypingStop();
+      unsubOnline();
+      unsubOffline();
       socketService.leaveConversation(activeChat._id);
     };
   }, [activeChat?._id, token, fetchMessages]);
@@ -205,12 +220,15 @@ const VendorChat = () => {
     const clientMsgId = 'client_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
 
     try {
-      const res = await chatApi.sendMessage({
-        conversationId: activeChat._id,
-        text: messageText,
-        type: 'text',
-        clientMessageId: clientMsgId
-      });
+      const res = await chatApi.sendMessage(
+        activeChat._id,
+        {
+          text: messageText,
+          type: 'text',
+          clientMessageId: clientMsgId
+        },
+        true
+      );
 
       if (res.success && res.data) {
         setMessages(prev => {
@@ -240,24 +258,27 @@ const VendorChat = () => {
 
     try {
       setUploading(true);
-      const uploadRes = await chatApi.uploadAttachment(activeChat._id, file);
+      const uploadRes = await chatApi.uploadAttachment(activeChat._id, file, '', true);
 
       if (uploadRes.success && uploadRes.data?.url) {
         const fileType = file.type.startsWith('image/') ? 'image' : 'document';
         const clientMsgId = 'client_att_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
 
-        const msgRes = await chatApi.sendMessage({
-          conversationId: activeChat._id,
-          text: file.name,
-          type: fileType,
-          clientMessageId: clientMsgId,
-          metadata: {
-            fileUrl: uploadRes.data.url,
-            fileName: file.name,
-            fileSize: file.size,
-            fileType: file.type
-          }
-        });
+        const msgRes = await chatApi.sendMessage(
+          activeChat._id,
+          {
+            text: file.name,
+            type: fileType,
+            clientMessageId: clientMsgId,
+            metadata: {
+              fileUrl: uploadRes.data.url,
+              fileName: file.name,
+              fileSize: file.size,
+              fileType: file.type
+            }
+          },
+          true
+        );
 
         if (msgRes.success && msgRes.data) {
           setMessages(prev => [...prev, msgRes.data]);
@@ -320,13 +341,14 @@ const VendorChat = () => {
 
     try {
       setSubmittingReport(true);
-      const reportedUserId = activeChat.userId?._id || activeChat.userId;
-      const res = await chatApi.reportChat({
-        conversationId: activeChat._id,
-        reportedUserId,
-        reason: reportReason,
-        description: reportDescription
-      });
+      const res = await chatApi.reportChat(
+        activeChat._id,
+        {
+          reason: reportReason,
+          description: reportDescription
+        },
+        true
+      );
 
       if (res.success) {
         setReportSuccess(true);

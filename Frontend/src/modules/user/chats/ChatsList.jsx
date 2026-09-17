@@ -14,7 +14,7 @@ const ChatsList = () => {
   const [loading, setLoading] = useState(true);
   const [onlineVendors, setOnlineVendors] = useState(new Set());
 
-  const token = localStorage.getItem('token');
+  const token = (() => { try { return JSON.parse(localStorage.getItem('user'))?.token || null; } catch { return null; } })();
 
   useEffect(() => {
     let isMounted = true;

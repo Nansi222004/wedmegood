@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const FamilyGroup = require('./FamilyGroup');
+const FamilyGroupMessage = require('./FamilyGroupMessage');
 const User = require('./user.model');
 const ChecklistTask = require('./ChecklistTask');
 const TimelineEvent = require('./TimelineEvent');
@@ -494,5 +495,76 @@ exports.deleteFamilyGroup = async (req, res) => {
       message: 'Failed to delete family group',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
+  }
+};
+
+// @desc    Get messages for a family group
+// @route   GET /api/user/family-groups/:id/messages
+// @access  Private (User)
+exports.getGroupMessages = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { id } = req.params;
+
+    // Check membership
+    const group = await FamilyGroup.findById(id);
+    if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
+    
+    const isMember = group.userId.equals(userId) || group.members.some(m => m.userId && m.userId.equals(userId) && m.status === 'accepted');
+    if (!isMember) return res.status(403).json({ success: false, message: 'Not a member of this group' });
+
+    const messages = await FamilyGroupMessage.find({ groupId: id })
+      .sort({ createdAt: 1 })
+      .limit(100);
+
+    res.status(200).json({ success: true, data: messages });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to retrieve messages' });
+  }
+};
+
+// @desc    Send a message to a family group
+// @route   POST /api/user/family-groups/:id/messages
+// @access  Private (User)
+exports.sendMessage = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { id } = req.params;
+    const { message, type, clientMessageId } = req.body;
+
+    // Check membership
+    const group = await FamilyGroup.findById(id);
+    if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
+    
+    const member = group.members.find(m => m.userId && m.userId.equals(userId) && m.status === 'accepted');
+    const isOwner = group.userId.equals(userId);
+    if (!member && !isOwner) return res.status(403).json({ success: false, message: 'Not a member of this group' });
+
+    let senderName = req.user.name || 'User';
+    let senderAvatar = req.user.profileImage || '';
+    if (member) {
+      senderName = member.name;
+      senderAvatar = member.avatar || senderAvatar;
+    }
+
+    const newMessage = await FamilyGroupMessage.create({
+      groupId: id,
+      senderId: userId,
+      senderName,
+      senderAvatar,
+      message,
+      type: type || 'text',
+      clientMessageId
+    });
+
+    // Broadcast via socket
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`family_group_${id}`).emit('family_group:message', { message: newMessage });
+    }
+
+    res.status(201).json({ success: true, data: newMessage });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to send message' });
   }
 };
