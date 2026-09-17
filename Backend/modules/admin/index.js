@@ -66,11 +66,11 @@ const {
     getAllQuotes,
     getAllComplaints,
     updateComplaintStatus,
-    getPlatformSettings,
-    updatePlatformSettings,
     getChatReports,
     getChatReportById,
-    updateChatReportStatus
+    updateChatReportStatus,
+    getPlatformSettings,
+    updatePlatformSettings
 } = require('./adminController');
 const router = express.Router();
 
@@ -145,7 +145,7 @@ router.put('/vendor-services/:id/status', updateVendorServiceStatus);
 // Admin Vendor Inventory Viewer
 router.get('/vendor-inventory', getAllVendorInventories);
 
-// Admin Review Moderation
+// Admin Review Management
 router.get('/reviews', getAllReviews);
 router.put('/reviews/:id/status', updateReviewStatus);
 router.delete('/reviews/:id', deleteReview);

@@ -466,7 +466,8 @@ const VendorServices = () => {
                                                                 <div 
                                                                     key={cat._id}
                                                                     className={`px-4 py-3 text-sm cursor-pointer hover:bg-[#F9F8FF] ${formData.categoryId === cat._id ? 'text-[#4F35C3] font-bold bg-[#F9F8FF]' : 'text-slate-700'}`}
-                                                                    onClick={(e) => {
+                                                                    onMouseDown={(e) => {
+                                                                        e.preventDefault();
                                                                         e.stopPropagation();
                                                                         setFormData({...formData, categoryId: cat._id});
                                                                         setIsCategoryDropdownOpen(false);
