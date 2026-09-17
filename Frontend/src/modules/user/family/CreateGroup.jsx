@@ -5,6 +5,8 @@ import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 import userApi from '../../../services/userApi';
+import { toast } from '../../../components/ui/Toast';
+import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
 
 const CreateGroup = () => {
   const { theme } = useTheme();
@@ -60,12 +62,12 @@ const CreateGroup = () => {
 
   const handleCreateGroup = async () => {
     if (!groupName.trim()) {
-      alert('Please enter a group name');
+      toast.warning('Please enter a group name');
       return;
     }
 
     if (selectedMembers.length < 1) {
-      alert('Please add at least 1 member to the group');
+      toast.warning('Please add at least 1 member to the group');
       return;
     }
 
@@ -121,7 +123,7 @@ const CreateGroup = () => {
       });
     } catch (err) {
       console.error('Error creating family group:', err);
-      alert('Failed to create family group: ' + (err.message || 'Server error'));
+      toast.error(getFriendlyErrorMessage(err, 'Failed to create family group'));
       setIsCreating(false);
     }
   };
@@ -133,7 +135,7 @@ const CreateGroup = () => {
   const handleAddMember = (e) => {
     e.preventDefault();
     if (!newMember.name.trim()) {
-      alert('Please enter member name');
+      toast.warning('Please enter member name');
       return;
     }
     const memberToAdd = {

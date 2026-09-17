@@ -6,6 +6,8 @@ import { useAuth } from '../../../contexts/AuthContext';
 import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
 import userApi from '../../../services/userApi';
+import { toast } from '../../../components/ui/Toast';
+import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
 
 const VendorDetail = () => {
   const { vendorId } = useParams();
@@ -67,7 +69,7 @@ const VendorDetail = () => {
 
   const handleToggleFavorite = async () => {
     if (!user) {
-      alert('Please log in first to save vendors to your favorites.');
+      toast.info('Please log in first to save vendors to your favorites.');
       navigate('/login', { state: { from: `/user/vendor/${vendorId}` } });
       return;
     }
@@ -76,14 +78,20 @@ const VendorDetail = () => {
     try {
       if (isFavorite) {
         const res = await userApi.removeFavorite(id);
-        if (res.success) setIsFavorite(false);
+        if (res.success) {
+          setIsFavorite(false);
+          toast.info('Vendor removed from favorites');
+        }
       } else {
         const res = await userApi.addFavorite(id);
-        if (res.success) setIsFavorite(true);
+        if (res.success) {
+          setIsFavorite(true);
+          toast.success('Vendor added to favorites');
+        }
       }
     } catch (err) {
       console.error('Favorite update error:', err);
-      alert('Could not update favorites: ' + (err.message || ''));
+      toast.error(getFriendlyErrorMessage(err, 'Could not update favorites.'));
     } finally {
       setIsFavoriteLoading(false);
     }
@@ -92,12 +100,12 @@ const VendorDetail = () => {
   const handleReportSubmit = async (e) => {
     if (e) e.preventDefault();
     if (!user) {
-      alert('Please log in first to report a vendor.');
+      toast.info('Please log in first to report a vendor.');
       navigate('/login', { state: { from: `/user/vendor/${vendorId}` } });
       return;
     }
     if (!reportDescription.trim()) {
-      alert('Please describe your issue with this vendor.');
+      toast.warning('Please describe your issue with this vendor.');
       return;
     }
     setReportStatus('sending');
@@ -110,6 +118,7 @@ const VendorDetail = () => {
       });
       if (res.success) {
         setReportStatus('success');
+        toast.success('Your complaint has been submitted.');
         setTimeout(() => {
           setIsReportModalOpen(false);
           setReportStatus('idle');
@@ -121,7 +130,7 @@ const VendorDetail = () => {
       }
     } catch (err) {
       console.error('Complaint submit error:', err);
-      alert('Could not submit complaint: ' + (err.message || 'Server error'));
+      toast.error(getFriendlyErrorMessage(err, 'Could not submit complaint.'));
       setReportStatus('idle');
     }
   };
@@ -301,7 +310,7 @@ const VendorDetail = () => {
   const handleCheckAvailability = async (targetDate) => {
     const checkDate = targetDate || selectedEventDate;
     if (!checkDate) {
-      alert('Please select an event date to check availability.');
+      toast.warning('Please select an event date to check availability.');
       return;
     }
     setIsCheckingAvailability(true);
@@ -403,13 +412,13 @@ const VendorDetail = () => {
 
   const handleSendRequest = async () => {
     if (!user) {
-      alert('Please log in first to submit an inquiry to this vendor');
+      toast.info('Please log in first to submit an inquiry to this vendor.');
       navigate('/login', { state: { from: `/user/vendor/${vendorId}` } });
       return;
     }
 
     if (!formData.phone || !formData.date) {
-      alert('Please enter your phone number and event date');
+      toast.warning('Please enter your phone number and event date.');
       return;
     }
 
@@ -432,6 +441,7 @@ const VendorDetail = () => {
 
       if (res.success) {
         setRequestStatus('success');
+        toast.success('Inquiry sent successfully to vendor!');
         setTimeout(() => {
           setIsRequestModalOpen(false);
           setRequestStatus('idle');
@@ -442,7 +452,7 @@ const VendorDetail = () => {
       }
     } catch (e) {
       console.error('Error submitting inquiry to backend:', e);
-      alert('Failed to send inquiry: ' + (e.message || 'Server error'));
+      toast.error(getFriendlyErrorMessage(e, 'Failed to send inquiry.'));
       setRequestStatus('idle');
     }
   };
@@ -1333,7 +1343,7 @@ const VendorDetail = () => {
                                 }
                               } catch (err) {
                                 console.error('Photo upload failed:', err);
-                                alert('Photo upload failed: ' + err.message);
+                                toast.error(getFriendlyErrorMessage(err, 'Photo upload failed.'));
                               } finally {
                                 setIsUploadingPhoto(false);
                               }
@@ -1496,7 +1506,7 @@ const VendorDetail = () => {
                             }
                           } catch (err) {
                             console.error('Evidence upload failed:', err);
-                            alert('Evidence upload failed: ' + err.message);
+                            toast.error(getFriendlyErrorMessage(err, 'Evidence upload failed.'));
                           } finally {
                             setIsUploadingEvidence(false);
                           }

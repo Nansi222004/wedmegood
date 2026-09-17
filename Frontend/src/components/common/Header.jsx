@@ -154,7 +154,7 @@ const Header = () => {
             )}
 
             {/* Cart Icon */}
-            {!isDashboard && <CartIcon />}
+            {!isDashboard && <CartIcon size="md" />}
 
             {/* Theme Switcher */}
             <select
@@ -302,7 +302,7 @@ const Header = () => {
             )}
 
             {/* Cart Icon for Mobile */}
-            {!isDashboard && <CartIcon />}
+            {!isDashboard && <CartIcon size="sm" />}
 
             <button
               onClick={() => setIsHamburgerMenuOpen(!isHamburgerMenuOpen)}

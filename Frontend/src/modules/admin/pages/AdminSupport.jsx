@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import Icon from '../../../components/ui/Icon';
+import { toast } from '../../../components/ui/Toast';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
+import getFriendlyErrorMessage from '../../../utils/errorHandler';
 import { adminApi } from '../services/adminApi';
 
 const AdminSupport = () => {
@@ -18,6 +21,8 @@ const AdminSupport = () => {
     const [isFaqModalOpen, setIsFaqModalOpen] = useState(false);
     const [editingFaq, setEditingFaq] = useState(null);
     const [faqForm, setFaqForm] = useState({ question: '', answer: '', category: 'General', order: 0 });
+    const [faqToDelete, setFaqToDelete] = useState(null);
+    const [isDeletingFaq, setIsDeletingFaq] = useState(false);
 
     const token = localStorage.getItem('adminToken');
 
@@ -66,24 +71,37 @@ const AdminSupport = () => {
                 setIsFaqModalOpen(false);
                 setEditingFaq(null);
                 setFaqForm({ question: '', answer: '', category: 'General', order: 0 });
-                alert(editingFaq ? 'FAQ updated successfully!' : 'New FAQ protocol initialized successfully!');
+                toast.success(editingFaq ? 'FAQ entry updated successfully!' : 'New FAQ entry created successfully!');
             } else {
-                alert(`Protocol Error: ${res.message || 'Operation failed'}`);
+                toast.error(getFriendlyErrorMessage(res, 'Failed to save FAQ entry.'));
             }
         } catch (err) {
             console.error('FAQ save error:', err);
-            alert('Transmission failure: Could not connect to support nexus.');
+            toast.error(getFriendlyErrorMessage(err, 'Unable to connect to support service. Please check your connection.'));
         }
     };
 
+    const handleDeleteFaq = (id) => {
+        setFaqToDelete(id);
+    };
 
-    const handleDeleteFaq = async (id) => {
-        if (!window.confirm('Delete this FAQ entry?')) return;
+    const confirmDeleteFaq = async () => {
+        if (!faqToDelete) return;
         try {
-            const res = await adminApi.deleteFAQ(id, token);
-            if (res.success) setFaqs(prev => prev.filter(f => f._id !== id));
+            setIsDeletingFaq(true);
+            const res = await adminApi.deleteFAQ(faqToDelete, token);
+            if (res.success) {
+                setFaqs(prev => prev.filter(f => f._id !== faqToDelete));
+                toast.success('FAQ entry deleted successfully.');
+                setFaqToDelete(null);
+            } else {
+                toast.error(getFriendlyErrorMessage(res, 'Failed to delete FAQ entry.'));
+            }
         } catch (err) {
             console.error('FAQ delete error:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Unable to delete FAQ entry.'));
+        } finally {
+            setIsDeletingFaq(false);
         }
     };
 
@@ -92,9 +110,14 @@ const AdminSupport = () => {
         e.preventDefault();
         try {
             const res = await adminApi.updateSupportConfig(config, token);
-            if (res.success) alert('Support configuration updated successfully.');
+            if (res.success) {
+                toast.success('Support configuration updated successfully.');
+            } else {
+                toast.error(getFriendlyErrorMessage(res, 'Failed to update configuration.'));
+            }
         } catch (err) {
             console.error('Config save error:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Unable to save support configuration.'));
         }
     };
 
@@ -228,6 +251,17 @@ const AdminSupport = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmModal
+                isOpen={!!faqToDelete}
+                title="Delete FAQ Entry"
+                message="Are you sure you want to delete this FAQ entry? This action cannot be undone."
+                confirmText="Delete Entry"
+                isDanger={true}
+                isLoading={isDeletingFaq}
+                onConfirm={confirmDeleteFaq}
+                onCancel={() => setFaqToDelete(null)}
+            />
         </div>
     );
 };

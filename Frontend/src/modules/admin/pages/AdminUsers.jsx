@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import Icon from '../../../components/ui/Icon';
+import { toast } from '../../../components/ui/Toast';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
+import getFriendlyErrorMessage from '../../../utils/errorHandler';
 import { adminApi } from '../services/adminApi';
 
 const AdminUsers = () => {
@@ -9,6 +12,7 @@ const AdminUsers = () => {
     const [statusFilter, setStatusFilter] = useState('');
     const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
     const [selectedUser, setSelectedUser] = useState(null);
+    const [userToToggle, setUserToToggle] = useState(null);
     const [loadingDetails, setLoadingDetails] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
 
@@ -28,10 +32,11 @@ const AdminUsers = () => {
                     setPagination(res.pagination);
                 }
             } else {
-                alert(res.message || 'Failed to fetch users');
+                toast.error(getFriendlyErrorMessage(res, 'Failed to fetch users.'));
             }
         } catch (err) {
             console.error('Failed to fetch users:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Unable to load users.'));
         } finally {
             setLoading(false);
         }
@@ -44,24 +49,27 @@ const AdminUsers = () => {
         return () => clearTimeout(timeout);
     }, [searchQuery, statusFilter]);
 
-    const handleToggleStatus = async (user) => {
-        const willBlock = !user.isBlocked;
-        const confirmMsg = willBlock 
-            ? `Block client ${user.name || user.email}? They will no longer be able to login or create leads.`
-            : `Unblock client ${user.name || user.email}?`;
-        if (!window.confirm(confirmMsg)) return;
+    const handleToggleStatus = (user) => {
+        setUserToToggle(user);
+    };
+
+    const confirmToggleStatus = async () => {
+        if (!userToToggle) return;
+        const willBlock = !userToToggle.isBlocked;
 
         try {
             setActionLoading(true);
-            const res = await adminApi.updateUserStatus(user._id, { isBlocked: willBlock, isActive: !willBlock }, token);
+            const res = await adminApi.updateUserStatus(userToToggle._id, { isBlocked: willBlock, isActive: !willBlock }, token);
             if (res.success) {
+                toast.success(`Client ${willBlock ? 'blocked' : 'unblocked'} successfully.`);
                 await fetchUsers(pagination.page);
+                setUserToToggle(null);
             } else {
-                alert(res.message || 'Failed to update user status');
+                toast.error(getFriendlyErrorMessage(res, 'Failed to update user status.'));
             }
         } catch (err) {
             console.error('Error updating status:', err);
-            alert('A network or server error occurred');
+            toast.error(getFriendlyErrorMessage(err, 'A network or server error occurred.'));
         } finally {
             setActionLoading(false);
         }
@@ -75,10 +83,11 @@ const AdminUsers = () => {
             if (res.success) {
                 setSelectedUser(res.data);
             } else {
-                alert(res.message || 'Failed to fetch client details');
+                toast.error(getFriendlyErrorMessage(res, 'Failed to fetch client details.'));
             }
         } catch (err) {
             console.error('Failed to view details:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Unable to load client details.'));
         } finally {
             setLoadingDetails(false);
         }
@@ -319,6 +328,19 @@ const AdminUsers = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmModal
+                isOpen={!!userToToggle}
+                title={userToToggle?.isBlocked ? "Unblock Client" : "Block Client"}
+                message={userToToggle?.isBlocked 
+                    ? `Are you sure you want to unblock ${userToToggle?.name || userToToggle?.email}? They will regain access to login and make inquiries.` 
+                    : `Are you sure you want to block ${userToToggle?.name || userToToggle?.email}? They will no longer be able to login or create inquiries.`}
+                confirmText={userToToggle?.isBlocked ? "Unblock Client" : "Block Client"}
+                isDanger={!userToToggle?.isBlocked}
+                isLoading={actionLoading}
+                onConfirm={confirmToggleStatus}
+                onCancel={() => setUserToToggle(null)}
+            />
         </div>
     );
 };

@@ -2217,8 +2217,9 @@ exports.updateComplaintStatus = async (req, res, next) => {
 // @access  Private/Admin
 exports.getPlatformSettings = async (req, res, next) => {
     try {
-        let settings = await PlatformSettings.findOne().lean();
-        const activeCommission = await getActiveCommissionPercent();
+        let settings = await PlatformSettings.findOne().populate('updatedBy', 'name fullName email').lean();
+        const { getActiveCommissionConfig } = require('../../services/commission.service');
+        const commissionConfig = await getActiveCommissionConfig();
 
         if (!settings) {
             settings = {
@@ -2234,7 +2235,8 @@ exports.getPlatformSettings = async (req, res, next) => {
             success: true,
             data: {
                 ...settings,
-                effectiveCommissionPercent: activeCommission
+                commissionConfig,
+                effectiveCommissionPercent: commissionConfig.ratePercent
             }
         });
     } catch (err) {
@@ -2351,13 +2353,15 @@ exports.updatePlatformSettings = async (req, res, next) => {
             req
         });
 
-        const effectiveCommission = await getActiveCommissionPercent();
+        const { getActiveCommissionConfig } = require('../../services/commission.service');
+        const commissionConfig = await getActiveCommissionConfig();
 
         res.status(200).json({
             success: true,
             data: {
                 ...updatedSettings.toObject(),
-                effectiveCommissionPercent: effectiveCommission
+                commissionConfig,
+                effectiveCommissionPercent: commissionConfig.ratePercent
             },
             message: 'Platform settings updated successfully'
         });

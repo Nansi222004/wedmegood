@@ -25,24 +25,53 @@ const VendorLeads = () => {
   const [editForm, setEditForm] = useState({ status: 'New', isImportant: false, notes: '' });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
-  const fetchLeads = async () => {
+  const fetchLeads = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const token = localStorage.getItem('vendorToken');
+      if (!token) return;
       const res = await vendorApi.getLeads(token);
       if (res.success && Array.isArray(res.data)) {
-        setLeads(res.data);
+        setLeads(prev => {
+          // If a new lead arrived during silent refresh, notify the vendor
+          if (silent && res.data.length > prev.length) {
+            showToast('🔔 New inquiry received from customer!', 'success');
+          }
+          return res.data;
+        });
       }
     } catch (err) {
-      console.error('Failed to fetch leads:', err);
-      showToast('Failed to load leads: ' + (err.message || 'Server error'), 'error');
+      if (!silent) {
+        console.error('Failed to fetch leads:', err);
+        showToast('Failed to load leads: ' + (err.message || 'Server error'), 'error');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchLeads();
+
+    // Live auto-refresh when vendor switches to or focuses the tab
+    const handleTabFocus = () => {
+      if (document.visibilityState === 'visible') {
+        fetchLeads(true);
+      }
+    };
+    window.addEventListener('visibilitychange', handleTabFocus);
+    window.addEventListener('focus', handleTabFocus);
+
+    // Background polling every 6 seconds for real-time inquiry streaming
+    const livePoll = setInterval(() => {
+      fetchLeads(true);
+    }, 6000);
+
+    return () => {
+      clearInterval(livePoll);
+      window.removeEventListener('visibilitychange', handleTabFocus);
+      window.removeEventListener('focus', handleTabFocus);
+    };
   }, []);
 
   const isAnyModalOpen = Boolean(phoneModalLead || scheduleModalLead || editModalLead);

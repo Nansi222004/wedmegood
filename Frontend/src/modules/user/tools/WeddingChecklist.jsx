@@ -4,6 +4,9 @@ import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
 import { userApi } from '../../../services/userApi';
+import { toast } from '../../../components/ui/Toast';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
+import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
 
 const WeddingChecklist = () => {
   const navigate = useNavigate();
@@ -13,6 +16,8 @@ const WeddingChecklist = () => {
   const [activeCategory, setActiveCategory] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedTask, setSelectedTask] = useState(null);
+  const [taskToDelete, setTaskToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Local Icon helper to respect constraints - no modifications to Icon.jsx
   const DetailIcon = ({ name, size = 'md', className = '' }) => {
@@ -84,15 +89,24 @@ const WeddingChecklist = () => {
     }
   };
 
-  const deleteTask = async (taskId) => {
-    if (window.confirm('Are you sure you want to delete this task?')) {
-      try {
-        await userApi.deleteChecklistTask(taskId);
-        setTasks(prev => prev.filter(t => t._id !== taskId && t.id !== taskId));
-        setSelectedTask(null);
-      } catch (err) {
-        console.error('Failed to delete task:', err);
-      }
+  const deleteTask = (taskId) => {
+    setTaskToDelete(taskId);
+  };
+
+  const confirmDeleteTask = async () => {
+    if (!taskToDelete) return;
+    try {
+      setIsDeleting(true);
+      await userApi.deleteChecklistTask(taskToDelete);
+      setTasks(prev => prev.filter(t => t._id !== taskToDelete && t.id !== taskToDelete));
+      setSelectedTask(null);
+      toast.success('Task deleted successfully');
+    } catch (err) {
+      console.error('Failed to delete task:', err);
+      toast.error(getFriendlyErrorMessage(err, 'Failed to delete task'));
+    } finally {
+      setIsDeleting(false);
+      setTaskToDelete(null);
     }
   };
 
@@ -116,10 +130,11 @@ const WeddingChecklist = () => {
           timeframe: '12 months before',
           description: ''
         });
+        toast.success('Task added to checklist');
       }
     } catch (err) {
       console.error('Failed to create task:', err);
-      alert(err.message || 'Failed to create task');
+      toast.error(getFriendlyErrorMessage(err, 'Failed to create task'));
     }
   };
 
@@ -535,6 +550,17 @@ const WeddingChecklist = () => {
           </div>
         </div>
       )}
+      {/* Delete Task Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!taskToDelete}
+        title="Delete Task"
+        message="Are you sure you want to delete this task from your checklist?"
+        confirmText={isDeleting ? 'Deleting...' : 'Delete Task'}
+        cancelText="Cancel"
+        isDestructive={true}
+        onConfirm={confirmDeleteTask}
+        onCancel={() => setTaskToDelete(null)}
+      />
     </div>
   );
 };

@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const Vendor = require('./Vendor');
 const Lead = require('./Lead');
 const Booking = require('./Booking');
+const Payment = require('../user/Payment');
+const { reconcileBookingPayments } = require('../../utils/financialReconciliation');
 const Review = require('./Review');
 const Notification = require('./Notification');
 const Quote = require('./Quote');
@@ -638,11 +640,92 @@ exports.updateLeadStatus = async (req, res, next) => {
 // @access  Private
 exports.getBookings = async (req, res, next) => {
     try {
-        const bookings = await Booking.find({ vendorId: req.vendor.id }).sort('-eventDate');
+        const bookings = await Booking.find({ vendorId: req.vendor.id })
+            .populate('userId', 'name fullName email phone profileImage')
+            .populate('leadId', 'name phone email eventDate location guestCount budget message')
+            .populate('quoteId', 'items totalAmount taxAmount discountAmount status notes')
+            .populate('vendorId', 'businessName email phone city category profileImage')
+            .sort('-eventDate')
+            .lean();
+
+        const bookingIds = bookings.map(b => b._id);
+        const payments = await Payment.find({
+            bookingId: { $in: bookingIds }
+        }).sort('-createdAt').lean();
+
+        const enrichedBookings = bookings.map(booking => {
+            const financial = reconcileBookingPayments(booking, payments);
+
+            const customerName = booking.customerName ||
+                booking.userId?.name ||
+                booking.userId?.fullName ||
+                booking.leadId?.name ||
+                'Customer';
+
+            const customerPhone = booking.userId?.phone || booking.leadId?.phone || '';
+            const customerEmail = booking.userId?.email || booking.leadId?.email || '';
+
+            return {
+                ...booking,
+                customerName,
+                customerPhone,
+                customerEmail,
+                ...financial
+            };
+        });
 
         res.status(200).json({
             success: true,
-            data: bookings
+            count: enrichedBookings.length,
+            data: enrichedBookings
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Get single vendor booking by ID
+// @route   GET /api/vendor/bookings/:id
+// @access  Private
+exports.getBookingById = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid booking ID format' });
+        }
+
+        const booking = await Booking.findOne({ _id: id, vendorId: req.vendor.id })
+            .populate('userId', 'name fullName email phone profileImage')
+            .populate('leadId', 'name phone email eventDate location guestCount budget message')
+            .populate('quoteId', 'items totalAmount taxAmount discountAmount status notes')
+            .populate('vendorId', 'businessName email phone city category profileImage')
+            .lean();
+
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Booking not found or unauthorized' });
+        }
+
+        const payments = await Payment.find({ bookingId: booking._id }).sort('-createdAt').lean();
+        const financial = reconcileBookingPayments(booking, payments);
+
+        const customerName = booking.customerName ||
+            booking.userId?.name ||
+            booking.userId?.fullName ||
+            booking.leadId?.name ||
+            'Customer';
+
+        const customerPhone = booking.userId?.phone || booking.leadId?.phone || '';
+        const customerEmail = booking.userId?.email || booking.leadId?.email || '';
+
+        res.status(200).json({
+            success: true,
+            data: {
+                ...booking,
+                customerName,
+                customerPhone,
+                customerEmail,
+                ...financial
+            }
         });
     } catch (err) {
         next(err);
@@ -789,6 +872,10 @@ exports.createBooking = async (req, res, next) => {
             });
         }
 
+        const { calculateActiveCommission } = require('../../services/commission.service');
+        const bookingTotal = Math.max(0, Number(totalAmount) || 0);
+        const commCalc = await calculateActiveCommission(bookingTotal);
+
         const booking = await Booking.create({
             vendorId: req.vendor.id,
             customerName,
@@ -798,7 +885,13 @@ exports.createBooking = async (req, res, next) => {
             eventType: eventType || 'Wedding',
             guestCount: guestCount || 0,
             notes: notes || '',
-            totalPrice: Math.max(0, Number(totalAmount) || 0),
+            totalPrice: bookingTotal,
+            commissionRatePercent: commCalc.commissionPercent,
+            commissionRate: commCalc.commissionRate,
+            commissionBasis: commCalc.basis || 'GROSS_PACKAGE_AMOUNT',
+            commissionConfigSource: commCalc.source,
+            commission: commCalc.commissionAmount || 0,
+            vendorEarning: commCalc.vendorEarning !== null ? commCalc.vendorEarning : Math.max(0, bookingTotal - (commCalc.commissionAmount || 0)),
             status: 'Confirmed'
         });
 
@@ -1126,18 +1219,24 @@ exports.getSubscriptionPlan = async (req, res, next) => {
 exports.getEarningsSummary = async (req, res, next) => {
     try {
         const vendorId = req.vendor.id;
-        const bookings = await Booking.find({ vendorId });
+        const VendorWallet = require('./VendorWallet');
+        const [bookings, wallet] = await Promise.all([
+            Booking.find({ vendorId }).lean(),
+            VendorWallet.findOne({ vendorId }).lean()
+        ]);
 
-        const totalEarnings = bookings
-            .filter(b => b.status === 'Completed')
-            .reduce((sum, b) => sum + (b.totalPrice || 0), 0);
+        const completedBookings = bookings.filter(b => b.status === 'Completed');
+        const totalEarnings = completedBookings.reduce((sum, b) => sum + (b.totalPrice || 0), 0);
+        const platformCommission = completedBookings.reduce((sum, b) => sum + (Number(b.commission) || 0), 0);
+        const netEarnings = completedBookings.reduce((sum, b) => {
+            const earning = Number(b.vendorEarning);
+            if (!isNaN(earning) && earning > 0) return sum + earning;
+            return sum + Math.max(0, (Number(b.totalPrice) || 0) - (Number(b.commission) || 0));
+        }, 0);
 
         const pendingPayments = bookings
-            .filter(b => b.status === 'Confirmed')
+            .filter(b => b.status === 'Confirmed' && b.paymentStatus !== 'Paid')
             .reduce((sum, b) => sum + (b.totalPrice || 0), 0);
-
-        // Assume 10% commission for now
-        const platformCommission = totalEarnings * 0.1;
 
         res.status(200).json({
             success: true,
@@ -1145,6 +1244,11 @@ exports.getEarningsSummary = async (req, res, next) => {
                 totalEarnings,
                 pendingPayments,
                 platformCommission,
+                netEarnings,
+                availableBalance: wallet ? wallet.availableBalance : 0,
+                pendingBalance: wallet ? wallet.pendingBalance : 0,
+                lockedBalance: wallet ? wallet.lockedBalance : 0,
+                totalWithdrawn: wallet ? wallet.totalWithdrawn : 0,
                 currency: 'INR'
             }
         });

@@ -56,11 +56,31 @@ exports.createPaymentOrder = async (req, res, next) => {
             });
         }
 
-        const amountInPaise = Math.round(Number(booking.totalPrice) * 100);
+        if (booking.status === 'Completed') {
+            return res.status(400).json({
+                success: false,
+                message: 'Booking is already marked as completed'
+            });
+        }
+
+        // Fetch existing successful payments to determine server-side outstanding balance
+        const payments = await Payment.find({ bookingId: booking._id }).lean();
+        const { reconcileBookingPayments } = require('../../utils/financialReconciliation');
+        const financial = reconcileBookingPayments(booking, payments);
+
+        if (financial.outstandingBalance <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'This booking has already been fully paid'
+            });
+        }
+
+        const payableAmount = financial.outstandingBalance;
+        const amountInPaise = Math.round(Number(payableAmount) * 100);
         if (!amountInPaise || amountInPaise <= 0) {
             return res.status(400).json({
                 success: false,
-                message: 'Invalid booking amount'
+                message: 'Invalid booking payable amount'
             });
         }
 
@@ -77,14 +97,14 @@ exports.createPaymentOrder = async (req, res, next) => {
 
         const order = await razorpay.orders.create(options);
 
-        // Record pending payment
+        // Record pending payment for the exact outstanding balance
         await Payment.create({
             userId: req.user._id,
             bookingId: booking._id,
             vendorId: booking.vendorId,
             quoteId: booking.quoteId,
             razorpayOrderId: order.id,
-            amount: booking.totalPrice,
+            amount: payableAmount,
             currency: 'INR',
             status: 'Pending',
             paymentMethod: 'Razorpay'
@@ -96,6 +116,9 @@ exports.createPaymentOrder = async (req, res, next) => {
             booking: {
                 id: booking._id,
                 totalPrice: booking.totalPrice,
+                paidAmount: financial.paidAmount,
+                outstandingBalance: payableAmount,
+                payableAmount,
                 customerName: booking.customerName,
                 eventDate: booking.eventDate
             },
@@ -179,16 +202,31 @@ exports.verifyPayment = async (req, res, next) => {
             });
         }
 
-        // Server-side authoritative commission calculation (respects PlatformSettings precedence)
-        const { commissionRate, commissionAmount, vendorEarning } = await calculateActiveCommission(booking.totalPrice);
+        // Determine payment amount from record or remaining balance
+        const paymentAmount = payment && payment.amount > 0
+            ? payment.amount
+            : Math.max(0, Number(booking.totalPrice) || 0);
+
+        // Server-side authoritative commission calculation (honors booking rate if historical)
+        const explicitRate = booking.commissionRatePercent;
+        const commissionCalc = await calculateActiveCommission(paymentAmount, explicitRate);
+        const commissionRate = commissionCalc.commissionRate;
+        const commissionRatePercent = commissionCalc.commissionPercent;
+        const commissionAmount = commissionCalc.commissionAmount || 0;
+        const vendorEarning = commissionCalc.vendorEarning !== null ? commissionCalc.vendorEarning : paymentAmount;
+        const commissionBasis = commissionCalc.basis || 'GROSS_PACKAGE_AMOUNT';
+        const commissionConfigSource = commissionCalc.source || 'DATABASE_PLATFORM_SETTINGS';
 
         if (payment) {
             payment.razorpayPaymentId = razorpay_payment_id;
             payment.razorpaySignature = razorpay_signature;
             payment.status = 'Completed';
             payment.commissionRate = commissionRate;
+            payment.commissionRatePercent = commissionRatePercent;
             payment.commissionAmount = commissionAmount;
             payment.vendorEarning = vendorEarning;
+            payment.commissionBasis = commissionBasis;
+            payment.commissionConfigSource = commissionConfigSource;
             payment.quoteId = booking.quoteId;
             await payment.save();
         } else {
@@ -200,21 +238,32 @@ exports.verifyPayment = async (req, res, next) => {
                 razorpayOrderId: razorpay_order_id,
                 razorpayPaymentId: razorpay_payment_id,
                 razorpaySignature: razorpay_signature,
-                amount: booking.totalPrice,
+                amount: paymentAmount,
                 currency: 'INR',
                 commissionRate,
+                commissionRatePercent,
                 commissionAmount,
                 vendorEarning,
+                commissionBasis,
+                commissionConfigSource,
                 status: 'Completed',
                 paymentMethod: 'Razorpay'
             });
         }
 
-        // Update Booking Payment and Financial Status
-        booking.paymentStatus = 'Paid';
-        booking.commission = commissionAmount;
-        booking.vendorEarning = vendorEarning;
-        booking.settlementStatus = 'Pending';
+        // Reconcile all payments for this booking to update booking payment status & financial totals
+        const allPayments = await Payment.find({ bookingId: booking._id }).lean();
+        const { reconcileBookingPayments } = require('../../utils/financialReconciliation');
+        const reconciled = reconcileBookingPayments(booking, allPayments);
+
+        booking.paymentStatus = reconciled.isFullyPaid ? 'Paid' : (reconciled.paidAmount > 0 ? 'Partial' : 'Pending');
+        booking.commission = reconciled.commission;
+        booking.commissionRate = commissionRate;
+        booking.commissionRatePercent = commissionRatePercent;
+        booking.commissionBasis = commissionBasis;
+        booking.commissionConfigSource = commissionConfigSource;
+        booking.vendorEarning = reconciled.vendorEarning;
+        booking.settlementStatus = booking.settlementStatus || 'Pending';
         await booking.save();
 
         // 1. Immutable Financial Ledger Entries
@@ -222,7 +271,7 @@ exports.verifyPayment = async (req, res, next) => {
             {
                 entryType: 'CUSTOMER_PAYMENT',
                 direction: 'CREDIT',
-                amount: booking.totalPrice,
+                amount: paymentAmount,
                 currency: 'INR',
                 referenceId: razorpay_payment_id,
                 bookingId: booking._id,
@@ -230,7 +279,7 @@ exports.verifyPayment = async (req, res, next) => {
                 vendorId: booking.vendorId,
                 userId: req.user._id,
                 status: 'POSTED',
-                description: `Customer payment received for Booking #${booking._id}`
+                description: `Customer payment of ₹${paymentAmount.toLocaleString('en-IN')} received for Booking #${booking._id}`
             },
             {
                 entryType: 'PLATFORM_COMMISSION',
@@ -413,10 +462,12 @@ exports.getPaymentReceipt = async (req, res, next) => {
             },
             booking: {
                 bookingId: payment.bookingId?._id,
+                totalPrice: payment.bookingId?.totalPrice || payment.amount,
                 eventDate: payment.bookingId?.eventDate,
                 location: payment.bookingId?.location,
                 eventType: payment.bookingId?.eventType,
-                services: payment.bookingId?.services || []
+                services: payment.bookingId?.services || [],
+                customerName: payment.bookingId?.customerName
             },
             payment: {
                 paymentId: payment._id,

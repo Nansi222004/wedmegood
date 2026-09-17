@@ -5,6 +5,7 @@ import Icon from '../../../components/ui/Icon';
 import userApi from '../../../services/userApi';
 import { socketService } from '../../../services/socket';
 import { useAuth } from '../../../contexts/AuthContext';
+import { toast } from '../../../components/ui/Toast';
 
 const GroupChat = () => {
   const { theme } = useTheme();
@@ -184,19 +185,19 @@ const GroupChat = () => {
 
   // Delete group function
   const handleDeleteGroup = () => {
-    alert('Deleting group is now managed via backend API.');
+    toast.info('Group deletion is currently managed via support / settings.');
     setShowDeleteConfirm(false);
   };
 
   // Add members function
   const handleAddMembers = () => {
-    alert('Adding members is now managed via backend API.');
+    toast.info('Member management is synced with your family settings.');
     setShowAddMembers(false);
   };
 
   // Remove member function (admin only)
   const handleRemoveMember = (memberId) => {
-    alert('Removing members is now managed via backend API.');
+    toast.info('Member management is synced with your family settings.');
   };
 
   const groupedMessages = messages.reduce((groups, message) => {

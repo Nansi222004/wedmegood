@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import { userApi } from '../../../services/userApi';
+import { toast } from '../../../components/ui/Toast';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
+import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
 
 const GuestList = () => {
   const navigate = useNavigate();
@@ -37,6 +40,8 @@ const GuestList = () => {
     notes: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [guestToDelete, setGuestToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchGuests = async () => {
     try {
@@ -101,7 +106,7 @@ const GuestList = () => {
   const handleSaveGuest = async (e) => {
     e.preventDefault();
     if (!guestForm.name.trim()) {
-      alert('Guest name is required');
+      toast.warning('Guest name is required');
       return;
     }
 
@@ -109,28 +114,39 @@ const GuestList = () => {
       setIsSubmitting(true);
       if (editingGuest) {
         await userApi.updateGuest(editingGuest._id || editingGuest.id, guestForm);
+        toast.success('Guest updated successfully');
       } else {
         await userApi.createGuest(guestForm);
+        toast.success('Guest added successfully');
       }
       setShowAddModal(false);
       setEditingGuest(null);
       await fetchGuests();
     } catch (err) {
       console.error('Failed to save guest:', err);
-      alert(err.message || 'Failed to save guest');
+      toast.error(getFriendlyErrorMessage(err, 'Failed to save guest'));
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDeleteGuest = async (guestId) => {
-    if (window.confirm('Are you sure you want to remove this guest?')) {
-      try {
-        await userApi.deleteGuest(guestId);
-        await fetchGuests();
-      } catch (err) {
-        console.error('Failed to delete guest:', err);
-      }
+  const handleDeleteGuest = (guestId) => {
+    setGuestToDelete(guestId);
+  };
+
+  const confirmDeleteGuest = async () => {
+    if (!guestToDelete) return;
+    try {
+      setIsDeleting(true);
+      await userApi.deleteGuest(guestToDelete);
+      toast.success('Guest removed successfully');
+      await fetchGuests();
+    } catch (err) {
+      console.error('Failed to delete guest:', err);
+      toast.error(getFriendlyErrorMessage(err, 'Failed to delete guest'));
+    } finally {
+      setIsDeleting(false);
+      setGuestToDelete(null);
     }
   };
 
@@ -483,6 +499,17 @@ const GuestList = () => {
           </div>
         </div>
       )}
+      {/* Delete Guest Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!guestToDelete}
+        title="Remove Guest"
+        message="Are you sure you want to remove this guest from your list? This action cannot be undone."
+        confirmText={isDeleting ? 'Removing...' : 'Remove Guest'}
+        cancelText="Cancel"
+        isDestructive={true}
+        onConfirm={confirmDeleteGuest}
+        onCancel={() => setGuestToDelete(null)}
+      />
     </div>
   );
 };

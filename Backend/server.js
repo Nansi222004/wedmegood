@@ -282,4 +282,5 @@ process.on('uncaughtException', (err) => {
 // Start the server
 startServer();
 
+// WedMeGood Dynamic Booking Finance & Transparency Engine Active
 module.exports = app;

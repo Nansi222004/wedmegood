@@ -46,7 +46,19 @@ const paymentSchema = new mongoose.Schema({
     },
     commissionRate: {
         type: Number,
-        default: 0.10
+        default: null
+    },
+    commissionRatePercent: {
+        type: Number,
+        default: null
+    },
+    commissionBasis: {
+        type: String,
+        default: 'GROSS_PACKAGE_AMOUNT'
+    },
+    commissionConfigSource: {
+        type: String,
+        default: null
     },
     commissionAmount: {
         type: Number,

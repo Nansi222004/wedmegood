@@ -16,6 +16,7 @@ const {
     getLeadById,
     updateLeadStatus,
     getBookings,
+    getBookingById,
     getReviews,
     replyToReview,
     getNotifications,
@@ -125,6 +126,7 @@ router.delete('/quotes/:id', protectVendor, requireSubscription, requireVendorAp
 
 // Bookings
 router.get('/bookings', protectVendor, requireSubscription, requireVendorApproval, getBookings);
+router.get('/bookings/:id', protectVendor, requireSubscription, requireVendorApproval, getBookingById);
 router.post('/bookings', protectVendor, requireSubscription, requireVendorApproval, createBooking);
 router.put('/bookings/:id/status', protectVendor, requireSubscription, requireVendorApproval, updateBookingStatus);
 

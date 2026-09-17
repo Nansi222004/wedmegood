@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import { userApi } from '../../../services/userApi';
+import { toast } from '../../../components/ui/Toast';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
+import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
 
 const WeddingTimeline = () => {
   const navigate = useNavigate();
@@ -18,6 +21,8 @@ const WeddingTimeline = () => {
     category: 'Ceremony'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchTimeline = async () => {
     try {
@@ -40,13 +45,14 @@ const WeddingTimeline = () => {
   const handleCreateEvent = async (e) => {
     e.preventDefault();
     if (!newEvent.title.trim() || !newEvent.date) {
-      alert('Please provide event title and date');
+      toast.warning('Please provide event title and date');
       return;
     }
 
     try {
       setIsSubmitting(true);
       await userApi.createTimelineEvent(newEvent);
+      toast.success('Timeline event added successfully');
       setShowAddModal(false);
       setNewEvent({
         title: '',
@@ -58,20 +64,29 @@ const WeddingTimeline = () => {
       await fetchTimeline();
     } catch (err) {
       console.error('Failed to create timeline event:', err);
-      alert(err.message || 'Failed to create event');
+      toast.error(getFriendlyErrorMessage(err, 'Failed to create event'));
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDeleteEvent = async (eventId) => {
-    if (window.confirm('Are you sure you want to delete this event?')) {
-      try {
-        await userApi.deleteTimelineEvent(eventId);
-        await fetchTimeline();
-      } catch (err) {
-        console.error('Failed to delete event:', err);
-      }
+  const handleDeleteEvent = (eventId) => {
+    setEventToDelete(eventId);
+  };
+
+  const confirmDeleteEvent = async () => {
+    if (!eventToDelete) return;
+    try {
+      setIsDeleting(true);
+      await userApi.deleteTimelineEvent(eventToDelete);
+      toast.success('Event deleted successfully');
+      await fetchTimeline();
+    } catch (err) {
+      console.error('Failed to delete event:', err);
+      toast.error(getFriendlyErrorMessage(err, 'Failed to delete event'));
+    } finally {
+      setIsDeleting(false);
+      setEventToDelete(null);
     }
   };
 
@@ -349,6 +364,17 @@ const WeddingTimeline = () => {
           </div>
         </div>
       )}
+      {/* Delete Event Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!eventToDelete}
+        title="Delete Event"
+        message="Are you sure you want to delete this timeline event?"
+        confirmText={isDeleting ? 'Deleting...' : 'Delete Event'}
+        cancelText="Cancel"
+        isDestructive={true}
+        onConfirm={confirmDeleteEvent}
+        onCancel={() => setEventToDelete(null)}
+      />
     </div>
   );
 };

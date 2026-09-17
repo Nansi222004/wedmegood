@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '../../../components/ui/Icon';
+import { toast } from '../../../components/ui/Toast';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
+import getFriendlyErrorMessage from '../../../utils/errorHandler';
 import { adminApi } from '../services/adminApi';
 
 const AdminVendorServices = () => {
@@ -10,6 +13,8 @@ const AdminVendorServices = () => {
     const [filterStatus, setFilterStatus] = useState('All'); // 'All', 'Pending Approval', 'Approved', 'Rejected'
     const [viewingService, setViewingService] = useState(null);
     const [previewMedia, setPreviewMedia] = useState(null);
+    const [statusAction, setStatusAction] = useState(null); // { serviceId, status }
+    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
     const token = localStorage.getItem('adminToken');
 
@@ -31,18 +36,32 @@ const AdminVendorServices = () => {
         fetchData();
     }, []);
 
-    const handleUpdateStatus = async (serviceId, status) => {
-        if (!window.confirm(`Are you sure you want to mark this service as ${status}?`)) return;
+    const handleUpdateStatus = (serviceId, status) => {
+        setStatusAction({ serviceId, status });
+    };
+
+    const confirmUpdateStatus = async () => {
+        if (!statusAction) return;
+        const { serviceId, status } = statusAction;
+
         try {
+            setIsUpdatingStatus(true);
             const res = await adminApi.updateVendorServiceStatus(serviceId, status, token);
             if (res.success) {
                 setServices(prev => prev.map(s => s._id === serviceId ? { ...s, status } : s));
                 if (viewingService?._id === serviceId) {
                     setViewingService(prev => ({ ...prev, status }));
                 }
+                toast.success(`Service status updated to ${status}.`);
+                setStatusAction(null);
+            } else {
+                toast.error(getFriendlyErrorMessage(res, 'Failed to update service status.'));
             }
         } catch (err) {
             console.error('Failed to update service status:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Unable to update service status.'));
+        } finally {
+            setIsUpdatingStatus(false);
         }
     };
 
@@ -355,6 +374,17 @@ const AdminVendorServices = () => {
                 </div>,
                 document.body
             )}
+
+            <ConfirmModal
+                isOpen={!!statusAction}
+                title={`Mark Service as ${statusAction?.status}`}
+                message={`Are you sure you want to mark this service as ${statusAction?.status}?`}
+                confirmText={`Mark as ${statusAction?.status}`}
+                isDanger={statusAction?.status === 'Rejected'}
+                isLoading={isUpdatingStatus}
+                onConfirm={confirmUpdateStatus}
+                onCancel={() => setStatusAction(null)}
+            />
         </div>
     );
 };

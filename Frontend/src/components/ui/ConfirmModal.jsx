@@ -49,7 +49,7 @@ const ConfirmModal = ({
                     <div className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 ${
                         isDanger ? 'bg-rose-50 text-rose-600' : 'bg-[#4F35C3]/10 text-[#4F35C3]'
                     }`}>
-                        <Icon name={isDanger ? "trash" : "help-circle"} size="md" />
+                        <Icon name={isDanger ? "trash" : "help"} size="md" />
                     </div>
 
                     <div className="flex-1">

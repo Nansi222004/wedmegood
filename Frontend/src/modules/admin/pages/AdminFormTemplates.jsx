@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import Icon from '../../../components/ui/Icon';
+import { toast } from '../../../components/ui/Toast';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
+import getFriendlyErrorMessage from '../../../utils/errorHandler';
 import { adminApi } from '../services/adminApi';
 
 const AdminFormTemplates = () => {
@@ -15,6 +18,8 @@ const AdminFormTemplates = () => {
     // UI State
     const [isEditing, setIsEditing] = useState(false);
     const [templateForm, setTemplateForm] = useState(null);
+    const [templateToDelete, setTemplateToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
     
     const token = localStorage.getItem('adminToken');
@@ -88,13 +93,17 @@ const AdminFormTemplates = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!templateForm.name || !templateForm.categoryId) return alert('Name and Category required');
+        if (!templateForm.name?.trim() || !templateForm.categoryId) {
+            toast.warning('Template field name and category are required.');
+            return;
+        }
         
         // Remove empty options
         const cleanedOptions = (templateForm.options || []).filter(o => o.trim() !== '');
 
         const payload = {
             ...templateForm,
+            name: templateForm.name.trim(),
             options: cleanedOptions,
             subCategoryId: templateForm.subCategoryId || null
         };
@@ -109,28 +118,42 @@ const AdminFormTemplates = () => {
             }
 
             if (res.success) {
+                toast.success(payload._id ? 'Template field updated successfully.' : 'Template field created successfully.');
                 await fetchData();
                 setIsEditing(false);
                 setTemplateForm(null);
             } else {
-                alert(res.message || 'Error');
+                toast.error(getFriendlyErrorMessage(res, 'Failed to save template.'));
             }
         } catch (err) {
             console.error('Submit error:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Failed to save template.'));
         } finally {
             setActionLoading(false);
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Delete this template field?')) return;
+    const handleDelete = (id) => {
+        setTemplateToDelete(id);
+    };
+
+    const confirmDeleteTemplate = async () => {
+        if (!templateToDelete) return;
         try {
-            const res = await adminApi.deleteFormTemplate(id, token);
+            setIsDeleting(true);
+            const res = await adminApi.deleteFormTemplate(templateToDelete, token);
             if (res.success) {
+                toast.success('Template field deleted successfully.');
                 fetchData();
+                setTemplateToDelete(null);
+            } else {
+                toast.error(getFriendlyErrorMessage(res, 'Failed to delete template field.'));
             }
         } catch (err) {
             console.error('Delete error:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Unable to delete template field.'));
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -358,6 +381,17 @@ const AdminFormTemplates = () => {
                     </div>
                 )}
             </div>
+
+            <ConfirmModal
+                isOpen={!!templateToDelete}
+                title="Delete Template Field"
+                message="Are you sure you want to delete this template field? This action cannot be undone."
+                confirmText="Delete Field"
+                isDanger={true}
+                isLoading={isDeleting}
+                onConfirm={confirmDeleteTemplate}
+                onCancel={() => setTemplateToDelete(null)}
+            />
         </div>
     );
 };

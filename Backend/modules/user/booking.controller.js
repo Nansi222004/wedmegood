@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const Booking = require('../vendor/Booking');
+const Payment = require('./Payment');
 const Notification = require('../vendor/Notification');
+const { reconcileBookingPayments } = require('../../utils/financialReconciliation');
 
 // @desc    Get current user's bookings
 // @route   GET /api/user/bookings
@@ -8,16 +10,60 @@ const Notification = require('../vendor/Notification');
 exports.getUserBookings = async (req, res, next) => {
     try {
         const bookings = await Booking.find({ userId: req.user._id })
-            .populate('vendorId', 'businessName city profileImage phone pricing rating reviewCount')
+            .populate('vendorId', 'businessName city profileImage phone pricing rating reviewCount email category')
             .populate('leadId')
             .populate('quoteId')
             .sort('-createdAt')
             .lean();
 
+        const bookingIds = bookings.map(b => b._id);
+        const payments = await Payment.find({
+            bookingId: { $in: bookingIds }
+        }).sort('-createdAt').lean();
+
+        const enrichedBookings = bookings.map(booking => {
+            const financial = reconcileBookingPayments(booking, payments);
+            // Omit internal vendor & platform margin data from customer portal
+            const {
+                commission,
+                commissionRate,
+                commissionRatePercent,
+                commissionBasis,
+                commissionConfigSource,
+                vendorEarning,
+                vendorAmountSettled,
+                ...customerFinancial
+            } = financial;
+
+            const sanitizedPayments = (customerFinancial.payments || []).map(p => ({
+                _id: p._id,
+                amount: p.amount,
+                currency: p.currency,
+                status: p.status,
+                refundAmount: p.refundAmount,
+                refundedAt: p.refundedAt,
+                paymentMethod: p.paymentMethod,
+                razorpayPaymentId: p.razorpayPaymentId,
+                createdAt: p.createdAt
+            }));
+
+            return {
+                ...booking,
+                commission: undefined,
+                vendorEarning: undefined,
+                commissionRate: undefined,
+                commissionRatePercent: undefined,
+                commissionBasis: undefined,
+                commissionConfigSource: undefined,
+                ...customerFinancial,
+                payments: sanitizedPayments
+            };
+        });
+
         res.status(200).json({
             success: true,
-            count: bookings.length,
-            data: bookings
+            count: enrichedBookings.length,
+            data: enrichedBookings
         });
     } catch (err) {
         next(err);
@@ -42,7 +88,7 @@ exports.getUserBookingById = async (req, res, next) => {
             _id: id,
             userId: req.user._id
         })
-            .populate('vendorId', 'businessName city profileImage phone pricing')
+            .populate('vendorId', 'businessName city profileImage phone pricing rating reviewCount email category')
             .populate('leadId')
             .populate('quoteId')
             .lean();
@@ -54,9 +100,45 @@ exports.getUserBookingById = async (req, res, next) => {
             });
         }
 
+        const payments = await Payment.find({ bookingId: booking._id }).sort('-createdAt').lean();
+        const financial = reconcileBookingPayments(booking, payments);
+
+        const {
+            commission,
+            commissionRate,
+            commissionRatePercent,
+            commissionBasis,
+            commissionConfigSource,
+            vendorEarning,
+            vendorAmountSettled,
+            ...customerFinancial
+        } = financial;
+
+        const sanitizedPayments = (customerFinancial.payments || []).map(p => ({
+            _id: p._id,
+            amount: p.amount,
+            currency: p.currency,
+            status: p.status,
+            refundAmount: p.refundAmount,
+            refundedAt: p.refundedAt,
+            paymentMethod: p.paymentMethod,
+            razorpayPaymentId: p.razorpayPaymentId,
+            createdAt: p.createdAt
+        }));
+
         res.status(200).json({
             success: true,
-            data: booking
+            data: {
+                ...booking,
+                commission: undefined,
+                vendorEarning: undefined,
+                commissionRate: undefined,
+                commissionRatePercent: undefined,
+                commissionBasis: undefined,
+                commissionConfigSource: undefined,
+                ...customerFinancial,
+                payments: sanitizedPayments
+            }
         });
     } catch (err) {
         next(err);

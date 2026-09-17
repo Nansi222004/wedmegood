@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Icon from '../../../components/ui/Icon';
+import { toast } from '../../../components/ui/Toast';
+import getFriendlyErrorMessage from '../../../utils/errorHandler';
 import { adminApi } from '../services/adminApi';
 
 const AdminLeads = () => {
@@ -27,10 +29,11 @@ const AdminLeads = () => {
                     setPagination(res.pagination);
                 }
             } else {
-                alert(res.message || 'Failed to fetch leads');
+                toast.error(getFriendlyErrorMessage(res, 'Failed to fetch leads.'));
             }
         } catch (err) {
             console.error('Failed to fetch leads:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Unable to load leads.'));
         } finally {
             setLoading(false);
         }

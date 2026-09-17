@@ -4,6 +4,7 @@ import { useTheme } from '../../../hooks/useTheme';
 import { useAuth } from '../../../contexts/AuthContext';
 import Icon from '../../../components/ui/Icon';
 import userApi from '../../../services/userApi';
+import { toast } from '../../../components/ui/Toast';
 
 const Inspirations = () => {
   const { theme } = useTheme();
@@ -121,7 +122,7 @@ const Inspirations = () => {
 
   const handleSave = async (item) => {
     if (!user) {
-      alert('Please log in to save wedding inspiration ideas.');
+      toast.info('Please log in to save wedding inspiration ideas.');
       navigate('/login', { state: { from: '/user/inspirations' } });
       return;
     }

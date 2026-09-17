@@ -22,9 +22,23 @@ Backend/test
 Backend/scratch/
 scratch/
 *.test.js
+*.test.ts
+*.test.jsx
+*.test.tsx
 *.spec.js
+*.spec.ts
+*.spec.jsx
+*.spec.tsx
 check_*.js
 benchmark_*.js
+verify_*.js
+test_*.js
+test-*.js
+alerts_found.txt
+reconciled_audit.json
+audit_*.json
+*.audit.json
+*.audit.txt
 
 # Markdown documentation files (do not push to GitHub)
 *.md

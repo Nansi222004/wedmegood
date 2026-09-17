@@ -4,6 +4,7 @@ import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
+import { toast } from '../../../components/ui/Toast';
 
 const Privacy = () => {
   const { theme } = useTheme();
@@ -313,7 +314,7 @@ const Privacy = () => {
                 <Button
                   onClick={() => {
                     // Simulate data export
-                    alert('Your data export request has been submitted. You will receive an email with your data within 24 hours.');
+                    toast.success('Your data export request has been submitted. You will receive an email with your data within 24 hours.');
                   }}
                   className="w-full"
                   style={{

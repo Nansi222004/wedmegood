@@ -8,6 +8,8 @@ import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import Input from '../../../components/ui/Input';
 import userApi from '../../../services/userApi';
+import { toast } from '../../../components/ui/Toast';
+import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
 
 const loadRazorpayScript = () => {
   return new Promise((resolve) => {
@@ -106,7 +108,7 @@ const Checkout = () => {
 
   const handleSubmitBooking = async () => {
     if (!bookingId) {
-      alert('To complete a secure payment, please accept an official quote from a vendor in "My Bookings" first.');
+      toast.info('To complete a secure payment, please accept an official quote from a vendor in "My Bookings" first.');
       navigate('/user/bookings');
       return;
     }
@@ -165,7 +167,7 @@ const Checkout = () => {
             }
           } catch (verErr) {
             console.error('Payment verification failed:', verErr);
-            alert('Payment verification failed: ' + verErr.message);
+            toast.error(getFriendlyErrorMessage(verErr, 'Payment verification failed. Please contact support.'));
           } finally {
             setIsSubmitting(false);
           }
@@ -180,13 +182,13 @@ const Checkout = () => {
       const rzp = new window.Razorpay(options);
       rzp.on('payment.failed', (failRes) => {
         console.error('Payment failed:', failRes);
-        alert('Payment failed: ' + (failRes.error?.description || 'Transaction unsuccessful'));
+        toast.error(getFriendlyErrorMessage(failRes.error?.description || 'Payment was unsuccessful. Please try again.'));
         setIsSubmitting(false);
       });
       rzp.open();
     } catch (err) {
       console.error('Payment initiation error:', err);
-      alert(err.message || 'Failed to start payment process');
+      toast.error(getFriendlyErrorMessage(err, 'Failed to start payment process'));
       setIsSubmitting(false);
     }
   };
