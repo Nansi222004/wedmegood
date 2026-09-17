@@ -131,6 +131,23 @@ class SocketService {
         this.socket.on('chat:error', callback);
         return () => this.socket?.off('chat:error', callback);
     }
+
+    // Family Group Events
+    joinFamilyGroup(groupId) {
+        if (!this.socket || !groupId) return;
+        this.socket.emit('family_group:join', { groupId });
+    }
+
+    leaveFamilyGroup(groupId) {
+        if (!this.socket || !groupId) return;
+        this.socket.emit('family_group:leave', { groupId });
+    }
+
+    onFamilyGroupMessage(callback) {
+        if (!this.socket) return () => {};
+        this.socket.on('family_group:message', callback);
+        return () => this.socket?.off('family_group:message', callback);
+    }
 }
 
 export const socketService = new SocketService();

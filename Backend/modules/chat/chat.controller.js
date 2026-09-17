@@ -1,5 +1,27 @@
 const chatService = require('./chat.service');
 
+// @desc    Start or get conversation with a vendor
+// @route   POST /api/user/conversations
+// @access  Private (User)
+exports.createConversation = async (req, res, next) => {
+    try {
+        const { vendorId } = req.body;
+        if (!vendorId) {
+            return res.status(400).json({ success: false, message: 'vendorId is required' });
+        }
+        const conversation = await chatService.getOrCreateConversation({
+            userId: req.user._id,
+            vendorId
+        });
+        res.status(201).json({
+            success: true,
+            data: conversation
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
 // @desc    Get user conversations
 // @route   GET /api/user/conversations
 // @access  Private (User)

@@ -62,6 +62,8 @@ router.get('/vendor-management', vendorManagementController.getVendorManagement)
 // 8. Family Collaboration (Groups)
 router.get('/family-groups', familyController.getFamilyGroups);
 router.get('/family-groups/:id', familyController.getFamilyGroupById);
+router.get('/family-groups/:id/messages', familyController.getGroupMessages);
+router.post('/family-groups/:id/messages', familyController.sendMessage);
 router.post('/family-groups', familyController.createFamilyGroup);
 router.put('/family-groups/:id', familyController.updateFamilyGroup);
 router.delete('/family-groups/:id', familyController.deleteFamilyGroup);

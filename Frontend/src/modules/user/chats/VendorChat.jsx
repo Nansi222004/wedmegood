@@ -32,7 +32,7 @@ const VendorChat = () => {
   const [submittingReport, setSubmittingReport] = useState(false);
   const [reportSuccess, setReportSuccess] = useState(false);
 
-  const token = localStorage.getItem('token');
+  const token = (() => { try { return JSON.parse(localStorage.getItem('user'))?.token || null; } catch { return null; } })();
   const stateInfo = location.state || {};
 
   const vendorName = stateInfo.vendorName || conversation?.vendorId?.businessName || conversation?.vendorId?.name || 'Vendor Partner';
@@ -59,6 +59,13 @@ const VendorChat = () => {
             if (found) {
               convId = found._id;
             }
+          }
+        }
+
+        if (!convId) {
+          const createRes = await chatApi.createConversation(vendorId);
+          if (createRes.success && createRes.data) {
+            convId = createRes.data._id;
           }
         }
 
@@ -207,7 +214,7 @@ const VendorChat = () => {
       clientMessageId
     }, (res) => {
       if (res && res.success) {
-        setMessages(prev => prev.map(m => m.clientMessageId === clientMessageId ? res.data : m));
+        setMessages(prev => prev.map(m => m.clientMessageId === clientMessageId ? res.message : m));
       }
     });
 

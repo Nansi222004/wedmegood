@@ -1,9 +1,17 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 function getAuthHeaders(isVendor = false) {
-    const token = isVendor 
-        ? localStorage.getItem('vendorToken') 
-        : localStorage.getItem('token');
+    let token;
+    if (isVendor) {
+        token = localStorage.getItem('vendorToken');
+    } else {
+        try {
+            const userData = JSON.parse(localStorage.getItem('user'));
+            token = userData?.token || null;
+        } catch {
+            token = null;
+        }
+    }
     return {
         'Content-Type': 'application/json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -12,6 +20,15 @@ function getAuthHeaders(isVendor = false) {
 
 export const chatApi = {
     // User endpoints
+    createConversation: async (vendorId) => {
+        const res = await fetch(`${API_BASE_URL}/user/conversations`, {
+            method: 'POST',
+            headers: getAuthHeaders(false),
+            body: JSON.stringify({ vendorId })
+        });
+        return res.json();
+    },
+
     getUserConversations: async () => {
         const res = await fetch(`${API_BASE_URL}/user/conversations`, {
             headers: getAuthHeaders(false)

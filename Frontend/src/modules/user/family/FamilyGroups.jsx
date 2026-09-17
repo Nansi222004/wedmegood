@@ -50,8 +50,9 @@ const FamilyGroups = () => {
     try {
       setIsLoading(true);
       const res = await userApi.getFamilyGroups();
-      if (res.success && Array.isArray(res.data)) {
-        const formatted = res.data.map(g => ({
+      if (res.success) {
+        const groupsData = Array.isArray(res.data) ? res.data : (res.data?.groups || []);
+        const formatted = groupsData.map(g => ({
           ...g,
           id: g._id,
           members: Array.isArray(g.members) ? g.members : []
@@ -105,9 +106,10 @@ const FamilyGroups = () => {
     setShowDeleteConfirm(true);
   };
 
-  const getMemberNames = (memberIds) => {
-    return memberIds
-      .map(id => familyContacts.find(c => c.id === id)?.name.split(' ')[0])
+  const getMemberNames = (members) => {
+    if (!Array.isArray(members)) return '';
+    return members
+      .map(m => m?.name ? m.name.split(' ')[0] : 'Member')
       .filter(Boolean)
       .slice(0, 3)
       .join(', ');
