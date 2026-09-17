@@ -1,18 +1,99 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../../contexts/CartContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
 import Card from '../../../components/ui/Card';
+import userApi from '../../../services/userApi';
 
 const Cart = () => {
   const { cartState, removeFromCart, updateQuantity, getTotalPrice, addToCart, clearCart, unfinalizeItem, finalizeItem } = useCart();
+  const { user } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [removingItems, setRemovingItems] = useState(new Set());
   const [expandedAddOns, setExpandedAddOns] = useState(new Set());
   const [activeTab, setActiveTab] = useState('shortlisted'); // 'shortlisted' or 'finalized'
+
+  // Finalize Inquiry / Quote Request Modal State
+  const [quoteModalVendor, setQuoteModalVendor] = useState(null);
+  const [quoteForm, setQuoteForm] = useState({
+    eventDate: '',
+    phone: '',
+    guestCount: '150',
+    requirements: ''
+  });
+  const [isSubmittingQuote, setIsSubmittingQuote] = useState(false);
+  const [quoteFeedback, setQuoteFeedback] = useState(null);
+
+  const handleOpenFinalizeModal = (item) => {
+    if (!user) {
+      navigate('/login', { state: { from: '/user/cart' } });
+      return;
+    }
+    setQuoteModalVendor(item);
+    setQuoteForm({
+      eventDate: user.weddingDate ? new Date(user.weddingDate).toISOString().split('T')[0] : '',
+      phone: user.phone || '',
+      guestCount: '150',
+      requirements: `Requesting official quotation and date availability for ${item.name} (${item.category}).`
+    });
+    setQuoteFeedback(null);
+  };
+
+  const handleSubmitFinalizeInquiry = async (e) => {
+    if (e) e.preventDefault();
+    if (!quoteModalVendor) return;
+
+    if (!quoteForm.eventDate) {
+      setQuoteFeedback({ type: 'error', message: 'Please select your target event date.' });
+      return;
+    }
+    if (!quoteForm.phone) {
+      setQuoteFeedback({ type: 'error', message: 'Please provide a valid contact phone number.' });
+      return;
+    }
+
+    setIsSubmittingQuote(true);
+    setQuoteFeedback(null);
+
+    try {
+      const res = await userApi.createLead({
+        vendorId: quoteModalVendor.id,
+        category: quoteModalVendor.category,
+        eventDate: quoteForm.eventDate,
+        eventLocation: quoteModalVendor.location || 'Indore',
+        guestCount: parseInt(quoteForm.guestCount) || 150,
+        phone: quoteForm.phone,
+        message: quoteForm.requirements || `Inquiry for ${quoteModalVendor.name}`,
+        requirements: quoteForm.requirements
+      });
+
+      if (res.success) {
+        finalizeItem(quoteModalVendor.id);
+        setQuoteFeedback({
+          type: 'success',
+          message: `Inquiry & quote request sent to ${quoteModalVendor.name}! Track progress in 'My Bookings'.`
+        });
+        setTimeout(() => {
+          setQuoteModalVendor(null);
+          setActiveTab('finalized');
+        }, 1600);
+      } else {
+        throw new Error(res.message || 'Failed to submit inquiry to vendor.');
+      }
+    } catch (err) {
+      console.error('Finalize quote error:', err);
+      setQuoteFeedback({
+        type: 'error',
+        message: err.message || 'Unable to submit inquiry. Please try again.'
+      });
+    } finally {
+      setIsSubmittingQuote(false);
+    }
+  };
 
   // Debug: Log cart state
   console.log('Cart state:', cartState);
@@ -439,23 +520,43 @@ const Cart = () => {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: theme.semantic.text.primary }}>
-                    Ready to Book
+                    Finalized & Requested Inquiries
                   </h2>
                   <p className="text-sm" style={{ color: theme.semantic.text.secondary }}>
-                    {cartState.finalizedItems.length} vendor{cartState.finalizedItems.length !== 1 ? 's' : ''} selected
+                    {cartState.finalizedItems.length} vendor{cartState.finalizedItems.length !== 1 ? 's' : ''} in proposal review
                   </p>
                 </div>
                 <button
-                  onClick={() => navigate('/user/checkout', { state: { items: cartState.finalizedItems, isFinalized: true } })}
-                  className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+                  onClick={() => navigate('/user/bookings')}
+                  className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm"
                   style={{
                     backgroundColor: theme.colors.accent[600],
                     color: 'white'
                   }}
                 >
                   <Icon name="calendar" size="xs" />
-                  Book All
+                  View All in My Bookings
                 </button>
+              </div>
+
+              {/* Informative Guidance Banner */}
+              <div 
+                className="p-3.5 mb-4 rounded-xl flex items-start border"
+                style={{ 
+                  backgroundColor: theme.colors.accent[50],
+                  borderColor: theme.colors.accent[200]
+                }}
+              >
+                <Icon name="lightbulb" size="sm" className="mr-3 mt-0.5 flex-shrink-0" style={{ color: theme.colors.accent[600] }} />
+                <div className="text-xs space-y-1" style={{ color: theme.colors.accent[800] }}>
+                  <p className="font-bold">How Official Booking Works:</p>
+                  <p>
+                    1. When you finalize a vendor, an inquiry is registered. The vendor reviews your requested dates and prepares a personalized quote.
+                  </p>
+                  <p>
+                    2. Once received in <strong>My Bookings</strong>, accept the quote to secure your dates and proceed to verified checkout payment.
+                  </p>
+                </div>
               </div>
 
               <div className="space-y-3">
@@ -479,9 +580,14 @@ const Cart = () => {
                       />
                       
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-base mb-1 truncate" style={{ color: theme.semantic.text.primary }}>
-                          {item.name}
-                        </h3>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-base truncate" style={{ color: theme.semantic.text.primary }}>
+                            {item.name}
+                          </h3>
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-800 uppercase tracking-wider">
+                            Inquiry Sent
+                          </span>
+                        </div>
                         <p className="text-sm mb-1 truncate" style={{ color: theme.semantic.text.secondary }}>
                           {item.category}
                         </p>
@@ -504,18 +610,29 @@ const Cart = () => {
 
                       <div className="flex flex-col gap-2 flex-shrink-0">
                         <button
-                          onClick={() => navigate('/user/checkout', { state: { items: [item], isFinalized: true } })}
-                          className="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap"
+                          onClick={() => navigate('/user/bookings')}
+                          className="px-3.5 py-2 rounded-lg text-xs font-bold whitespace-nowrap shadow-sm hover:opacity-90 transition-opacity"
                           style={{
                             backgroundColor: theme.colors.accent[600],
                             color: 'white'
                           }}
                         >
-                          Book Now
+                          Check Quotes
+                        </button>
+                        <button
+                          onClick={() => navigate('/user/chats')}
+                          className="px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap border hover:bg-slate-50 transition-colors"
+                          style={{
+                            borderColor: theme.colors.primary[300],
+                            color: theme.colors.primary[600],
+                            backgroundColor: 'white'
+                          }}
+                        >
+                          Chat
                         </button>
                         <button
                           onClick={() => unfinalizeItem(item.id)}
-                          className="px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap"
+                          className="px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap hover:bg-slate-200 transition-colors"
                           style={{
                             backgroundColor: theme.semantic.background.accent,
                             color: theme.semantic.text.secondary
@@ -806,20 +923,17 @@ const Cart = () => {
                     </button>
                   </div>
                   
-                  {/* Finalize Button */}
+                  {/* Finalize / Request Quote Button */}
                   <button
-                    onClick={() => {
-                      finalizeItem(item.id);
-                      setActiveTab('finalized');
-                    }}
-                    className="w-full py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center"
+                    onClick={() => handleOpenFinalizeModal(item)}
+                    className="w-full py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center shadow-sm hover:opacity-95"
                     style={{
                       backgroundColor: theme.colors.accent[600],
                       color: 'white'
                     }}
                   >
                     <Icon name="check" size="xs" className="mr-2" />
-                    Finalize This Vendor
+                    Finalize & Request Official Quote
                   </button>
                   
                   {/* Comparison Button - Show if there are other vendors in same category */}
@@ -972,6 +1086,122 @@ const Cart = () => {
         </div>
       </div>
         </>
+      )}
+
+      {/* Quote Request / Finalize Modal */}
+      {quoteModalVendor && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+            onClick={() => !isSubmittingQuote && setQuoteModalVendor(null)}
+          />
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Request Official Quote</h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  {quoteModalVendor.name} • {quoteModalVendor.category}
+                </p>
+              </div>
+              <button
+                onClick={() => setQuoteModalVendor(null)}
+                disabled={isSubmittingQuote}
+                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200"
+              >
+                <Icon name="close" size="xs" />
+              </button>
+            </div>
+
+            {quoteFeedback && (
+              <div className={`p-3 rounded-xl mb-4 text-xs font-medium ${
+                quoteFeedback.type === 'success' 
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                  : 'bg-rose-50 text-rose-800 border border-rose-200'
+              }`}>
+                {quoteFeedback.message}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitFinalizeInquiry} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Target Event Date *</label>
+                <input
+                  type="date"
+                  required
+                  min={new Date().toISOString().split('T')[0]}
+                  value={quoteForm.eventDate}
+                  onChange={(e) => setQuoteForm(prev => ({ ...prev, eventDate: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-rose-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Phone Number *</label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="10-digit mobile"
+                    value={quoteForm.phone}
+                    onChange={(e) => setQuoteForm(prev => ({ ...prev, phone: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Expected Guests</label>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="150"
+                    value={quoteForm.guestCount}
+                    onChange={(e) => setQuoteForm(prev => ({ ...prev, guestCount: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Requirements / Message</label>
+                <textarea
+                  rows={3}
+                  value={quoteForm.requirements}
+                  onChange={(e) => setQuoteForm(prev => ({ ...prev, requirements: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-rose-500 resize-none"
+                  placeholder="Share details such as timing, specific services, or venue location..."
+                />
+              </div>
+
+              <p className="text-[11px] text-slate-400">
+                The vendor will check availability for your date and issue an official quotation. You can review and accept it in 'My Bookings'.
+              </p>
+
+              <div className="pt-2 flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setQuoteModalVendor(null)}
+                  disabled={isSubmittingQuote}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingQuote}
+                  className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                >
+                  {isSubmittingQuote ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    'Submit Request'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

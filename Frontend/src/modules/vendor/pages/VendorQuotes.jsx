@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import Icon from '../../../components/ui/Icon';
 import { useVendorState } from '../useVendorState';
 import { vendorApi } from '../vendorApi';
@@ -6,6 +7,7 @@ import { useToast } from '../../../components/ui/Toast';
 import ConfirmModal from '../../../components/ui/ConfirmModal';
 
 const VendorQuotes = () => {
+  const location = useLocation();
   const { refreshData } = useVendorState();
   const { showToast, ToastComponent } = useToast();
   const [quotes, setQuotes] = useState([]);
@@ -19,6 +21,11 @@ const VendorQuotes = () => {
   
   // Form State
   const [selectedLeadId, setSelectedLeadId] = useState('');
+  const [serviceName, setServiceName] = useState('');
+  const [price, setPrice] = useState('');
+  const [taxAmount, setTaxAmount] = useState('0');
+  const [discountAmount, setDiscountAmount] = useState('0');
+  const [validityDays, setValidityDays] = useState(14);
   const [isSaving, setIsSaving] = useState(false);
   const [notes, setNotes] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,6 +54,19 @@ const VendorQuotes = () => {
     fetchData();
   }, []);
 
+  // Consume prefillLeadId from navigation (e.g. from VendorLeads)
+  useEffect(() => {
+    const prefillId = location.state?.prefillLeadId;
+    if (prefillId && leads.length > 0) {
+      const found = leads.find(l => l._id === prefillId);
+      if (found) {
+        setSelectedLeadId(found._id);
+        setServiceName(found.serviceName || found.category || 'Wedding Package');
+        setShowModal(true);
+      }
+    }
+  }, [location.state, leads]);
+
   const filteredQuotes = useMemo(() => {
     return quotes.filter(q => {
       const matchesSearch = (q.userId?.fullName || q.leadId?.customerName || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -56,23 +76,53 @@ const VendorQuotes = () => {
     });
   }, [quotes, searchQuery, statusFilter]);
 
+  const handleLeadChange = (leadId) => {
+    setSelectedLeadId(leadId);
+    const found = leads.find(l => l._id === leadId);
+    if (found) {
+      setServiceName(prev => prev || found.serviceName || found.category || 'Wedding Package');
+    }
+  };
+
   const handleSaveQuote = async () => {
     if (!selectedLeadId) {
-      showToast('Please select a lead first.', 'warning');
+      showToast('Please select a client inquiry.', 'warning');
+      return;
+    }
+
+    if (!serviceName.trim()) {
+      showToast('Please enter a service or package name.', 'warning');
+      return;
+    }
+
+    const numPrice = Number(price);
+    if (!price || isNaN(numPrice) || numPrice <= 0) {
+      showToast('Please enter a valid proposal price greater than ₹0.', 'warning');
       return;
     }
 
     const lead = leads.find(l => l._id === selectedLeadId);
     if (!lead) return;
 
+    const numTax = Math.max(0, Number(taxAmount) || 0);
+    const numDiscount = Math.max(0, Number(discountAmount) || 0);
+    const totalAmount = Math.max(0, numPrice + numTax - numDiscount);
+
     setIsSaving(true);
     try {
       const quoteData = {
         leadId: lead._id,
         userId: lead.userId?._id || lead.userId,
-        items: [{ service: lead.serviceName || 'Wedding Service', price: 0, quantity: 1 }],
-        totalAmount: 0,
-        notes: notes
+        items: [{
+          service: serviceName.trim(),
+          price: numPrice,
+          quantity: 1
+        }],
+        taxAmount: numTax,
+        discountAmount: numDiscount,
+        totalAmount: totalAmount,
+        validUntil: new Date(Date.now() + (Number(validityDays) || 14) * 24 * 60 * 60 * 1000),
+        notes: notes.trim()
       };
 
       let res;
@@ -83,7 +133,7 @@ const VendorQuotes = () => {
       }
 
       if (res.success) {
-        showToast(isEditing ? 'Proposal updated successfully.' : 'Proposal created successfully.', 'success');
+        showToast(isEditing ? 'Proposal updated successfully.' : 'Proposal created & sent successfully.', 'success');
         fetchData();
         setShowModal(false);
         resetForm();
@@ -128,6 +178,11 @@ const VendorQuotes = () => {
     setIsEditing(true);
     setSelectedQuoteId(quote._id);
     setSelectedLeadId(quote.leadId?._id || '');
+    const firstItem = quote.items?.[0] || {};
+    setServiceName(firstItem.service || quote.leadId?.serviceName || 'Wedding Package');
+    setPrice(firstItem.price !== undefined ? String(firstItem.price) : (quote.totalAmount ? String(quote.totalAmount) : ''));
+    setTaxAmount(quote.taxAmount !== undefined ? String(quote.taxAmount) : '0');
+    setDiscountAmount(quote.discountAmount !== undefined ? String(quote.discountAmount) : '0');
     setNotes(quote.notes || '');
     setShowModal(true);
   };
@@ -136,6 +191,11 @@ const VendorQuotes = () => {
     setIsEditing(false);
     setSelectedQuoteId(null);
     setSelectedLeadId('');
+    setServiceName('');
+    setPrice('');
+    setTaxAmount('0');
+    setDiscountAmount('0');
+    setValidityDays(14);
     setNotes('');
   };
 
@@ -368,9 +428,12 @@ const VendorQuotes = () => {
 
                 {/* Proposal Intent Box (White Card Popping out with border) */}
                 <div className="bg-white border border-[#E2E8F0]/30 rounded-lg p-2 flex flex-col gap-0.5 shadow-[0_1px_3px_rgba(0,0,0,0.01)]">
-                   <p className="text-[8px] font-extrabold text-slate-400 uppercase tracking-wider">Proposal Intent</p>
+                   <div className="flex items-center justify-between">
+                     <p className="text-[8px] font-extrabold text-slate-400 uppercase tracking-wider">Proposal Intent</p>
+                     <p className="text-[11px] font-black text-[#7C3AED]">₹{(quote.totalAmount || 0).toLocaleString('en-IN')}</p>
+                   </div>
                    <p className="text-[11px] font-extrabold text-slate-700 leading-snug">
-                      {quote.leadId?.serviceName || 'General Wedding Service'}
+                      {quote.items?.[0]?.service || quote.leadId?.serviceName || 'General Wedding Service'}
                    </p>
                 </div>
 
@@ -397,30 +460,30 @@ const VendorQuotes = () => {
       {showModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={() => setShowModal(false)}></div>
-          <div className="relative w-full max-w-md bg-white rounded-xl shadow-2xl p-5 overflow-hidden animate-in zoom-in-95 duration-300">
-             <div className="flex items-center justify-between mb-5 shrink-0">
+          <div className="relative w-full max-w-lg bg-white rounded-xl shadow-2xl p-5 overflow-y-auto max-h-[90vh] animate-in zoom-in-95 duration-300">
+             <div className="flex items-center justify-between mb-4 shrink-0">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 tracking-tight">{isEditing ? 'Reconfigure Proposal' : 'New Proposal'}</h3>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{isEditing ? 'Update existing proposal details' : 'Draft a professional proposal'}</p>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{isEditing ? 'Update existing proposal details' : 'Draft a professional quote for client approval'}</p>
                 </div>
                 <button onClick={() => setShowModal(false)} className="h-8 w-8 rounded-lg bg-slate-50 flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-all border border-slate-100">
                    <Icon name="close" size="sm" />
                 </button>
              </div>
 
-             <div className="space-y-4">
+             <div className="space-y-3.5">
                 <div className="space-y-1.5">
-                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Active Inquiry</label>
+                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Active Client Inquiry *</label>
                    <div className="relative group">
                       <select 
                         disabled={isEditing}
                         className="w-full h-11 pl-4 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-[#7C3AED] appearance-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         value={selectedLeadId}
-                        onChange={(e) => setSelectedLeadId(e.target.value)}
+                        onChange={(e) => handleLeadChange(e.target.value)}
                       >
-                         <option value="" className="font-bold">Select a client</option>
+                         <option value="" className="font-bold">Select a client inquiry</option>
                          {leads.map(l => (
-                           <option key={l._id} value={l._id} className="font-bold">{l.customerName} — {l.serviceName || 'Wedding Service'}</option>
+                           <option key={l._id} value={l._id} className="font-bold">{l.customerName} — {l.serviceName || l.category || 'Wedding Service'}</option>
                          ))}
                       </select>
                       {!isEditing && (
@@ -432,22 +495,97 @@ const VendorQuotes = () => {
                 </div>
 
                 <div className="space-y-1.5">
-                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Message to Client</label>
+                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Service / Package Name *</label>
+                   <input
+                     type="text"
+                     className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-[#7C3AED] transition-all placeholder:text-slate-300"
+                     placeholder="e.g. Premium Wedding Photography Package"
+                     value={serviceName}
+                     onChange={(e) => setServiceName(e.target.value)}
+                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                   <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Package Price (₹) *</label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-[#7C3AED] transition-all placeholder:text-slate-300"
+                        placeholder="e.g. 45000"
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
+                      />
+                   </div>
+                   <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Tax / GST (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-[#7C3AED] transition-all placeholder:text-slate-300"
+                        placeholder="0"
+                        value={taxAmount}
+                        onChange={(e) => setTaxAmount(e.target.value)}
+                      />
+                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                   <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Discount (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-[#7C3AED] transition-all placeholder:text-slate-300"
+                        placeholder="0"
+                        value={discountAmount}
+                        onChange={(e) => setDiscountAmount(e.target.value)}
+                      />
+                   </div>
+                   <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Validity (Days)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="90"
+                        className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-[#7C3AED] transition-all placeholder:text-slate-300"
+                        value={validityDays}
+                        onChange={(e) => setValidityDays(e.target.value)}
+                      />
+                   </div>
+                </div>
+
+                {/* Live Total Calculation Preview */}
+                <div className="p-3 bg-purple-50/50 rounded-xl border border-purple-100 flex items-center justify-between">
+                   <div>
+                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">Total Quotation Value</span>
+                      <span className="text-[10px] text-slate-400">Price + Tax - Discount</span>
+                   </div>
+                   <span className="text-base font-black text-[#7C3AED]">
+                      ₹{(Math.max(0, (Number(price) || 0) + (Number(taxAmount) || 0) - (Number(discountAmount) || 0))).toLocaleString('en-IN')}
+                   </span>
+                </div>
+
+                <div className="space-y-1.5">
+                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Notes / Terms for Client</label>
                    <textarea 
-                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs font-medium text-slate-900 focus:outline-none focus:border-[#7C3AED] transition-all placeholder:text-slate-300 min-h-[100px] resize-none"
-                     placeholder="Type your personalized message here..."
+                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-medium text-slate-900 focus:outline-none focus:border-[#7C3AED] transition-all placeholder:text-slate-300 min-h-[70px] resize-none"
+                     placeholder="Describe package deliverables, schedule, or payment terms..."
                      value={notes}
                      onChange={(e) => setNotes(e.target.value)}
                    />
                 </div>
 
                 {selectedLeadId && leads.find(l => l._id === selectedLeadId) && (
-                    <div className="p-3 bg-purple-50/30 rounded-xl border border-purple-100 animate-in fade-in slide-in-from-top-2">
-                        <div className="flex items-center gap-2 mb-1">
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="flex items-center gap-2 mb-0.5">
                             <Icon name="calendar" size="xs" className="w-3.5 h-3.5 text-[#7C3AED]" />
-                            <span className="text-[9px] font-bold text-slate-900 uppercase tracking-widest">Target Event Date</span>
+                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Client Target Event Date</span>
                         </div>
-                        <p className="text-xs font-bold text-slate-600">
+                        <p className="text-xs font-bold text-slate-700">
                             {new Date(leads.find(l => l._id === selectedLeadId).eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </p>
                     </div>

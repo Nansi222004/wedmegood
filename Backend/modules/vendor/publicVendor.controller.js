@@ -109,17 +109,32 @@ exports.getPublicVendors = async (req, res, next) => {
         if (search && search.trim()) {
             const escapedSearch = escapeRegex(search.trim());
             const searchRegex = new RegExp(escapedSearch, 'i');
-            filter.$and = filter.$and || [];
-            filter.$and.push({
+
+            // Find vendors who have services with matching name or description in the canonical Service collection
+            const matchingServiceVendorIds = await Service.distinct('vendor', {
+                isActive: { $ne: false },
                 $or: [
-                    { businessName: searchRegex },
-                    { 'businessDetails.description': searchRegex },
-                    { city: searchRegex },
-                    { 'services.name': searchRegex },
-                    { 'selectedCategories.categoryName': searchRegex },
-                    { category: searchRegex }
+                    { name: searchRegex },
+                    { shortDescription: searchRegex },
+                    { detailedDescription: searchRegex }
                 ]
             });
+
+            const searchConditions = [
+                { businessName: searchRegex },
+                { 'businessDetails.description': searchRegex },
+                { city: searchRegex },
+                { 'services.name': searchRegex },
+                { 'selectedCategories.categoryName': searchRegex },
+                { category: searchRegex }
+            ];
+
+            if (matchingServiceVendorIds && matchingServiceVendorIds.length > 0) {
+                searchConditions.push({ _id: { $in: matchingServiceVendorIds } });
+            }
+
+            filter.$and = filter.$and || [];
+            filter.$and.push({ $or: searchConditions });
         }
 
         if (category && category !== 'all') {
@@ -143,6 +158,21 @@ exports.getPublicVendors = async (req, res, next) => {
 
             if (catDoc) {
                 catConditions.unshift({ 'selectedCategories.categoryId': catDoc._id });
+            }
+
+            // Also check canonical Service collection for active services under this category
+            const serviceCatQuery = { isActive: { $ne: false } };
+            if (catDoc) {
+                serviceCatQuery.category = catDoc._id;
+            } else {
+                const matchedCats = await Category.find({ name: catRegex }).select('_id');
+                if (matchedCats.length > 0) {
+                    serviceCatQuery.category = { $in: matchedCats.map(c => c._id) };
+                }
+            }
+            const serviceVendorIds = await Service.distinct('vendor', serviceCatQuery);
+            if (serviceVendorIds && serviceVendorIds.length > 0) {
+                catConditions.push({ _id: { $in: serviceVendorIds } });
             }
 
             filter.$and = filter.$and || [];
@@ -219,10 +249,54 @@ exports.getPublicVendors = async (req, res, next) => {
             };
         });
 
-        // Enrich vendors with canonical rating & calculated starting price
+        // Batch fetch active canonical services for all matching vendors
+        const canonicalServices = await Service.find({
+            vendor: { $in: vendorIds },
+            isActive: { $ne: false }
+        })
+            .populate('category', 'name slug')
+            .sort('-createdAt')
+            .lean();
+
+        const servicesByVendor = {};
+        canonicalServices.forEach(srv => {
+            const vKey = srv.vendor.toString();
+            if (!servicesByVendor[vKey]) servicesByVendor[vKey] = [];
+            servicesByVendor[vKey].push(srv);
+        });
+
+        // Enrich vendors with canonical rating, canonical services & calculated starting price
         let enriched = rawVendors.map(v => {
-            const rev = reviewMap[v._id.toString()] || { rating: 0, reviewCount: 0 };
-            const startingPrice = computeVendorStartingPrice(v);
+            const vKey = v._id.toString();
+            const rev = reviewMap[vKey] || { rating: 0, reviewCount: 0 };
+            const activeServices = (servicesByVendor[vKey] && servicesByVendor[vKey].length > 0)
+                ? servicesByVendor[vKey]
+                : (v.services || []);
+
+            const serviceCatNames = activeServices
+                .map(s => (typeof s.category === 'object' ? s.category?.name : s.category))
+                .filter(Boolean);
+
+            const primaryCategory = v.category || serviceCatNames[0] || (v.selectedCategories && v.selectedCategories[0]?.categoryName) || '';
+
+            // Ensure selectedCategories includes categories from canonical services
+            const existingCatNames = (v.selectedCategories || []).map(c => (c.categoryName || '').toLowerCase());
+            const enrichedSelectedCategories = [...(v.selectedCategories || [])];
+            serviceCatNames.forEach(catName => {
+                if (!existingCatNames.includes(catName.toLowerCase())) {
+                    enrichedSelectedCategories.push({ categoryName: catName });
+                    existingCatNames.push(catName.toLowerCase());
+                }
+            });
+
+            const vendorWithServices = {
+                ...v,
+                category: primaryCategory,
+                selectedCategories: enrichedSelectedCategories,
+                services: activeServices
+            };
+
+            const startingPrice = computeVendorStartingPrice(vendorWithServices);
             const parseExp = (val) => {
                 if (typeof val === 'number') return val;
                 if (typeof val === 'string') {
@@ -234,7 +308,7 @@ exports.getPublicVendors = async (req, res, next) => {
             const yearsExp = parseExp(v.businessDetails?.years) || parseExp(v.experience) || parseExp(v.businessDetails?.experience) || 0;
 
             return {
-                ...v,
+                ...vendorWithServices,
                 rating: rev.reviewCount > 0 ? rev.rating : 0,
                 reviewCount: rev.reviewCount,
                 startingPrice,
@@ -537,13 +611,33 @@ exports.getFeaturedVendors = async (req, res, next) => {
             };
         });
 
+        const canonicalServices = await Service.find({
+            vendor: { $in: vendorIds },
+            isActive: { $ne: false }
+        })
+            .populate('category', 'name slug')
+            .sort('-createdAt')
+            .lean();
+
+        const servicesByVendor = {};
+        canonicalServices.forEach(srv => {
+            const vKey = srv.vendor.toString();
+            if (!servicesByVendor[vKey]) servicesByVendor[vKey] = [];
+            servicesByVendor[vKey].push(srv);
+        });
+
         const data = vendors.map(v => {
-            const rev = reviewMap[v._id.toString()] || { rating: 0, reviewCount: 0 };
+            const vKey = v._id.toString();
+            const rev = reviewMap[vKey] || { rating: 0, reviewCount: 0 };
+            const activeServices = (servicesByVendor[vKey] && servicesByVendor[vKey].length > 0)
+                ? servicesByVendor[vKey]
+                : (v.services || []);
+            const vendorWithServices = { ...v, services: activeServices };
             return {
-                ...v,
+                ...vendorWithServices,
                 rating: rev.reviewCount > 0 ? rev.rating : 0,
                 reviewCount: rev.reviewCount,
-                startingPrice: computeVendorStartingPrice(v)
+                startingPrice: computeVendorStartingPrice(vendorWithServices)
             };
         });
 
@@ -605,6 +699,21 @@ exports.getTrendingVendors = async (req, res, next) => {
         }]));
         const favoritesMap = Object.fromEntries(favoritesData.map(f => [f._id.toString(), f.count]));
 
+        const canonicalServices = await Service.find({
+            vendor: { $in: vendorIds },
+            isActive: { $ne: false }
+        })
+            .populate('category', 'name slug')
+            .sort('-createdAt')
+            .lean();
+
+        const servicesByVendor = {};
+        canonicalServices.forEach(srv => {
+            const vKey = srv.vendor.toString();
+            if (!servicesByVendor[vKey]) servicesByVendor[vKey] = [];
+            servicesByVendor[vKey].push(srv);
+        });
+
         // Calculate deterministic trending score based on real engagement
         const ranked = approvedVendors.map(v => {
             const vId = v._id.toString();
@@ -615,12 +724,16 @@ exports.getTrendingVendors = async (req, res, next) => {
             const favs = favoritesMap[vId] || 0;
 
             const trendingScore = (views * 1) + (leads * 5) + (bookings * 10) + (rev.count * 4) + (favs * 3);
+            const activeServices = (servicesByVendor[vId] && servicesByVendor[vId].length > 0)
+                ? servicesByVendor[vId]
+                : (v.services || []);
+            const vendorWithServices = { ...v, services: activeServices };
 
             return {
-                ...v,
+                ...vendorWithServices,
                 rating: rev.count > 0 ? rev.rating : 0,
                 reviewCount: rev.count,
-                startingPrice: computeVendorStartingPrice(v),
+                startingPrice: computeVendorStartingPrice(vendorWithServices),
                 trendingScore
             };
         });
@@ -708,13 +821,33 @@ exports.getRecommendedVendors = async (req, res, next) => {
             { rating: Math.round(r.avgRating * 10) / 10, count: r.count }
         ]));
 
+        const canonicalServices = await Service.find({
+            vendor: { $in: vendorIds },
+            isActive: { $ne: false }
+        })
+            .populate('category', 'name slug')
+            .sort('-createdAt')
+            .lean();
+
+        const servicesByVendor = {};
+        canonicalServices.forEach(srv => {
+            const vKey = srv.vendor.toString();
+            if (!servicesByVendor[vKey]) servicesByVendor[vKey] = [];
+            servicesByVendor[vKey].push(srv);
+        });
+
         let enriched = vendors.map(v => {
-            const rev = reviewMap[v._id.toString()] || { rating: 0, count: 0 };
-            const startingPrice = computeVendorStartingPrice(v);
+            const vKey = v._id.toString();
+            const rev = reviewMap[vKey] || { rating: 0, count: 0 };
+            const activeServices = (servicesByVendor[vKey] && servicesByVendor[vKey].length > 0)
+                ? servicesByVendor[vKey]
+                : (v.services || []);
+            const vendorWithServices = { ...v, services: activeServices };
+            const startingPrice = computeVendorStartingPrice(vendorWithServices);
             const score = (rev.rating * 10) + (rev.count * 2) + (v.isVerified ? 5 : 0) + ((v.profileViews || 0) * 0.05);
 
             return {
-                ...v,
+                ...vendorWithServices,
                 rating: rev.count > 0 ? rev.rating : 0,
                 reviewCount: rev.count,
                 startingPrice,

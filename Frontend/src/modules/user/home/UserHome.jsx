@@ -13,8 +13,11 @@ const UserHome = () => {
   const [trendingVendors, setTrendingVendors] = useState([]);
   const [makeupArtists, setMakeupArtists] = useState([]);
   const [decorators, setDecorators] = useState([]);
+  const [heroBanners, setHeroBanners] = useState([]);
+  const [bannersLoading, setBannersLoading] = useState(true);
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
 
-  // Load checklist stats and dynamic vendor categories from MongoDB
+  // Load checklist stats, banners, and dynamic vendor categories from MongoDB
   useEffect(() => {
     let isMounted = true;
     const mapVendor = (v, defaultImg) => ({
@@ -36,8 +39,9 @@ const UserHome = () => {
       userApi.getTrendingVendors({ limit: 10 }).catch(() => ({ data: [] })),
       userApi.getVendors({ category: 'Makeup', limit: 10 }).catch(() => ({ data: [] })),
       userApi.getVendors({ category: 'Decoration', limit: 10 }).catch(() => ({ data: [] })),
-      userApi.getChecklist().catch(() => ({ data: [] }))
-    ]).then(([venueRes, photoRes, trendRes, makeupRes, decorRes, checkRes]) => {
+      userApi.getChecklist().catch(() => ({ data: [] })),
+      userApi.getBanners({ placement: 'Hero Main' }).catch(() => ({ data: [] }))
+    ]).then(([venueRes, photoRes, trendRes, makeupRes, decorRes, checkRes, bannerRes]) => {
       if (!isMounted) return;
       if (checkRes?.success && Array.isArray(checkRes?.data)) {
         const completed = checkRes.data.filter(t => t.completed).length;
@@ -48,10 +52,33 @@ const UserHome = () => {
       if (trendRes?.data?.length) setTrendingVendors(trendRes.data.map(v => mapVendor(v, 'https://images.unsplash.com/photo-1519741497674-611481863552?w=600&h=400&fit=crop&q=80')));
       if (makeupRes?.data?.length) setMakeupArtists(makeupRes.data.map(v => mapVendor(v, 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=400&fit=crop&q=80')));
       if (decorRes?.data?.length) setDecorators(decorRes.data.map(v => mapVendor(v, 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=600&h=400&fit=crop&q=80')));
+      if (bannerRes?.data?.length) {
+        setHeroBanners(bannerRes.data);
+      }
+    }).finally(() => {
+      if (isMounted) setBannersLoading(false);
     });
 
     return () => { isMounted = false; };
   }, []);
+
+  // Auto-advance banner carousel if multiple banners exist
+  useEffect(() => {
+    if (heroBanners.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentBannerIndex(prev => (prev + 1) % heroBanners.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [heroBanners.length]);
+
+  const handleBannerClick = (banner) => {
+    if (!banner?.linkUrl) return;
+    if (banner.linkUrl.startsWith('http://') || banner.linkUrl.startsWith('https://')) {
+      window.open(banner.linkUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      navigate(banner.linkUrl.startsWith('/') ? banner.linkUrl : `/${banner.linkUrl}`);
+    }
+  };
 
   // Image error handler
   const handleImageError = (e, fallbackUrl) => {
@@ -235,6 +262,100 @@ const UserHome = () => {
           ))}
         </div>
       </div>
+
+      {/* Dynamic Hero Main Banner Carousel from Admin */}
+      {bannersLoading ? (
+        <div className="w-full rounded-3xl aspect-[21/9] sm:aspect-[24/8] min-h-[140px] max-h-[250px] bg-black/5 animate-pulse rounded-[2rem]" />
+      ) : heroBanners.length > 0 ? (
+        <div className="relative group rounded-[2rem] overflow-hidden shadow-sm border border-white/60 aspect-[21/9] sm:aspect-[24/8] min-h-[150px] max-h-[260px] bg-[#3D2B2B]">
+          {heroBanners.map((banner, idx) => (
+            <div
+              key={banner._id || idx}
+              onClick={() => handleBannerClick(banner)}
+              className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
+                idx === currentBannerIndex ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+              } ${banner.linkUrl ? 'cursor-pointer' : ''}`}
+            >
+              <img
+                src={banner.imageUrl}
+                alt={banner.title || 'Wedding Feature Banner'}
+                className="w-full h-full object-cover"
+                onError={(e) => handleImageError(e, 'https://images.unsplash.com/photo-1519741497674-611481863552?w=1200&h=500&fit=crop&q=80')}
+              />
+              {/* Subtle Gradient & Content Overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent flex flex-col justify-end p-5 sm:p-7 text-white">
+                {banner.title && (
+                  <h3 
+                    className="text-base sm:text-2xl font-bold tracking-tight text-white drop-shadow-md leading-tight"
+                    style={{ fontFamily: '"Playfair Display", serif' }}
+                  >
+                    {banner.title}
+                  </h3>
+                )}
+                {banner.description && (
+                  <p 
+                    className="text-xs sm:text-sm text-white/90 line-clamp-1 max-w-xl drop-shadow-sm mt-1"
+                    style={{ fontFamily: '"Outfit", sans-serif' }}
+                  >
+                    {banner.description}
+                  </p>
+                )}
+                {banner.linkUrl && (
+                  <span className="inline-flex items-center gap-1 mt-2 text-[9px] font-black uppercase tracking-widest text-[#ffd6e0] hover:underline">
+                    Explore Details
+                    <Icon name="chevronRight" size="xs" />
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* Carousel Dot Indicators */}
+          {heroBanners.length > 1 && (
+            <div className="absolute bottom-3 right-5 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md">
+              {heroBanners.map((_, dotIdx) => (
+                <button
+                  key={dotIdx}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentBannerIndex(dotIdx);
+                  }}
+                  className={`h-1.5 rounded-full transition-all ${
+                    dotIdx === currentBannerIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/40'
+                  }`}
+                  aria-label={`Go to slide ${dotIdx + 1}`}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Previous / Next Arrow Controls on Hover */}
+          {heroBanners.length > 1 && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentBannerIndex(prev => (prev === 0 ? heroBanners.length - 1 : prev - 1));
+                }}
+                className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label="Previous Banner"
+              >
+                <Icon name="chevronLeft" size="xs" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentBannerIndex(prev => (prev + 1) % heroBanners.length);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label="Next Banner"
+              >
+                <Icon name="chevronRight" size="xs" />
+              </button>
+            </>
+          )}
+        </div>
+      ) : null}
 
       {/* 2. Wedding Planning Tools - Boutique Arched Cards */}
       <div className="space-y-4">

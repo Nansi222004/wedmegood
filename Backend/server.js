@@ -179,6 +179,7 @@ const { getAllCategories } = require('./modules/admin/adminController');
 app.use('/api/public', publicRoutes);
 app.use('/api/vendors', publicVendorRoutes);
 app.get('/api/categories', getAllCategories);
+app.get('/api/banners', require('./modules/user/banner.controller').getPublicBanners);
 app.use('/api/user', userRoutes);
 app.use('/api/vendor', vendorRoutes);
 app.use('/api/upload', uploadRoutes);
