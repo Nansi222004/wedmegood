@@ -6,6 +6,8 @@ import { useAuth } from '../../../contexts/AuthContext';
 import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
 import userApi from '../../../services/userApi';
+import { toast } from '../../../components/ui/Toast';
+import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
 
 const VendorDetail = () => {
   const { vendorId } = useParams();
@@ -67,7 +69,7 @@ const VendorDetail = () => {
 
   const handleToggleFavorite = async () => {
     if (!user) {
-      alert('Please log in first to save vendors to your favorites.');
+      toast.info('Please log in first to save vendors to your favorites.');
       navigate('/login', { state: { from: `/user/vendor/${vendorId}` } });
       return;
     }
@@ -76,14 +78,20 @@ const VendorDetail = () => {
     try {
       if (isFavorite) {
         const res = await userApi.removeFavorite(id);
-        if (res.success) setIsFavorite(false);
+        if (res.success) {
+          setIsFavorite(false);
+          toast.info('Vendor removed from favorites');
+        }
       } else {
         const res = await userApi.addFavorite(id);
-        if (res.success) setIsFavorite(true);
+        if (res.success) {
+          setIsFavorite(true);
+          toast.success('Vendor added to favorites');
+        }
       }
     } catch (err) {
       console.error('Favorite update error:', err);
-      alert('Could not update favorites: ' + (err.message || ''));
+      toast.error(getFriendlyErrorMessage(err, 'Could not update favorites.'));
     } finally {
       setIsFavoriteLoading(false);
     }
@@ -92,12 +100,12 @@ const VendorDetail = () => {
   const handleReportSubmit = async (e) => {
     if (e) e.preventDefault();
     if (!user) {
-      alert('Please log in first to report a vendor.');
+      toast.info('Please log in first to report a vendor.');
       navigate('/login', { state: { from: `/user/vendor/${vendorId}` } });
       return;
     }
     if (!reportDescription.trim()) {
-      alert('Please describe your issue with this vendor.');
+      toast.warning('Please describe your issue with this vendor.');
       return;
     }
     setReportStatus('sending');
@@ -110,6 +118,7 @@ const VendorDetail = () => {
       });
       if (res.success) {
         setReportStatus('success');
+        toast.success('Your complaint has been submitted.');
         setTimeout(() => {
           setIsReportModalOpen(false);
           setReportStatus('idle');
@@ -121,7 +130,7 @@ const VendorDetail = () => {
       }
     } catch (err) {
       console.error('Complaint submit error:', err);
-      alert('Could not submit complaint: ' + (err.message || 'Server error'));
+      toast.error(getFriendlyErrorMessage(err, 'Could not submit complaint.'));
       setReportStatus('idle');
     }
   };
@@ -150,25 +159,38 @@ const VendorDetail = () => {
     };
   }, [isRequestModalOpen, isReportModalOpen]);
 
-  // Pre-fill form from localStorage
+  // Pre-fill form from authenticated user profile and localStorage
   useEffect(() => {
+    let userName = user?.name || '';
+    let userEmail = user?.email || '';
+    let userPhone = user?.phone || '';
+    let userDate = user?.weddingDate ? new Date(user.weddingDate).toISOString().split('T')[0] : '';
+    let userCity = user?.city || '';
+
     const savedDetails = localStorage.getItem('eventDetails');
     if (savedDetails) {
       try {
         const parsed = JSON.parse(savedDetails);
-        setFormData(prev => ({
-          ...prev,
-          name: parsed.fullName || parsed.name || '',
-          email: parsed.email || '',
-          phone: parsed.phone || '',
-          date: parsed.weddingDate || '',
-          message: `Hey there! We are interested in potentially hosting our wedding at your ${vendor?.category || 'venue'}. Could you send through information on your packages? Thanks!`
-        }));
+        userName = userName || parsed.fullName || parsed.name || '';
+        userEmail = userEmail || parsed.email || '';
+        userPhone = userPhone || parsed.phone || '';
+        userDate = userDate || parsed.weddingDate || '';
+        userCity = userCity || parsed.city || '';
       } catch (e) {
         console.error('Error parsing event details', e);
       }
     }
-  }, [vendor]);
+
+    setFormData(prev => ({
+      ...prev,
+      name: userName || prev.name,
+      email: userEmail || prev.email,
+      phone: userPhone || prev.phone,
+      date: userDate || prev.date,
+      location: userCity || prev.location || '',
+      message: prev.message || `Hey there! We are interested in potentially hosting our wedding with ${vendor?.businessName || vendor?.name || 'your services'}. Could you send through information on your packages? Thanks!`
+    }));
+  }, [vendor, user]);
 
   // Dynamic data for vendor details derived strictly from MongoDB document (NO MOCKS)
   const vendorImages = (vendor?.portfolio && vendor.portfolio.length > 0)
@@ -288,7 +310,7 @@ const VendorDetail = () => {
   const handleCheckAvailability = async (targetDate) => {
     const checkDate = targetDate || selectedEventDate;
     if (!checkDate) {
-      alert('Please select an event date to check availability.');
+      toast.warning('Please select an event date to check availability.');
       return;
     }
     setIsCheckingAvailability(true);
@@ -390,13 +412,13 @@ const VendorDetail = () => {
 
   const handleSendRequest = async () => {
     if (!user) {
-      alert('Please log in first to submit an inquiry to this vendor');
+      toast.info('Please log in first to submit an inquiry to this vendor.');
       navigate('/login', { state: { from: `/user/vendor/${vendorId}` } });
       return;
     }
 
     if (!formData.phone || !formData.date) {
-      alert('Please enter your phone number and event date');
+      toast.warning('Please enter your phone number and event date.');
       return;
     }
 
@@ -406,12 +428,12 @@ const VendorDetail = () => {
       const guestNum = parseInt(formData.guestCount) || 150;
       const res = await userApi.createLead({
         vendorId: vendor?._id || vendorId,
-        customerName: formData.name || user?.name || 'Valued Customer',
+        customerName: formData.name || user?.name || 'Customer',
         phone: formData.phone || user?.phone,
         eventDate: formData.date,
-        eventLocation: vendor?.city || 'Indore',
+        eventLocation: formData.location || user?.city || vendor?.city || 'Indore',
         guestCount: guestNum,
-        budget: 0,
+        budget: Number(formData.budget) || 0,
         requirements: formData.guestCount ? `Approx ${formData.guestCount} guests` : '',
         message: formData.message || `Inquiry for ${vendor?.businessName || 'wedding services'}`,
         referencePhotos: referencePhotos
@@ -419,6 +441,7 @@ const VendorDetail = () => {
 
       if (res.success) {
         setRequestStatus('success');
+        toast.success('Inquiry sent successfully to vendor!');
         setTimeout(() => {
           setIsRequestModalOpen(false);
           setRequestStatus('idle');
@@ -429,7 +452,7 @@ const VendorDetail = () => {
       }
     } catch (e) {
       console.error('Error submitting inquiry to backend:', e);
-      alert('Failed to send inquiry: ' + (e.message || 'Server error'));
+      toast.error(getFriendlyErrorMessage(e, 'Failed to send inquiry.'));
       setRequestStatus('idle');
     }
   };
@@ -1320,7 +1343,7 @@ const VendorDetail = () => {
                                 }
                               } catch (err) {
                                 console.error('Photo upload failed:', err);
-                                alert('Photo upload failed: ' + err.message);
+                                toast.error(getFriendlyErrorMessage(err, 'Photo upload failed.'));
                               } finally {
                                 setIsUploadingPhoto(false);
                               }
@@ -1483,7 +1506,7 @@ const VendorDetail = () => {
                             }
                           } catch (err) {
                             console.error('Evidence upload failed:', err);
-                            alert('Evidence upload failed: ' + err.message);
+                            toast.error(getFriendlyErrorMessage(err, 'Evidence upload failed.'));
                           } finally {
                             setIsUploadingEvidence(false);
                           }

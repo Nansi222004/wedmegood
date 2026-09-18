@@ -58,7 +58,7 @@ const conversationSchema = new mongoose.Schema({
     lastMessage: {
         text: String,
         senderId: mongoose.Schema.Types.ObjectId,
-        senderRole: { type: String, enum: ['User', 'Vendor'] },
+        senderRole: { type: String, enum: ['User', 'Vendor', 'System', 'Admin'] },
         type: { type: String, default: 'text' },
         createdAt: Date
     },

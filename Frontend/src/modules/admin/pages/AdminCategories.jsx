@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import Icon from '../../../components/ui/Icon';
+import { toast } from '../../../components/ui/Toast';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
+import getFriendlyErrorMessage from '../../../utils/errorHandler';
 import { adminApi } from '../services/adminApi';
 
 const AdminCategories = () => {
@@ -14,6 +17,11 @@ const AdminCategories = () => {
     const [mainForm, setMainForm] = useState({ name: '', description: '', image: '', order: 0 });
     const [subForm, setSubForm] = useState(null); // { _id?, name: '', description: '', isActive: true }
     
+    // Deletion Confirmation States
+    const [categoryToDelete, setCategoryToDelete] = useState(null);
+    const [subToDelete, setSubToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
     const [actionLoading, setActionLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -68,7 +76,10 @@ const AdminCategories = () => {
 
     const handleMainSubmit = async (e) => {
         if (e) e.preventDefault();
-        if (!mainForm.name) return alert('Category Name required');
+        if (!mainForm.name?.trim()) {
+            toast.warning('Category name is required.');
+            return;
+        }
 
         try {
             setActionLoading(true);
@@ -77,6 +88,7 @@ const AdminCategories = () => {
             // If editing, preserve subCategories. If new, subCategories is empty.
             const payload = {
                 ...mainForm,
+                name: mainForm.name.trim(),
                 subCategories: selectedCategory ? selectedCategory.subCategories : []
             };
 
@@ -87,88 +99,111 @@ const AdminCategories = () => {
             }
 
             if (res.success) {
+                toast.success(selectedCategory ? 'Category updated successfully.' : 'Category created successfully.');
                 await fetchCategories(selectedCategory ? selectedCategory._id : res.data._id);
                 setIsCreatingMain(false);
                 if (!selectedCategory) {
                     setSelectedCategory(res.data);
                 }
             } else {
-                alert(res.message || 'Error');
+                toast.error(getFriendlyErrorMessage(res, 'Failed to save category.'));
             }
         } catch (err) {
             console.error('Submit error:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Failed to save category.'));
         } finally {
             setActionLoading(false);
         }
     };
 
-    const handleDeleteMain = async (e, id) => {
+    const handleDeleteMain = (e, id) => {
         e.stopPropagation();
-        if (!window.confirm('Are you sure you want to delete this Category?')) return;
+        setCategoryToDelete(id);
+    };
+
+    const confirmDeleteMain = async () => {
+        if (!categoryToDelete) return;
         try {
-            const res = await adminApi.deleteCategory(id, token);
+            setIsDeleting(true);
+            const res = await adminApi.deleteCategory(categoryToDelete, token);
             if (res.success) {
-                if (selectedCategory?._id === id) setSelectedCategory(null);
+                toast.success('Category deleted successfully.');
+                if (selectedCategory?._id === categoryToDelete) setSelectedCategory(null);
                 fetchCategories();
+                setCategoryToDelete(null);
+            } else {
+                toast.error(getFriendlyErrorMessage(res, 'Failed to delete category.'));
             }
         } catch (err) {
             console.error('Delete error:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Unable to delete category.'));
+        } finally {
+            setIsDeleting(false);
         }
     };
 
     const handleSubSubmit = async (e) => {
         if (e) e.preventDefault();
-        if (!subForm.name) return alert('Subcategory Name required');
+        if (!subForm.name?.trim()) {
+            toast.warning('Subcategory name is required.');
+            return;
+        }
 
         try {
             setActionLoading(true);
-            let updatedSubs = [...(selectedCategory.subCategories || [])];
             
-            if (subForm._id) {
-                // Edit existing
-                const index = updatedSubs.findIndex(s => s._id === subForm._id);
-                if (index !== -1) updatedSubs[index] = { ...updatedSubs[index], ...subForm };
-            } else {
-                // Add new
-                updatedSubs.push({ name: subForm.name, description: subForm.description, isActive: subForm.isActive });
-            }
-
             const payload = {
-                name: selectedCategory.name,
-                description: selectedCategory.description,
-                image: selectedCategory.image,
-                order: selectedCategory.order,
-                subCategories: updatedSubs
+                categoryId: selectedCategory._id,
+                name: subForm.name.trim(),
+                description: subForm.description,
+                status: subForm.isActive
             };
 
-            const res = await adminApi.updateCategory(selectedCategory._id, payload, token);
+            let res;
+            if (subForm._id) {
+                // Edit existing
+                res = await adminApi.updateSubCategory(subForm._id, payload, token);
+            } else {
+                // Add new
+                res = await adminApi.createSubCategory(payload, token);
+            }
+
             if (res.success) {
+                toast.success(subForm._id ? 'Subcategory updated successfully.' : 'Subcategory added successfully.');
                 await fetchCategories(selectedCategory._id);
                 setSubForm(null);
             } else {
-                alert(res.message || 'Error');
+                toast.error(getFriendlyErrorMessage(res, 'Failed to save subcategory.'));
             }
         } catch (err) {
             console.error('SubSubmit error:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Failed to save subcategory.'));
         } finally {
             setActionLoading(false);
         }
     };
 
-    const handleDeleteSub = async (subId) => {
-        if (!window.confirm('Delete this subcategory?')) return;
+    const handleDeleteSub = (subId) => {
+        setSubToDelete(subId);
+    };
+
+    const confirmDeleteSub = async () => {
+        if (!subToDelete || !selectedCategory) return;
         try {
-            const updatedSubs = selectedCategory.subCategories.filter(s => s._id !== subId);
-            const payload = {
-                name: selectedCategory.name,
-                subCategories: updatedSubs
-            };
-            const res = await adminApi.updateCategory(selectedCategory._id, payload, token);
+            setIsDeleting(true);
+            const res = await adminApi.deleteSubCategory(subToDelete, token);
             if (res.success) {
+                toast.success('Subcategory deleted successfully.');
                 fetchCategories(selectedCategory._id);
+                setSubToDelete(null);
+            } else {
+                toast.error(getFriendlyErrorMessage(res, 'Failed to delete subcategory.'));
             }
         } catch (err) {
             console.error('Delete sub error:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Unable to delete subcategory.'));
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -186,14 +221,7 @@ const AdminCategories = () => {
 
     const handleToggleSubActive = async (subId, currentStatus) => {
         try {
-            const updatedSubs = selectedCategory.subCategories.map(s => 
-                s._id === subId ? { ...s, isActive: !currentStatus } : s
-            );
-            const payload = {
-                name: selectedCategory.name,
-                subCategories: updatedSubs
-            };
-            const res = await adminApi.updateCategory(selectedCategory._id, payload, token);
+            const res = await adminApi.updateSubCategory(subId, { status: !currentStatus }, token);
             if (res.success) {
                 fetchCategories(selectedCategory._id);
             }
@@ -397,15 +425,15 @@ const AdminCategories = () => {
                                     <div key={sub._id} className="bg-white p-5 rounded-2xl border border-[#EAE6FF] shadow-[0_4px_20px_rgb(0,0,0,0.02)] group hover:border-[#4F35C3]/40 transition-all flex flex-col justify-between">
                                         <div>
                                             <div className="flex items-center justify-between mb-3">
-                                                <div className={`h-2 w-2 rounded-full ${sub.isActive ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-slate-300'}`} />
+                                                <div className={`h-2 w-2 rounded-full ${((sub.status !== undefined && sub.status) || (sub.status === undefined && sub.isActive)) ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-slate-300'}`} />
                                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <button 
-                                                        onClick={() => handleToggleSubActive(sub._id, sub.isActive)} 
-                                                        className={`h-6 px-2 text-[8px] font-black uppercase tracking-widest rounded-md transition-colors flex items-center gap-1 border ${sub.isActive ? 'border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100' : 'border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
+                                                        onClick={() => handleToggleSubActive(sub._id, sub.status !== undefined ? sub.status : sub.isActive)} 
+                                                        className={`h-6 px-2 text-[8px] font-black uppercase tracking-widest rounded-md transition-colors flex items-center gap-1 border ${((sub.status !== undefined && sub.status) || (sub.status === undefined && sub.isActive)) ? 'border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100' : 'border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100'}`}
                                                     >
-                                                        {sub.isActive ? 'Deactive' : 'Active'}
+                                                        {((sub.status !== undefined && sub.status) || (sub.status === undefined && sub.isActive)) ? 'Active' : 'Deactive'}
                                                     </button>
-                                                    <button onClick={() => setSubForm(sub)} className="h-6 w-6 flex items-center justify-center text-slate-400 hover:text-[#4F35C3] hover:bg-[#F9F8FF] rounded-md transition-colors">
+                                                    <button onClick={() => setSubForm({...sub, isActive: sub.status !== undefined ? sub.status : true})} className="h-6 w-6 flex items-center justify-center text-slate-400 hover:text-[#4F35C3] hover:bg-[#F9F8FF] rounded-md transition-colors">
                                                         <Icon name="edit" size="xs" color="currentColor" />
                                                     </button>
                                                     <button onClick={() => handleDeleteSub(sub._id)} className="h-6 w-6 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-colors">
@@ -497,6 +525,28 @@ const AdminCategories = () => {
                     </div>
                 )}
             </div>
+
+            <ConfirmModal
+                isOpen={!!categoryToDelete}
+                title="Delete Category"
+                message="Are you sure you want to delete this Category? All its subcategories will be removed as well."
+                confirmText="Delete Category"
+                isDanger={true}
+                isLoading={isDeleting}
+                onConfirm={confirmDeleteMain}
+                onCancel={() => setCategoryToDelete(null)}
+            />
+
+            <ConfirmModal
+                isOpen={!!subToDelete}
+                title="Delete Subcategory"
+                message="Are you sure you want to delete this subcategory? This action cannot be undone."
+                confirmText="Delete Subcategory"
+                isDanger={true}
+                isLoading={isDeleting}
+                onConfirm={confirmDeleteSub}
+                onCancel={() => setSubToDelete(null)}
+            />
         </div>
     );
 };

@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import Icon from '../../../components/ui/Icon';
+import { toast } from '../../../components/ui/Toast';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
+import getFriendlyErrorMessage from '../../../utils/errorHandler';
 import { adminApi } from '../services/adminApi';
 
 const AdminReviews = () => {
@@ -7,6 +10,8 @@ const AdminReviews = () => {
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('');
     const [actionLoading, setActionLoading] = useState(false);
+    const [reviewToDelete, setReviewToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [pagination, setPagination] = useState({ page: 1, limit: 12, total: 0, totalPages: 1 });
     const token = localStorage.getItem('adminToken');
 
@@ -23,10 +28,11 @@ const AdminReviews = () => {
                     setPagination(res.pagination);
                 }
             } else {
-                alert(res.message || 'Failed to fetch reviews');
+                toast.error(getFriendlyErrorMessage(res, 'Failed to fetch reviews.'));
             }
         } catch (err) {
             console.error('Failed to fetch reviews:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Unable to load reviews.'));
         } finally {
             setLoading(false);
         }
@@ -41,29 +47,40 @@ const AdminReviews = () => {
             setActionLoading(true);
             const res = await adminApi.updateReviewStatus(id, status, token);
             if (res.success) {
+                toast.success(`Review ${status.toLowerCase()} successfully.`);
                 await fetchReviews(pagination.page);
             } else {
-                alert(res.message || 'Failed to moderate review');
+                toast.error(getFriendlyErrorMessage(res, 'Failed to moderate review.'));
             }
         } catch (err) {
             console.error('Moderation error:', err);
-            alert('A network or server error occurred');
+            toast.error(getFriendlyErrorMessage(err, 'A network or server error occurred.'));
         } finally {
             setActionLoading(false);
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Delete this review permanently?')) return;
+    const handleDelete = (id) => {
+        setReviewToDelete(id);
+    };
+
+    const confirmDeleteReview = async () => {
+        if (!reviewToDelete) return;
         try {
-            const res = await adminApi.deleteReview(id, token);
+            setIsDeleting(true);
+            const res = await adminApi.deleteReview(reviewToDelete, token);
             if (res.success) {
+                toast.success('Review deleted permanently.');
                 await fetchReviews(pagination.page);
+                setReviewToDelete(null);
             } else {
-                alert(res.message || 'Failed to delete review');
+                toast.error(getFriendlyErrorMessage(res, 'Failed to delete review.'));
             }
         } catch (err) {
             console.error('Delete error:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Unable to delete review.'));
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -216,6 +233,17 @@ const AdminReviews = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmModal
+                isOpen={!!reviewToDelete}
+                title="Delete Review"
+                message="Are you sure you want to delete this review permanently? This action cannot be undone."
+                confirmText="Delete Review"
+                isDanger={true}
+                isLoading={isDeleting}
+                onConfirm={confirmDeleteReview}
+                onCancel={() => setReviewToDelete(null)}
+            />
         </div>
     );
 };

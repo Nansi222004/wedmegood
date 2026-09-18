@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Icon from '../../../components/ui/Icon';
+import { toast } from '../../../components/ui/Toast';
+import getFriendlyErrorMessage from '../../../utils/errorHandler';
 import '../adminTheme.css';
 
 const AdminResetPassword = () => {
@@ -57,11 +59,11 @@ const AdminResetPassword = () => {
             const result = await res.json();
 
             if (result.success) {
-                alert('Access Key Reset Successfully! Please login with your new key.');
+                toast.success('Access Key reset successfully! Please sign in with your new key.');
                 setTimeout(() => {
                     setIsLoading(false);
                     navigate('/admin/login');
-                }, 500);
+                }, 800);
             } else {
                 setIsLoading(false);
                 setError(result.message || 'Error resetting password');

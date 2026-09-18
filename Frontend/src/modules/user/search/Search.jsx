@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import Input from '../../../components/ui/Input';
@@ -10,8 +10,16 @@ import userApi from '../../../services/userApi';
 const Search = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const location = useLocation();
+
+  const [searchQuery, setSearchQuery] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('q') || params.get('search') || '';
+  });
+  const [debouncedQuery, setDebouncedQuery] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('q') || params.get('search') || '';
+  });
   const [isSearching, setIsSearching] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [categories, setCategories] = useState([]);
@@ -118,26 +126,49 @@ const Search = () => {
           </p>
         </div>
 
-        {/* Search Input */}
-        <div className="mb-6">
+        {/* Search Input Form */}
+        <form 
+          onSubmit={(e) => {
+            e.preventDefault();
+            setDebouncedQuery(searchQuery);
+          }} 
+          className="mb-6"
+        >
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <button
+              type="submit"
+              className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 hover:text-indigo-600 cursor-pointer transition-colors z-10"
+              title="Search"
+            >
               <Icon name="search" size="sm" style={{ color: theme.semantic.text.tertiary }} />
-            </div>
+            </button>
             <Input
               type="text"
               placeholder="Search by vendor name, service, or city..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              className="pl-10 pr-12"
             />
+            {searchQuery && !isSearching && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setDebouncedQuery('');
+                }}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-700 text-xs px-2 cursor-pointer z-10"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
             {isSearching && (
-              <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center z-10">
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary-500 border-t-transparent"></div>
               </div>
             )}
           </div>
-        </div>
+        </form>
 
         {/* Dynamic Category Filters */}
         <div className="mb-6">

@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminApi } from '../services/adminApi';
 import Icon from '../../../components/ui/Icon';
+import { toast } from '../../../components/ui/Toast';
+import getFriendlyErrorMessage from '../../../utils/errorHandler';
 
 const AdminPayments = () => {
     const [activeTab, setActiveTab] = useState('payments'); // 'payments' or 'withdrawals'
@@ -93,14 +95,16 @@ const AdminPayments = () => {
             }, token);
 
             if (res.success) {
+                toast.success('Withdrawal status updated successfully.');
                 setSelectedWithdrawal(null);
                 setUtrNumber('');
                 await fetchData();
             } else {
-                alert(res.message || 'Failed to update withdrawal status');
+                toast.error(getFriendlyErrorMessage(res, 'Failed to update withdrawal status.'));
             }
         } catch (err) {
-            alert(err.message || 'Error updating payout');
+            console.error('Update withdrawal error:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Error updating payout. Please try again.'));
         } finally {
             setActionLoading(false);
         }

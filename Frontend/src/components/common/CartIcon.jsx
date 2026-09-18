@@ -3,7 +3,7 @@ import { useCart } from '../../contexts/CartContext';
 import { useTheme } from '../../hooks/useTheme';
 import Icon from '../ui/Icon';
 
-const CartIcon = ({ className = '' }) => {
+const CartIcon = ({ className = '', size = 'md' }) => {
   const { cartState } = useCart();
   const { theme } = useTheme();
   const navigate = useNavigate();
@@ -12,32 +12,47 @@ const CartIcon = ({ className = '' }) => {
     navigate('/user/cart');
   };
 
+  const totalItems = cartState?.totalItems || 0;
+  const iconColor = totalItems > 0 
+    ? (theme?.colors?.primary?.[600] || '#BE185D') 
+    : (theme?.semantic?.navigation?.text || theme?.semantic?.text?.secondary || '#4b5563');
+
   return (
     <button
       onClick={handleCartClick}
-      className={`relative p-2 rounded-full transition-colors ${className}`}
+      className={`relative p-2 rounded-lg transition-colors flex items-center justify-center cursor-pointer ${className}`}
       style={{
-        backgroundColor: cartState.totalItems > 0 ? theme.colors.primary[50] : 'transparent'
+        color: iconColor,
+        backgroundColor: 'transparent'
       }}
-      aria-label={`Cart with ${cartState.totalItems} items`}
+      title="Shopping Cart"
+      aria-label={`Cart with ${totalItems} items`}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.color = theme?.semantic?.text?.primary || '#111827';
+        e.currentTarget.style.backgroundColor = theme?.semantic?.background?.accent || 'rgba(0,0,0,0.04)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.color = iconColor;
+        e.currentTarget.style.backgroundColor = 'transparent';
+      }}
     >
       <Icon
-        name="bag"
-        size="md"
-        style={{
-          color: cartState.totalItems > 0 ? theme.colors.primary[600] : theme.semantic.text.secondary
-        }}
+        name="cart"
+        size={size}
+        style={{ color: iconColor }}
       />
 
       {/* Cart Badge */}
-      {cartState.totalItems > 0 && (
+      {totalItems > 0 && (
         <div
-          className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm border border-white"
+          className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center shadow-sm"
           style={{
-            backgroundColor: theme.colors.primary[500],
+            backgroundColor: theme?.colors?.primary?.[500] || '#BE185D',
           }}
         >
-          {cartState.totalItems > 99 ? '99+' : cartState.totalItems}
+          <span className="text-[10px] font-bold text-white leading-none">
+            {totalItems > 99 ? '99+' : totalItems}
+          </span>
         </div>
       )}
     </button>

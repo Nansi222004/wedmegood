@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import Icon from '../../../components/ui/Icon';
+import { toast } from '../../../components/ui/Toast';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
+import getFriendlyErrorMessage from '../../../utils/errorHandler';
 
 const AdminBanners = () => {
     const [banners, setBanners] = useState([]);
@@ -7,6 +10,8 @@ const AdminBanners = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingBanner, setEditingBanner] = useState(null);
+    const [bannerToDelete, setBannerToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [imageFile, setImageFile] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
     const [formData, setFormData] = useState({
@@ -83,7 +88,7 @@ const AdminBanners = () => {
         }
 
         if (!imageFile && !editingBanner) {
-            alert('Please select an image asset first');
+            toast.warning('Please select an image asset first.');
             return;
         }
 
@@ -97,6 +102,7 @@ const AdminBanners = () => {
             });
             const result = await res.json();
             if (result.success) {
+                toast.success(editingBanner ? 'Banner updated successfully.' : 'Banner deployed successfully.');
                 fetchBanners();
                 setIsModalOpen(false);
                 setEditingBanner(null);
@@ -111,28 +117,40 @@ const AdminBanners = () => {
                     status: 'Active' 
                 });
             } else {
-                alert(result.message || 'Failed to deploy asset');
+                toast.error(getFriendlyErrorMessage(result, 'Failed to save banner asset.'));
             }
         } catch (err) {
             console.error('Error saving banner:', err);
-            alert('Network error. Please check your connection.');
+            toast.error(getFriendlyErrorMessage(err, 'Network error. Please check your connection.'));
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this banner?')) return;
+    const handleDelete = (id) => {
+        setBannerToDelete(id);
+    };
+
+    const confirmDeleteBanner = async () => {
+        if (!bannerToDelete) return;
         const token = localStorage.getItem('adminToken');
         try {
-            const res = await fetch(`/api/admin/banners/${id}`, {
+            setIsDeleting(true);
+            const res = await fetch(`/api/admin/banners/${bannerToDelete}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await res.json();
             if (result.success) {
+                toast.success('Banner deleted successfully.');
                 fetchBanners();
+                setBannerToDelete(null);
+            } else {
+                toast.error(getFriendlyErrorMessage(result, 'Failed to delete banner.'));
             }
         } catch (err) {
             console.error('Error deleting banner:', err);
+            toast.error('Unable to delete banner. Please try again.');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -278,24 +296,24 @@ const AdminBanners = () => {
                             <form onSubmit={handleSubmit} className="space-y-5 pb-4">
                                 <div className="space-y-1.5">
                                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Asset Title</label>
-                                    <input
-                                        type="text"
+                                    <textarea
                                         required
                                         value={formData.title}
                                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                        className="w-full h-11 px-4 bg-slate-50 border border-slate-100 rounded-xl text-[12px] font-bold text-slate-900 outline-none focus:border-primary-400/50 transition-all"
-                                        placeholder="e.g. Summer Wedding Bonanza"
+                                        className="w-full min-h-[44px] px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-[12px] font-bold text-slate-900 outline-none focus:border-primary-400/50 transition-all resize-y"
+                                        placeholder="e.g. Beautiful&#10;Celebrations&#10;Brighter Lives"
+                                        rows={3}
                                     />
                                 </div>
 
                                 <div className="space-y-1.5">
                                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Description</label>
-                                    <input
-                                        type="text"
+                                    <textarea
                                         value={formData.description}
                                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                        className="w-full h-11 px-4 bg-slate-50 border border-slate-100 rounded-xl text-[12px] font-bold text-slate-900 outline-none focus:border-primary-400/50 transition-all"
-                                        placeholder="e.g. Reach more couples"
+                                        className="w-full min-h-[44px] px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-[12px] font-bold text-slate-900 outline-none focus:border-primary-400/50 transition-all resize-y"
+                                        placeholder="e.g. Find trusted vendors&#10;for your special moments"
+                                        rows={2}
                                     />
                                 </div>
 
@@ -374,6 +392,17 @@ const AdminBanners = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmModal
+                isOpen={!!bannerToDelete}
+                title="Delete Banner"
+                message="Are you sure you want to delete this banner? This action cannot be undone."
+                confirmText="Delete Banner"
+                isDanger={true}
+                isLoading={isDeleting}
+                onConfirm={confirmDeleteBanner}
+                onCancel={() => setBannerToDelete(null)}
+            />
         </div>
     );
 };

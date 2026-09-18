@@ -154,7 +154,7 @@ const VendorSubscriptionOnboarding = () => {
 
       // 3. Open Razorpay test popup
       const options = {
-        key: orderRes.key || 'rzp_test_8sYbzHWidwe5Zw',
+        key: orderRes.key || import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: orderRes.order.amount,
         currency: orderRes.order.currency,
         name: 'Utsavo',

@@ -5,6 +5,8 @@ import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
 import Card from '../../../components/ui/Card';
 import userApi from '../../../services/userApi';
+import { toast } from '../../../components/ui/Toast';
+import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
 
 const EInvites = () => {
   const { theme } = useTheme();
@@ -59,7 +61,7 @@ const EInvites = () => {
       }
     } catch (err) {
       console.error('Failed to create invite:', err);
-      alert('Could not create invitation: ' + (err.message || 'Server error'));
+      toast.error(getFriendlyErrorMessage(err, 'Could not create invitation. Please try again.'));
     } finally {
       setIsCreating(false);
     }

@@ -73,6 +73,19 @@ const VendorsMain = () => {
     navigate('/user/search');
   };
 
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const handleSearchSubmit = (e) => {
+    if (e) e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/user/vendors/all?search=${encodeURIComponent(searchQuery.trim())}`, {
+        state: { category: 'all', categoryTitle: 'All Categories', search: searchQuery.trim() }
+      });
+    } else {
+      navigate('/user/search');
+    }
+  };
+
   return (
     <div className="min-h-screen pb-32" style={{ backgroundColor: '#EAE1D8' }}>
       {/* 1. Atelier Header - Arched Surface */}
@@ -84,7 +97,13 @@ const VendorsMain = () => {
               <span className="w-2 h-2 rounded-full bg-[#BE185D]"></span>
               <span className="text-[9px] font-black uppercase tracking-[0.2em] text-[#3D2B2B]/30">Curation Service</span>
            </div>
-           <button className="w-10 h-10 rounded-full flex items-center justify-center bg-[#EAE1D8]/30 border border-[#EAE1D8]">
+           <button 
+             type="button"
+             onClick={handleSearchClick}
+             className="w-10 h-10 rounded-full flex items-center justify-center bg-[#EAE1D8]/30 border border-[#EAE1D8] hover:bg-[#EAE1D8]/60 transition-all cursor-pointer"
+             title="Search all vendors"
+             aria-label="Search all vendors"
+           >
               <Icon name="search" size="xs" style={{ color: '#3D2B2B' }} />
            </button>
         </div>
@@ -99,6 +118,42 @@ const VendorsMain = () => {
               <Icon name="chevronDown" size="xs" />
            </div>
         </div>
+
+        {/* Interactive Search Bar on Discovery Landing */}
+        <form onSubmit={handleSearchSubmit} className="mt-5 relative">
+          <div className="relative flex items-center">
+            <button
+              type="submit"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#BE185D] transition-colors cursor-pointer"
+              title="Search"
+            >
+              <Icon name="search" size="xs" />
+            </button>
+            <input
+              type="text"
+              placeholder="Search all vendors, services, or cities..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-24 py-3 rounded-full bg-slate-50 border border-slate-200 text-xs font-medium text-[#3D2B2B] focus:outline-none focus:ring-2 focus:ring-[#BE185D]/30 focus:bg-white transition-all shadow-xs"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-20 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs px-1 cursor-pointer"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+            <button
+              type="submit"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 px-4 py-1.5 rounded-full bg-[#BE185D] text-white text-[11px] font-bold hover:bg-[#9D174D] active:scale-95 transition-all shadow-xs cursor-pointer"
+            >
+              Search
+            </button>
+          </div>
+        </form>
       </div>
 
       {/* 2. Collections Grid - Arched Cards */}

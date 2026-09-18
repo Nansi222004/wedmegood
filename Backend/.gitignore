@@ -127,11 +127,21 @@ test/
 test
 scratch/
 *.test.js
+*.test.ts
 *.spec.js
+*.spec.ts
 check_*.js
 benchmark_*.js
+verify_*.js
+test_*.js
+test-*.js
 
 # Markdown documentation files
 *.md
 **/*.md
+
+# Scratch and dump files
+scratch_token.txt
+*.txt
+
 

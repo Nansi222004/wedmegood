@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import { userApi } from '../../../services/userApi';
+import { toast } from '../../../components/ui/Toast';
+import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
 
 const BudgetPlanner = () => {
   const navigate = useNavigate();
@@ -86,6 +88,7 @@ const BudgetPlanner = () => {
 
       if (res.success && res.data?.budget) {
         setBudgetData(res.data.budget);
+        toast.success('Category budget updated successfully');
       }
 
       setEditingCategory(null);
@@ -96,7 +99,7 @@ const BudgetPlanner = () => {
       });
     } catch (err) {
       console.error('Failed to save category financials:', err);
-      alert(err.message || 'Failed to update category');
+      toast.error(getFriendlyErrorMessage(err, 'Failed to update category'));
     } finally {
       setIsSaving(false);
     }

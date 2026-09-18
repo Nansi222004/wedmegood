@@ -19,20 +19,78 @@ const VendorBookings = () => {
   };
 
   const handleDownloadInvoice = (booking) => {
-    const totalAmount = booking.totalPrice || booking.totalAmount || 0;
-    const advancePaid = totalAmount * 0.4;
-    const secondPayment = totalAmount * 0.4;
-    const finalPayment = totalAmount * 0.2;
-    const outstanding = totalAmount - advancePaid;
+    const totalAmount = Number(booking.packageTotal ?? booking.totalPrice ?? booking.totalAmount ?? 0);
+    const paidAmount = Number(booking.paidAmount ?? 0);
+    const totalRefunded = Number(booking.totalRefunded ?? 0);
+    const outstanding = Number(booking.outstandingBalance ?? Math.max(0, totalAmount - paidAmount));
+    const commission = Number(booking.commission ?? 0);
+    const commissionPercent = booking.commissionRatePercent ?? (booking.commissionRate ? Math.round(booking.commissionRate * 100) : null);
+    const commissionBasis = booking.commissionBasis || 'Gross Package Total';
+    const commissionSource = booking.commissionConfigSource || 'System Record';
+    const vendorNet = Number(booking.vendorEarning ?? Math.max(0, totalAmount - commission));
+    const vendorAmountSettled = Number(booking.vendorAmountSettled ?? 0);
+    const escrowHeldAmount = Number(booking.escrowHeldAmount ?? 0);
+    const escrowStatus = booking.escrowStatus || (escrowHeldAmount > 0 ? 'Held in Escrow' : 'None Held');
+    const settlementStatus = booking.settlementStatus || (vendorAmountSettled > 0 ? 'Settled' : 'Pending');
+
     const d = booking.eventDate ? new Date(booking.eventDate) : null;
     const fullDateStr = d ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Date Pending';
     const invoiceNo = `INV-${booking._id ? booking._id.slice(-6).toUpperCase() : 'XXXX'}`;
     const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+    const vendorBrand = booking.vendorId?.businessName || 'Wedding Vendor';
+    const venue = booking.location || 'Venue pending';
+    const customer = booking.customerName || 'Customer';
+    const contact = booking.customerPhone || 'Not available';
+    const guests = booking.guestCount ? `${booking.guestCount} Guests` : 'Not specified';
+    const servicesStr = booking.services && booking.services.length > 0 ? booking.services.join(', ') : 'Wedding Services';
+
+    // Build real payment transaction rows
+    const paymentsList = Array.isArray(booking.payments) && booking.payments.length > 0
+      ? booking.payments.filter(p => p.status === 'Completed' || p.status === 'Paid' || p.status === 'PartiallyRefunded')
+      : [];
+
+    let paymentsRowsHtml = '';
+    if (paymentsList.length > 0) {
+      paymentsRowsHtml = paymentsList.map((p, idx) => `
+        <tr>
+          <td>Payment #${idx + 1} (${p.paymentMethod || 'Razorpay'}) — Ref: ${p.razorpayPaymentId || p.transactionId || 'Verified'}</td>
+          <td><span class="status-paid">${p.status === 'PartiallyRefunded' ? 'Partial Refund' : 'Paid & Verified'}</span></td>
+          <td class="amount">₹${Number(p.amount || 0).toLocaleString('en-IN')}</td>
+        </tr>
+      `).join('');
+    } else if (paidAmount > 0) {
+      paymentsRowsHtml = `
+        <tr>
+          <td>Verified Online Payments</td>
+          <td><span class="status-paid">Paid & Verified</span></td>
+          <td class="amount">₹${Number(paidAmount).toLocaleString('en-IN')}</td>
+        </tr>
+      `;
+    } else {
+      paymentsRowsHtml = `
+        <tr>
+          <td>Verified Payments Recorded</td>
+          <td><span class="status-pending">Unpaid</span></td>
+          <td class="amount">₹0</td>
+        </tr>
+      `;
+    }
+
+    if (totalRefunded > 0) {
+      paymentsRowsHtml += `
+        <tr style="background: #fff1f2;">
+          <td>Refunds & Reversals Processed</td>
+          <td><span style="color: #e11d48; font-weight: bold; font-size: 10px;">Refunded</span></td>
+          <td class="amount" style="color: #e11d48;">- ₹${totalRefunded.toLocaleString('en-IN')}</td>
+        </tr>
+      `;
+    }
+
     const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>Invoice – ${booking.customerName || 'Customer'}</title>
+  <title>Invoice – ${customer}</title>
   <style>
     body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 32px; color: #1e293b; background: #fff; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #6D3BFF; padding-bottom: 16px; margin-bottom: 24px; }
@@ -55,6 +113,7 @@ const VendorBookings = () => {
     .status-pending { color: #94a3b8; font-weight: 800; font-size: 10px; text-transform: uppercase; }
     .outstanding-row { background: #fff1f2; }
     .outstanding-row td { color: #e11d48; font-weight: 800; }
+    .settlement-row { background: #f8fafc; font-size: 12px; color: #475569; }
     .footer { margin-top: 32px; border-top: 1px solid #e2e8f0; padding-top: 16px; font-size: 11px; color: #94a3b8; text-align: center; }
     .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; background: #ede9fe; color: #6D3BFF; }
   </style>
@@ -62,8 +121,8 @@ const VendorBookings = () => {
 <body>
   <div class="header">
     <div>
-      <div class="brand">abhi Photography</div>
-      <div class="brand-sub">Vendor Portal · Wedding Services</div>
+      <div class="brand">${vendorBrand}</div>
+      <div class="brand-sub">Vendor Portal · Wedding & Event Services</div>
     </div>
     <div class="inv-info">
       <p class="inv-no">${invoiceNo}</p>
@@ -73,50 +132,87 @@ const VendorBookings = () => {
   </div>
   <p class="section-title">Booking Details</p>
   <div class="info-grid">
-    <div class="info-row"><span class="info-label">Customer</span><span class="info-val">${booking.customerName || '—'}</span></div>
-    <div class="info-row"><span class="info-label">Contact</span><span class="info-val">${booking.customerPhone || '—'}</span></div>
-    <div class="info-row"><span class="info-label">Venue</span><span class="info-val">${booking.location || 'Sayaji Hotel, Indore'}</span></div>
+    <div class="info-row"><span class="info-label">Customer</span><span class="info-val">${customer}</span></div>
+    <div class="info-row"><span class="info-label">Contact</span><span class="info-val">${contact}</span></div>
+    <div class="info-row"><span class="info-label">Venue</span><span class="info-val">${venue}</span></div>
     <div class="info-row"><span class="info-label">Event Date</span><span class="info-val">${fullDateStr}</span></div>
-    <div class="info-row"><span class="info-label">Guests</span><span class="info-val">${booking.guests || '300–350'}</span></div>
-    <div class="info-row"><span class="info-label">Status</span><span class="info-val"><span class="badge">${booking.status || 'Pending'}</span></span></div>
+    <div class="info-row"><span class="info-label">Guests</span><span class="info-val">${guests}</span></div>
+    <div class="info-row"><span class="info-label">Services</span><span class="info-val">${servicesStr}</span></div>
   </div>
-  <p class="section-title">Payment Summary</p>
+  <p class="section-title">Financial Summary & Payment Ledger</p>
   <table>
     <thead><tr><th>Description</th><th>Status</th><th class="amount">Amount</th></tr></thead>
     <tbody>
-      <tr><td>Total Package</td><td></td><td class="amount">₹${totalAmount.toLocaleString('en-IN')}</td></tr>
-      <tr><td>Advance Payment (40%)</td><td><span class="status-paid">Paid</span></td><td class="amount">₹${advancePaid.toLocaleString('en-IN')}</td></tr>
-      <tr><td>Second Payment (40%)</td><td><span class="status-due">Due</span></td><td class="amount">₹${secondPayment.toLocaleString('en-IN')}</td></tr>
-      <tr><td>Final Payment (20%)</td><td><span class="status-pending">Pending</span></td><td class="amount">₹${finalPayment.toLocaleString('en-IN')}</td></tr>
-      <tr class="outstanding-row"><td><strong>Outstanding Balance</strong></td><td></td><td class="amount">₹${outstanding.toLocaleString('en-IN')}</td></tr>
+      <tr><td><strong>Agreed Package Total</strong></td><td><span class="badge">${booking.status || 'Confirmed'}</span></td><td class="amount">₹${totalAmount.toLocaleString('en-IN')}</td></tr>
+      ${paymentsRowsHtml}
+      <tr class="outstanding-row"><td><strong>Outstanding Customer Balance</strong></td><td>${outstanding === 0 ? '<span class="status-paid">Fully Settled</span>' : '<span class="status-due">Due</span>'}</td><td class="amount">₹${outstanding.toLocaleString('en-IN')}</td></tr>
+      <tr class="settlement-row"><td>Platform Commission (${commissionPercent !== null ? commissionPercent + '%' : 'Unconfigured'} on ${commissionBasis})</td><td><span class="badge">${commissionSource}</span></td><td class="amount">- ₹${commission.toLocaleString('en-IN')}</td></tr>
+      <tr class="settlement-row"><td><strong>Vendor Net Payable Earnings</strong></td><td><span class="badge">${settlementStatus}</span></td><td class="amount"><strong>₹${vendorNet.toLocaleString('en-IN')}</strong></td></tr>
+      <tr class="settlement-row"><td>Actual Vendor Settlement Paid Out</td><td><span class="badge">${vendorAmountSettled > 0 ? 'Disbursed' : 'Pending'}</span></td><td class="amount">₹${vendorAmountSettled.toLocaleString('en-IN')}</td></tr>
+      <tr class="settlement-row"><td>Escrow Custody Balance</td><td><span class="badge">${escrowStatus}</span></td><td class="amount">₹${escrowHeldAmount.toLocaleString('en-IN')}</td></tr>
     </tbody>
   </table>
-  <div class="footer">Thank you for trusting abhi Photography · This is a system-generated invoice</div>
+  <div class="footer">Thank you for choosing ${vendorBrand} · Official System Generated Invoice</div>
 </body>
 </html>`;
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Invoice_${booking.customerName?.replace(/\s+/g, '_') || 'Booking'}_${invoiceNo}.html`;
+    a.download = `Invoice_${customer.replace(/\s+/g, '_')}_${invoiceNo}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast('Invoice downloaded successfully!');
+    showToast('Official invoice downloaded successfully!');
   };
 
   const handleSendReminder = (booking) => {
-    const totalAmount = booking.totalPrice || booking.totalAmount || 0;
-    const outstanding = totalAmount * 0.6;
+    if (booking.status === 'Cancelled') {
+      showToast('Cannot send payment reminder for a cancelled booking.');
+      return;
+    }
+
+    if (booking.paymentStatus === 'Refunded') {
+      showToast('This booking has been refunded. No payment reminder can be sent.');
+      return;
+    }
+
+    if (booking.hasDiscrepancy) {
+      showToast('Booking financial records have an audit discrepancy. Reminder blocked until reconciled.');
+      return;
+    }
+
+    const totalAmount = Number(booking.packageTotal ?? booking.totalPrice ?? booking.totalAmount ?? 0);
+    const paidAmount = Number(booking.paidAmount ?? 0);
+    const outstanding = booking.outstandingBalance !== undefined && booking.outstandingBalance !== null
+      ? Number(booking.outstandingBalance)
+      : Math.max(0, totalAmount - paidAmount);
+
+    const rawPhone = booking.customerPhone || '';
+    const phone = rawPhone.replace(/[^0-9]/g, '');
+
+    if (!phone || phone.length < 10) {
+      showToast('Customer contact number is unavailable for this booking.');
+      return;
+    }
+
     const d = booking.eventDate ? new Date(booking.eventDate) : null;
-    const fullDateStr = d ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : 'your event date';
-    const phone = (booking.customerPhone || '9910088204').replace(/[^0-9]/g, '');
-    const msg = encodeURIComponent(
-      `Hello ${booking.customerName || 'there'} 🙏\n\nThis is a gentle reminder from *abhi Photography* regarding your upcoming wedding booking.\n\n📅 *Event Date:* ${fullDateStr}\n📍 *Venue:* ${booking.location || 'Sayaji Hotel, Indore'}\n\n💰 *Outstanding Balance:* ₹${outstanding.toLocaleString('en-IN')}\n\nKindly ensure the payment is cleared before the event. Feel free to contact us for any queries.\n\nThank you! 🌸`
-    );
-    window.open(`https://wa.me/${phone}?text=${msg}`, '_blank', 'noopener,noreferrer');
-    showToast('Reminder sent via WhatsApp!');
+    const fullDateStr = d ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : 'your scheduled date';
+    const customer = booking.customerName || 'there';
+    const vendorBrand = booking.vendorId?.businessName || 'Wedding Vendor';
+    const venue = booking.location || 'your venue';
+
+    let messageText = '';
+    if (outstanding === 0) {
+      messageText = `Hello ${customer} 🙏\n\nGreetings from *${vendorBrand}* regarding your upcoming wedding booking.\n\n📅 *Event Date:* ${fullDateStr}\n📍 *Venue:* ${venue}\n\n✨ *Status:* Booking is 100% Confirmed and Fully Paid (₹${totalAmount.toLocaleString('en-IN')}).\n\nWe look forward to creating wonderful memories for your special day! Feel free to reach out if you have any questions.\n\nThank you! 🌸`;
+    } else {
+      messageText = `Hello ${customer} 🙏\n\nThis is a gentle reminder from *${vendorBrand}* regarding your upcoming wedding booking.\n\n📅 *Event Date:* ${fullDateStr}\n📍 *Venue:* ${venue}\n\n💰 *Total Agreed Package:* ₹${totalAmount.toLocaleString('en-IN')}\n✅ *Verified Paid to Date:* ₹${paidAmount.toLocaleString('en-IN')}\n⏳ *Outstanding Balance Due:* ₹${outstanding.toLocaleString('en-IN')}\n\nKindly ensure the remaining balance is cleared before the event. Feel free to contact us for any queries.\n\nThank you! 🌸`;
+    }
+
+    const msg = encodeURIComponent(messageText);
+    window.open(`https://wa.me/${phone.startsWith('91') ? phone : '91' + phone}?text=${msg}`, '_blank', 'noopener,noreferrer');
+    showToast('WhatsApp reminder opened!');
   };
 
   const fetchBookings = async () => {
@@ -212,12 +308,33 @@ const VendorBookings = () => {
     const month = d ? d.toLocaleString('en-US', { month: 'short' }).toUpperCase() : 'TBD';
     const dateNum = d ? d.getDate() : '--';
     const dayStr = d ? d.toLocaleString('en-US', { weekday: 'short' }) : '---';
-    const totalAmount = booking.totalPrice || booking.totalAmount || 0;
-    const advancePaid = totalAmount * 0.4;
-    const secondPayment = totalAmount * 0.4;
-    const finalPayment = totalAmount * 0.2;
-    const outstanding = totalAmount - advancePaid;
     const fullDateStr = d ? d.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Date Pending';
+
+    // Canonical financial reconciliation
+    const totalAmount = Number(booking.packageTotal ?? booking.totalPrice ?? booking.totalAmount ?? 0);
+    const paidAmount = Number(booking.paidAmount ?? 0);
+    const totalRefunded = Number(booking.totalRefunded ?? 0);
+    const outstanding = Number(booking.outstandingBalance ?? Math.max(0, totalAmount - paidAmount));
+    const commission = Number(booking.commission ?? 0);
+    const commissionPercent = booking.commissionRatePercent ?? (booking.commissionRate ? Math.round(booking.commissionRate * 100) : null);
+    const commissionBasis = booking.commissionBasis || 'Gross Package Total';
+    const commissionSource = booking.commissionConfigSource || 'System Record';
+    const vendorNet = Number(booking.vendorEarning ?? Math.max(0, totalAmount - commission));
+    const vendorAmountSettled = Number(booking.vendorAmountSettled ?? 0);
+    const escrowHeldAmount = Number(booking.escrowHeldAmount ?? 0);
+    const escrowStatus = booking.escrowStatus || (escrowHeldAmount > 0 ? 'Held in Escrow' : 'None Held');
+    const settlementStatus = booking.settlementStatus || (vendorAmountSettled > 0 ? 'Settled' : 'Pending');
+    const isFullyPaid = booking.isFullyPaid ?? (paidAmount >= totalAmount && totalAmount > 0);
+
+    const customerName = booking.customerName || booking.userId?.name || booking.leadId?.name || 'Customer';
+    const customerPhone = booking.customerPhone || booking.userId?.phone || '';
+    const customerEmail = booking.customerEmail || booking.userId?.email || '';
+    const venue = booking.location || 'Venue pending';
+    const guests = booking.guestCount ? `${booking.guestCount} Guests` : 'Guest count pending';
+    const servicesList = Array.isArray(booking.services) && booking.services.length > 0 ? booking.services : ['Wedding Services'];
+    const paymentsList = Array.isArray(booking.payments) ? booking.payments : [];
+
+    const paymentPercentage = totalAmount > 0 ? Math.min(100, Math.round((paidAmount / totalAmount) * 100)) : 0;
 
     return createPortal(
       <div data-lenis-prevent className="fixed top-16 bottom-[72px] lg:bottom-0 lg:left-64 inset-x-0 z-[40] bg-[#FAFAFC] scrollable-portal text-slate-800 animate-fade-in no-scrollbar touch-auto">
@@ -272,376 +389,450 @@ const VendorBookings = () => {
           `}
         </style>
 
-        <div className="max-w-md mx-auto space-y-2.5 pb-24 px-4 font-luxury-sans">
+        <div className="max-w-4xl mx-auto space-y-4 pb-24 px-4 sm:px-6 font-luxury-sans">
           {/* Back button header row */}
-          <div className="flex items-center gap-2 pt-2 pb-0 px-1">
+          <div className="flex items-center justify-between pt-3 pb-1 px-1">
             <button
               onClick={() => setSelectedBooking(null)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white text-[11px] font-medium text-[#6D3BFF] hover:text-indigo-800 transition-all active:scale-95 shadow-3xs font-luxury-sans"
             >
               <Icon name="arrowLeft" size="xs" className="w-3.5 h-3.5" /> Back to Bookings
             </button>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">
+                ID: {booking._id?.slice(-8).toUpperCase() || 'BOOKING'}
+              </span>
+            </div>
           </div>
 
-          <div className="luxury-card p-3.5 sm:p-4 space-y-3 bg-white !mt-1">
-            <div className="flex items-start gap-4">
-              <div className="flex flex-col items-center justify-center w-14 h-[64px] bg-slate-50 rounded-2xl shrink-0 shadow-3xs">
-                <span className="text-[9px] font-medium text-[#6D3BFF] tracking-wider uppercase mb-0.5 font-luxury-sans">{month}</span>
-                <span className="text-[20px] font-medium text-slate-950 leading-none mb-0.5 font-luxury-sans">{dateNum}</span>
+          {/* Booking Overview Card */}
+          <div className="luxury-card p-4 sm:p-6 space-y-4 bg-white">
+            <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+              <div className="flex sm:flex-col items-center justify-center w-full sm:w-16 h-14 sm:h-[72px] bg-slate-50 rounded-2xl shrink-0 shadow-3xs gap-2 sm:gap-0">
+                <span className="text-[9px] font-medium text-[#6D3BFF] tracking-wider uppercase font-luxury-sans">{month}</span>
+                <span className="text-[22px] font-medium text-slate-950 leading-none font-luxury-sans">{dateNum}</span>
                 <span className="text-[9px] font-medium text-slate-400 leading-none font-luxury-sans">{dayStr}</span>
               </div>
 
-              <img
-                src="/couple_portrait.png"
-                alt="Wedding Couple"
-                className="w-16 h-[64px] rounded-2xl object-cover shrink-0 shadow-3xs"
-                onError={(e) => {
-                  e.target.src = 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&q=80&w=200';
-                }}
-              />
-
-              <div className="flex-1 min-w-0 flex flex-col gap-1.5 py-0.5">
-                <div className="flex items-center gap-2 flex-wrap leading-none">
-                  <h2 className="text-[18px] sm:text-[20px] font-medium text-slate-950 tracking-tight font-luxury-sans">
-                    {booking.customerName || 'Rahul & Sneha'}
+              <div className="flex-1 min-w-0 flex flex-col gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-[20px] sm:text-[22px] font-semibold text-slate-950 tracking-tight font-luxury-sans">
+                    {customerName}
                   </h2>
-                  <span className="px-2 py-0.5 rounded-full text-[8.5px] font-medium uppercase tracking-wider bg-purple-50 text-[#6D3BFF] font-luxury-sans">
-                    Wedding
+                  <span className="px-2.5 py-0.5 rounded-full text-[9px] font-medium uppercase tracking-wider bg-purple-50 text-[#6D3BFF] font-luxury-sans">
+                    {booking.eventType || 'Wedding'}
+                  </span>
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-[9px] font-medium uppercase tracking-wider"
+                    style={{ backgroundColor: status.bg, color: status.color }}
+                  >
+                    {booking.status}
                   </span>
                 </div>
 
-                <div className="space-y-1 font-luxury-sans">
-                  <div className="flex items-center gap-1.5 text-[11.5px] text-slate-500 font-medium min-w-0">
-                    <Icon name="location" size="xs" className="w-3 h-3 text-[#6D3BFF] flex-shrink-0" />
-                    <span className="truncate">{booking.location || 'Sayaji Hotel, Indore'}</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px] text-slate-600 font-luxury-sans">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Icon name="location" size="xs" className="w-3.5 h-3.5 text-[#6D3BFF] shrink-0" />
+                    <span className="truncate">{venue}</span>
                   </div>
 
-                  <div className="flex items-center gap-1.5 text-[11.5px] text-slate-500 font-medium min-w-0">
-                    <Icon name="users" size="xs" className="w-3 h-3 text-[#6D3BFF] flex-shrink-0" />
-                    <span className="truncate">{booking.guests || '300–350 Guests'}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Icon name="users" size="xs" className="w-3.5 h-3.5 text-[#6D3BFF] shrink-0" />
+                    <span className="truncate">{guests}</span>
                   </div>
 
-                  <div className="flex items-center gap-1.5 text-[11.5px] text-slate-500 font-medium min-w-0">
-                    <Icon name="palette" size="xs" className="w-3 h-3 text-[#6D3BFF] flex-shrink-0" />
-                    <span className="truncate text-slate-500 font-medium">{booking.theme || 'Royal Theme / Floral Decor'}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+                  {customerPhone && (
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Icon name="phone" size="xs" className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span className="truncate font-medium text-slate-800">{customerPhone}</span>
+                    </div>
+                  )}
 
-            <div className="bg-slate-50 p-3 rounded-xl flex items-center justify-between font-luxury-sans shadow-3xs">
-              <div>
-                <span className="text-[16px] font-medium">₹{totalAmount.toLocaleString('en-IN')}</span>
-                <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest leading-none mt-0.5">Total Package</p>
-              </div>
-
-              <span className="px-2 py-1 rounded-full text-[9px] font-medium uppercase tracking-wider bg-[#6D3BFF] text-white">
-                Advance Paid
-              </span>
-
-              <div className="flex flex-col items-center justify-center shrink-0">
-                <div className="relative h-8 w-8">
-                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                    <circle cx="18" cy="18" r="15" fill="none" stroke="#E2E8F0" strokeWidth="2.5" />
-                    <circle cx="18" cy="18" r="15" fill="none" stroke="#6D3BFF" strokeWidth="3.5" strokeDasharray="70, 100" strokeLinecap="round" />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-[8px] font-medium text-slate-900">70%</span>
-                  </div>
-                </div>
-                <span className="text-[7px] font-medium text-slate-400 mt-0.5 leading-none uppercase tracking-wider">Prep</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-4 gap-2 font-luxury-sans">
-            <a
-              href={`tel:${booking.customerPhone || "+919910088204"}`}
-              className="bg-white rounded-2xl py-3 flex flex-col items-center justify-center gap-1 shadow-3xs hover:bg-slate-50 hover:-translate-y-0.5 transition-all active:scale-95"
-            >
-              <div className="h-9 w-9 rounded-full bg-violet-50 text-[#6D3BFF] flex items-center justify-center shadow-3xs">
-                <Icon name="phone" size="xs" className="w-3.5 h-3.5" />
-              </div>
-              <span className="text-[9.5px] font-medium uppercase tracking-wider text-slate-500 mt-0.5">Call</span>
-            </a>
-
-            <a
-              href={`https://wa.me/${(booking.customerPhone || "9910088204").replace(/[^0-9]/g, '')}?text=Hello%20${encodeURIComponent(booking.customerName || 'Customer')},%20this%20is%20regarding%20your%20wedding%20booking.`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-white rounded-2xl py-3 flex flex-col items-center justify-center gap-1 shadow-3xs hover:bg-slate-50 hover:-translate-y-0.5 transition-all active:scale-95"
-            >
-              <div className="h-9 w-9 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-3xs">
-                <Icon name="whatsapp" size="xs" className="w-3.5 h-3.5" />
-              </div>
-              <span className="text-[9.5px] font-medium uppercase tracking-wider text-slate-500 mt-0.5">WhatsApp</span>
-            </a>
-
-            <button
-              onClick={() => handleDownloadInvoice(booking)}
-              className="bg-white rounded-2xl py-3 flex flex-col items-center justify-center gap-1 shadow-3xs hover:bg-slate-50 hover:-translate-y-0.5 transition-all active:scale-95"
-            >
-              <div className="h-9 w-9 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-3xs">
-                <Icon name="bookmark" size="xs" className="w-3.5 h-3.5" />
-              </div>
-              <span className="text-[9.5px] font-medium uppercase tracking-wider text-slate-500 mt-0.5">Invoice</span>
-            </button>
-
-            <button
-              onClick={() => showToast("Displaying additional booking actions...")}
-              className="bg-white rounded-2xl py-3 flex flex-col items-center justify-center gap-1 shadow-3xs hover:bg-slate-50 hover:-translate-y-0.5 transition-all active:scale-95"
-            >
-              <div className="h-9 w-9 rounded-full bg-slate-50 text-slate-500 flex items-center justify-center shadow-3xs">
-                <Icon name="more" size="xs" className="w-3.5 h-3.5" />
-              </div>
-              <span className="text-[9.5px] font-medium uppercase tracking-wider text-slate-500 mt-0.5">More</span>
-            </button>
-          </div>
-
-          <div className="luxury-card p-3.5 sm:p-4 space-y-2.5 font-luxury-sans">
-            <div className="flex items-center justify-between">
-              <h3 className="text-[11.5px] font-medium text-slate-800 uppercase tracking-widest font-luxury-sans">Event Timeline</h3>
-              <button
-                onClick={() => showToast("Entering timeline configuration mode...")}
-                className="text-[10px] font-medium uppercase text-[#6D3BFF] tracking-wider hover:underline"
-              >
-                Edit
-              </button>
-            </div>
-
-            <div className="relative flex justify-between items-center w-full px-2 py-1">
-              <div className="absolute top-[13.5px] left-[18px] right-[18px] h-[2px] bg-[#ECECF4] z-0 rounded-full"></div>
-              <div className="absolute top-[13.5px] left-[18px] w-[50%] h-[2px] bg-emerald-500 z-0 rounded-full"></div>
-
-              {[
-                { label: 'Enquiry', completed: true, val: '✓', color: 'bg-emerald-500 text-white' },
-                { label: 'Booking', completed: true, val: '✓', color: 'bg-emerald-500 text-white' },
-                { label: 'Advance Paid', completed: true, val: '✓', color: 'bg-emerald-500 text-white' },
-                { label: 'Planning', completed: false, val: '●', color: 'bg-[#6D3BFF] text-white text-[6px]' },
-                { label: 'Event Day', completed: false, val: '○', color: 'bg-slate-100 text-slate-400' },
-              ].map((step, idx) => (
-                <div key={idx} className="flex flex-col items-center relative z-10 w-12 shrink-0">
-                  <div className={`h-6.5 w-6.5 rounded-full flex items-center justify-center font-medium text-[9px] shadow-3xs transition-all duration-300 ${step.color}`}>
-                    {step.val}
-                  </div>
-                  <span className="text-[8.5px] font-medium text-slate-500 mt-1.5 text-center whitespace-nowrap leading-none">{step.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="luxury-card p-3.5 sm:p-4 space-y-3.5 font-luxury-sans">
-            <div className="flex items-center justify-between pb-1">
-              <h3 className="text-[11.5px] font-medium text-slate-800 uppercase tracking-widest">Venue & Date</h3>
-              <button
-                onClick={() => showToast("Modifying venue & event schedule...")}
-                className="text-[10px] font-medium uppercase text-[#6D3BFF] tracking-wider hover:underline"
-              >
-                Edit
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-xl bg-violet-50 text-[#6D3BFF] flex items-center justify-center shrink-0 shadow-3xs">
-                  <Icon name="location" size="xs" className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-[9px] font-medium text-slate-400 uppercase tracking-widest leading-none">Venue</h4>
-                  <p className="text-[12.5px] font-medium text-slate-800 mt-1 leading-tight">{booking.location || 'Sayaji Hotel, Indore'}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 pt-1">
-                <div className="h-8 w-8 rounded-xl bg-violet-50 text-[#6D3BFF] flex items-center justify-center shrink-0 shadow-3xs">
-                  <Icon name="calendar" size="xs" className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-[9px] font-medium text-slate-400 uppercase tracking-widest leading-none">Event Date</h4>
-                  <p className="text-[12.5px] font-medium text-slate-800 mt-1 leading-tight">{fullDateStr}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 pt-1">
-                <div className="h-8 w-8 rounded-xl bg-violet-50 text-[#6D3BFF] flex items-center justify-center shrink-0 shadow-3xs">
-                  <Icon name="clock" size="xs" className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-[9px] font-medium text-slate-400 uppercase tracking-widest leading-none">Time</h4>
-                  <p className="text-[12.5px] font-medium text-slate-800 mt-1 leading-tight">7:00 PM onwards</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="luxury-card p-3.5 sm:p-4 space-y-2.5 font-luxury-sans">
-            <h3 className="text-[11.5px] font-medium text-slate-800 uppercase tracking-widest pb-1">Booking Summary</h3>
-
-            <div className="space-y-2 text-[12px]">
-              <div className="flex justify-between items-center font-medium text-slate-500">
-                <span>Total Package</span>
-                <span className="text-slate-950 font-medium text-[13px]">₹{totalAmount.toLocaleString('en-IN')}</span>
-              </div>
-              <div className="flex justify-between items-center font-medium text-slate-500">
-                <span>Advance Paid</span>
-                <span className="text-slate-950 font-normal">₹{advancePaid.toLocaleString('en-IN')}</span>
-              </div>
-              <div className="flex justify-between items-center font-medium text-slate-500">
-                <span>Second Payment</span>
-                <span className="text-slate-950 font-normal">₹{secondPayment.toLocaleString('en-IN')}</span>
-              </div>
-              <div className="flex justify-between items-center font-medium text-slate-500">
-                <span>Final Payment</span>
-                <span className="text-slate-950 font-normal">₹{finalPayment.toLocaleString('en-IN')}</span>
-              </div>
-
-              <div className="bg-rose-50/60 p-2.5 rounded-xl flex justify-between items-center mt-2.5 text-[12px] font-medium text-rose-600 shadow-3xs">
-                <span>Outstanding Balance</span>
-                <span className="text-[13px] font-medium">₹{outstanding.toLocaleString('en-IN')}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="luxury-card p-3.5 sm:p-4 space-y-3 font-luxury-sans">
-            <div className="flex items-center justify-between pb-1">
-              <h3 className="text-[11.5px] font-medium text-slate-800 uppercase tracking-widest">Payment Schedule</h3>
-              <button
-                onClick={() => showToast("Displaying complete payment schedule ledger...")}
-                className="text-[10px] font-medium uppercase text-[#6D3BFF] tracking-wider hover:underline"
-              >
-                View All
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="h-6 w-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                    <span className="text-[10px] font-medium">✓</span>
-                  </div>
-                  <div>
-                    <h4 className="text-[11.5px] font-medium text-slate-700 leading-tight">Advance Payment</h4>
-                    <p className="text-[8px] font-medium text-emerald-600 uppercase tracking-wider leading-none mt-0.5">Paid</p>
-                  </div>
-                </div>
-                <span className="text-[12px] font-medium text-slate-900">₹{advancePaid.toLocaleString('en-IN')}</span>
-              </div>
-
-              <div className="flex items-center justify-between pt-1">
-                <div className="flex items-center gap-2">
-                  <div className="h-6 w-6 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center shrink-0">
-                    <span className="text-[10px]">⏰</span>
-                  </div>
-                  <div>
-                    <h4 className="text-[11.5px] font-medium text-slate-700 leading-tight">Second Payment</h4>
-                    <p className="text-[8px] font-medium text-amber-500 uppercase tracking-wider leading-none mt-0.5">Due</p>
-                  </div>
-                </div>
-                <span className="text-[12px] font-medium text-slate-900">₹{secondPayment.toLocaleString('en-IN')}</span>
-              </div>
-
-              <div className="flex items-center justify-between pt-1">
-                <div className="flex items-center gap-2">
-                  <div className="h-6 w-6 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center shrink-0">
-                    <span className="text-[11px] leading-none mb-0.5">○</span>
-                  </div>
-                  <div>
-                    <h4 className="text-[11.5px] font-medium text-slate-700 leading-tight">Final Payment</h4>
-                    <p className="text-[8px] font-medium text-slate-400 uppercase tracking-wider leading-none mt-0.5">Pending</p>
-                  </div>
-                </div>
-                <span className="text-[12px] font-medium text-slate-900">₹{finalPayment.toLocaleString('en-IN')}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="luxury-card p-3.5 sm:p-4 space-y-3 font-luxury-sans">
-            <div className="flex items-center justify-between pb-1">
-              <h3 className="text-[11.5px] font-medium text-slate-800 uppercase tracking-widest">Event Details</h3>
-              <button
-                onClick={() => showToast("Editing event details & services package...")}
-                className="text-[10px] font-medium uppercase text-[#6D3BFF] tracking-wider hover:underline"
-              >
-                Edit
-              </button>
-            </div>
-
-            <div className="space-y-3 text-[12.5px]">
-              <div className="grid grid-cols-3 font-medium py-1">
-                <span className="text-slate-400">Event Type</span>
-                <span className="col-span-2 text-slate-850 font-normal">Wedding</span>
-              </div>
-              <div className="grid grid-cols-3 font-medium pt-1 py-1">
-                <span className="text-slate-400">Guests</span>
-                <span className="col-span-2 text-slate-850 font-normal">{booking.guests || '300–350 Guests'}</span>
-              </div>
-              <div className="grid grid-cols-3 font-medium pt-1 py-1">
-                <span className="text-slate-400">Theme</span>
-                <span className="col-span-2 text-slate-850 font-normal">{booking.theme || 'Royal Theme / Floral Decor'}</span>
-              </div>
-              <div className="grid grid-cols-3 font-medium pt-1 py-1">
-                <span className="text-slate-400">Services</span>
-                <div className="col-span-2 text-slate-850 font-normal space-y-1">
-                  {Array.isArray(booking.services) && booking.services.length > 0 ? (
-                    booking.services.map((srv, sIdx) => (
-                      <p key={sIdx} className="flex items-center gap-1.5">
-                        <span className="text-[#6D3BFF] font-medium">•</span> {srv}
-                      </p>
-                    ))
-                  ) : (
-                    <>
-                      <p className="flex items-center gap-1.5"><span className="text-[#6D3BFF] font-medium">•</span> Grand floral chandeliers</p>
-                      <p className="flex items-center gap-1.5"><span className="text-[#6D3BFF] font-medium">•</span> Couple initials with flowers</p>
-                      <p className="flex items-center gap-1.5"><span className="text-[#6D3BFF] font-medium">•</span> Royal entry gate</p>
-                      <p className="flex items-center gap-1.5"><span className="text-[#6D3BFF] font-medium">•</span> LED wall backdrop</p>
-                    </>
+                  {customerEmail && (
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Icon name="mail" size="xs" className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span className="truncate text-slate-700">{customerEmail}</span>
+                    </div>
                   )}
                 </div>
               </div>
             </div>
+
+            {/* Financial Hero Ribbon */}
+            <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-luxury-sans shadow-3xs">
+              <div>
+                <span className="text-[20px] font-bold text-slate-950">₹{totalAmount.toLocaleString('en-IN')}</span>
+                <p className="text-[9.5px] font-medium text-slate-400 uppercase tracking-widest mt-0.5">Agreed Package Price</p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                  isFullyPaid
+                    ? 'bg-emerald-500 text-white'
+                    : paidAmount > 0
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {isFullyPaid ? '100% Paid & Verified' : (paidAmount > 0 ? `Partial (₹${paidAmount.toLocaleString('en-IN')} Paid)` : 'Payment Pending')}
+                </span>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="relative h-9 w-9">
+                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                      <circle cx="18" cy="18" r="15" fill="none" stroke="#E2E8F0" strokeWidth="3" />
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="15"
+                        fill="none"
+                        stroke={isFullyPaid ? '#10B981' : '#6D3BFF'}
+                        strokeWidth="3.5"
+                        strokeDasharray={`${paymentPercentage}, 100`}
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-[8px] font-bold text-slate-900">{paymentPercentage}%</span>
+                    </div>
+                  </div>
+                  <span className="text-[8px] font-medium text-slate-400 uppercase tracking-wider">Paid</span>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="luxury-card p-3.5 sm:p-4 space-y-3 font-luxury-sans">
-            <div className="flex items-center justify-between pb-0.5">
-              <h3 className="text-[11.5px] font-medium text-slate-800 uppercase tracking-widest">Assigned Team</h3>
-              <button
-                onClick={() => showToast("Updating assigned operational team...")}
-                className="text-[10px] font-medium uppercase text-[#6D3BFF] tracking-wider hover:underline"
-              >
-                Edit
-              </button>
-            </div>
+          {/* Quick Action Buttons */}
+          <div className="grid grid-cols-4 gap-2.5 font-luxury-sans">
+            <button
+              onClick={() => {
+                if (customerPhone) {
+                  window.location.href = `tel:${customerPhone}`;
+                } else {
+                  showToast('Customer phone number not available');
+                }
+              }}
+              className="bg-white rounded-2xl py-3 flex flex-col items-center justify-center gap-1 shadow-3xs hover:bg-slate-50 transition-all active:scale-95 border border-slate-100"
+            >
+              <div className="h-9 w-9 rounded-full bg-violet-50 text-[#6D3BFF] flex items-center justify-center shadow-3xs">
+                <Icon name="phone" size="xs" className="w-3.5 h-3.5" />
+              </div>
+              <span className="text-[9.5px] font-medium uppercase tracking-wider text-slate-600 mt-0.5">Call</span>
+            </button>
 
-            <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1 pl-0 -ml-2">
+            <button
+              onClick={() => {
+                if (customerPhone) {
+                  const p = customerPhone.replace(/[^0-9]/g, '');
+                  const waUrl = `https://wa.me/${p.startsWith('91') ? p : '91' + p}?text=Hello%20${encodeURIComponent(customerName)},%20this%20is%20regarding%20your%20wedding%20booking.`;
+                  window.open(waUrl, '_blank', 'noopener,noreferrer');
+                } else {
+                  showToast('Customer phone number not available');
+                }
+              }}
+              className="bg-white rounded-2xl py-3 flex flex-col items-center justify-center gap-1 shadow-3xs hover:bg-slate-50 transition-all active:scale-95 border border-slate-100"
+            >
+              <div className="h-9 w-9 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-3xs">
+                <Icon name="whatsapp" size="xs" className="w-3.5 h-3.5" />
+              </div>
+              <span className="text-[9.5px] font-medium uppercase tracking-wider text-slate-600 mt-0.5">WhatsApp</span>
+            </button>
+
+            <button
+              onClick={() => handleDownloadInvoice(booking)}
+              className="bg-white rounded-2xl py-3 flex flex-col items-center justify-center gap-1 shadow-3xs hover:bg-slate-50 transition-all active:scale-95 border border-slate-100"
+            >
+              <div className="h-9 w-9 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-3xs">
+                <Icon name="download" size="xs" className="w-3.5 h-3.5" />
+              </div>
+              <span className="text-[9.5px] font-medium uppercase tracking-wider text-slate-600 mt-0.5">Invoice</span>
+            </button>
+
+            <button
+              onClick={() => handleSendReminder(booking)}
+              className="bg-white rounded-2xl py-3 flex flex-col items-center justify-center gap-1 shadow-3xs hover:bg-slate-50 transition-all active:scale-95 border border-slate-100"
+            >
+              <div className="h-9 w-9 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center shadow-3xs">
+                <Icon name="bell" size="xs" className="w-3.5 h-3.5" />
+              </div>
+              <span className="text-[9.5px] font-medium uppercase tracking-wider text-slate-600 mt-0.5">Reminder</span>
+            </button>
+          </div>
+
+          {/* Event Timeline */}
+          <div className="luxury-card p-4 space-y-3 font-luxury-sans">
+            <h3 className="text-[11.5px] font-semibold text-slate-800 uppercase tracking-widest font-luxury-sans">Event Pipeline Progress</h3>
+            <div className="relative flex justify-between items-center w-full px-2 py-2">
+              <div className="absolute top-[16px] left-[20px] right-[20px] h-[2px] bg-[#ECECF4] z-0 rounded-full"></div>
+              <div
+                className="absolute top-[16px] left-[20px] h-[2px] bg-emerald-500 z-0 rounded-full transition-all duration-500"
+                style={{ width: isFullyPaid ? '50%' : paidAmount > 0 ? '40%' : '25%' }}
+              ></div>
+
               {[
-                { name: 'Rahul Sharma', role: 'Event Manager', initials: 'RS', grad: 'from-violet-500 to-fuchsia-500' },
-                { name: 'Neha Verma', role: 'Decor Lead', initials: 'NV', grad: 'from-blue-500 to-indigo-500' },
-                { name: 'Pooja Singh', role: 'Floral Lead', initials: 'PS', grad: 'from-pink-500 to-rose-500' },
-                { name: 'Arjun Singh', role: 'Lighting Lead', initials: 'AS', grad: 'from-amber-500 to-orange-500' }
-              ].map((member, mIdx) => (
-                <div key={mIdx} className="flex flex-col items-center text-center shrink-0 w-[56px]">
-                  <div className={`h-10 w-10 rounded-xl bg-gradient-to-tr ${member.grad} text-white font-medium text-[10px] flex items-center justify-center shadow-md border border-white/20 transform hover:scale-105 transition-all`}>
-                    {member.initials}
+                { label: 'Inquiry', completed: true, val: '✓', color: 'bg-emerald-500 text-white' },
+                { label: 'Quote Accepted', completed: true, val: '✓', color: 'bg-emerald-500 text-white' },
+                {
+                  label: isFullyPaid ? '100% Paid' : paidAmount > 0 ? 'Partial Paid' : 'Payment Due',
+                  completed: paidAmount > 0,
+                  val: isFullyPaid ? '✓' : paidAmount > 0 ? '●' : '○',
+                  color: isFullyPaid ? 'bg-emerald-500 text-white' : paidAmount > 0 ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-400'
+                },
+                { label: 'Coordination', completed: false, val: '○', color: 'bg-slate-100 text-slate-400' },
+                { label: 'Event Day', completed: false, val: '○', color: 'bg-slate-100 text-slate-400' },
+              ].map((step, idx) => (
+                <div key={idx} className="flex flex-col items-center relative z-10 w-16 shrink-0">
+                  <div className={`h-7 w-7 rounded-full flex items-center justify-center font-bold text-[10px] shadow-3xs transition-all duration-300 ${step.color}`}>
+                    {step.val}
                   </div>
-                  <span className="text-[9.5px] font-medium text-slate-800 mt-1.5 truncate max-w-[56px] leading-tight font-luxury-sans">{member.name}</span>
-                  <span className="text-[8px] font-normal text-slate-400 mt-0.5 truncate max-w-[56px] leading-none uppercase font-luxury-sans">{member.role}</span>
+                  <span className="text-[9px] font-medium text-slate-600 mt-1.5 text-center leading-tight">{step.label}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="flex gap-3 pt-2 pb-6 font-luxury-sans">
+          {/* Discrepancy Note Banner if database has inconsistent values */}
+          {booking.hasDiscrepancy && (
+            <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl text-[12px] text-amber-900 flex items-start gap-2.5 shadow-sm">
+              <span className="text-lg leading-none">⚠️</span>
+              <div>
+                <strong className="font-bold">Financial Audit Notice:</strong> {booking.discrepancyNote}
+                {Array.isArray(booking.discrepancyReasons) && booking.discrepancyReasons.length > 0 && (
+                  <ul className="list-disc list-inside mt-1 text-[11px] text-amber-800 space-y-0.5">
+                    {booking.discrepancyReasons.map((r, idx) => (
+                      <li key={idx}>{r}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Responsive 2-Column Grid: Customer Payment & Contract vs Vendor Net & Escrow */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-luxury-sans">
+            {/* Column 1: Customer Payment Breakdown */}
+            <div className="luxury-card p-4 sm:p-5 space-y-3 font-luxury-sans flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                  <h3 className="text-[11.5px] font-semibold text-slate-800 uppercase tracking-widest">Customer Payment Ledger</h3>
+                  <span className="text-[9px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 uppercase">
+                    Customer Side
+                  </span>
+                </div>
+
+                <div className="space-y-2.5 text-[12.5px] mt-3">
+                  <div className="flex justify-between items-center text-slate-500 font-medium">
+                    <span>Agreed Package Total</span>
+                    <span className="text-slate-950 font-bold">₹{totalAmount.toLocaleString('en-IN')}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-slate-500 font-medium">
+                    <span>Verified Customer Payments</span>
+                    <span className="text-emerald-700 font-bold flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                      ₹{paidAmount.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+
+                  {totalRefunded > 0 && (
+                    <div className="flex justify-between items-center text-rose-600 font-medium text-[12px]">
+                      <span>Refunds & Reversals Deducted</span>
+                      <span className="font-bold">- ₹{totalRefunded.toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
+
+                  <div className={`p-3 rounded-xl flex justify-between items-center mt-2 ${
+                    outstanding === 0 ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'
+                  }`}>
+                    <div>
+                      <span className="font-semibold block text-[12px]">Outstanding Customer Balance</span>
+                      <span className="text-[9px] text-slate-500">Remaining payable by customer</span>
+                    </div>
+                    <span className="text-[14px] font-bold">
+                      {outstanding === 0 ? '₹0 (Settled)' : `₹${outstanding.toLocaleString('en-IN')}`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2 text-[10.5px] text-slate-400 border-t border-slate-100 flex items-center justify-between">
+                <span>Payment Status: <strong className="text-slate-700">{booking.paymentStatus || (isFullyPaid ? 'Paid' : 'Pending')}</strong></span>
+                <span>Verified Online Records</span>
+              </div>
+            </div>
+
+            {/* Column 2: Vendor Earnings & Escrow Breakdown */}
+            <div className="luxury-card p-4 sm:p-5 space-y-3 font-luxury-sans flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                  <h3 className="text-[11.5px] font-semibold text-slate-800 uppercase tracking-widest">Vendor Earnings & Settlement</h3>
+                  <span className="text-[9px] font-medium px-2 py-0.5 rounded-full bg-purple-50 text-[#6D3BFF] uppercase">
+                    Vendor Net
+                  </span>
+                </div>
+
+                <div className="space-y-2.5 text-[12.5px] mt-3">
+                  <div className="flex justify-between items-center text-slate-500 font-medium">
+                    <span>Gross Booking Value</span>
+                    <span className="text-slate-950 font-bold">₹{totalAmount.toLocaleString('en-IN')}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-slate-500 font-medium">
+                    <div>
+                      <span>Platform Commission {commissionPercent !== null ? `(${commissionPercent}%)` : '(Unconfigured)'}</span>
+                      <span className="block text-[9.5px] text-slate-400">Basis: {commissionBasis} · Source: {commissionSource}</span>
+                    </div>
+                    <span className="text-slate-700 font-medium">- ₹{commission.toLocaleString('en-IN')}</span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-purple-50/70 border border-purple-100/60 flex justify-between items-center text-purple-950 mt-2">
+                    <div>
+                      <span className="font-bold block text-[12px]">Vendor Net Payable</span>
+                      <span className="text-[9px] text-purple-700">Contractual earnings payable upon event completion</span>
+                    </div>
+                    <span className="text-[15px] font-bold text-[#6D3BFF]">
+                      ₹{vendorNet.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-slate-600 font-medium text-[12px] pt-1">
+                    <span>Actual Amount Settled to Vendor</span>
+                    <span className="font-bold text-slate-800">
+                      {vendorAmountSettled > 0 ? `₹${vendorAmountSettled.toLocaleString('en-IN')}` : '₹0 (Pending event completion)'}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-slate-600 font-medium text-[12px]">
+                    <span>Amount Held in Escrow Custody</span>
+                    <span className="font-bold text-indigo-700">₹{escrowHeldAmount.toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2 text-[10.5px] text-slate-400 border-t border-slate-100 flex items-center justify-between">
+                <span>Escrow Custody: <strong className="text-slate-700">{escrowStatus}</strong></span>
+                <span>Settlement: <strong className="text-slate-700">{settlementStatus}</strong></span>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment Schedule & Verified Transactions Ledger */}
+          <div className="luxury-card p-4 sm:p-5 space-y-3 font-luxury-sans">
+            <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+              <div>
+                <h3 className="text-[11.5px] font-semibold text-slate-800 uppercase tracking-widest">Payment Schedule & Verified Transactions</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">Canonical transaction records from payment gateway</p>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              {paymentsList.length > 0 ? (
+                paymentsList.map((p, pIdx) => {
+                  const pDate = p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+                  const isSuccess = p.status === 'Completed' || p.status === 'Paid';
+
+                  return (
+                    <div key={p._id || pIdx} className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${
+                          isSuccess ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
+                        }`}>
+                          <span className="text-[12px] font-bold">{isSuccess ? '✓' : '✗'}</span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[12.5px] font-bold text-slate-900">
+                              Payment #{pIdx + 1} — {p.paymentMethod || 'Razorpay'}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full text-[8.5px] font-bold uppercase ${
+                              isSuccess ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'
+                            }`}>
+                              {p.status}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            Ref: <span className="font-mono text-slate-600">{p.razorpayPaymentId || 'Direct'}</span> · Date: {pDate}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="text-right sm:pl-4">
+                        <span className="text-[14px] font-bold text-slate-950">₹{Number(p.amount || 0).toLocaleString('en-IN')}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : paidAmount > 0 ? (
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                      <span className="text-[12px] font-bold">✓</span>
+                    </div>
+                    <div>
+                      <span className="text-[12.5px] font-bold text-slate-900">Verified Online Payment</span>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Customer payment verified and recorded</p>
+                    </div>
+                  </div>
+                  <span className="text-[14px] font-bold text-slate-950">₹{paidAmount.toLocaleString('en-IN')}</span>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-slate-50 text-center text-slate-400 text-[11px]">
+                  No verified payments recorded yet. The customer has not settled the package amount.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Event Details & Services */}
+          <div className="luxury-card p-4 sm:p-5 space-y-3 font-luxury-sans">
+            <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+              <h3 className="text-[11.5px] font-semibold text-slate-800 uppercase tracking-widest">Event & Contract Details</h3>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-[12.5px] pt-1">
+              <div>
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Venue Location</span>
+                <p className="text-slate-850 font-medium">{venue}</p>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Guest Capacity</span>
+                <p className="text-slate-850 font-medium">{guests}</p>
+              </div>
+
+              <div className="sm:col-span-2">
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Contracted Services</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {servicesList.map((srv, sIdx) => (
+                    <span key={sIdx} className="px-3 py-1 bg-slate-50 border border-slate-100 rounded-lg text-xs font-medium text-slate-700">
+                      {srv}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {booking.notes && (
+                <div className="sm:col-span-2">
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Event Notes</span>
+                  <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">{booking.notes}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom Action Footer */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-2 pb-6 font-luxury-sans">
             <button
               onClick={() => handleDownloadInvoice(booking)}
-              className="flex-1 bg-white border border-slate-200/80 text-slate-700 font-medium uppercase text-[10px] tracking-wider py-3.5 rounded-2xl text-center hover:bg-slate-50 transition-all active:scale-95 shadow-3xs flex items-center justify-center gap-1.5"
+              className="flex-1 bg-white border border-slate-200 text-slate-700 font-semibold uppercase text-[11px] tracking-wider py-3.5 rounded-2xl text-center hover:bg-slate-50 transition-all active:scale-95 shadow-3xs flex items-center justify-center gap-2"
             >
-              <Icon name="download" size="xs" className="w-3.5 h-3.5" /> Download Invoice
+              <Icon name="download" size="xs" className="w-4 h-4" /> Download Official Invoice
             </button>
             <button
               onClick={() => handleSendReminder(booking)}
-              className="flex-1 bg-[#6D3BFF] hover:bg-[#5b2ee6] text-white font-medium uppercase text-[10px] tracking-wider py-3.5 rounded-2xl text-center transition-all active:scale-95 shadow-md flex items-center justify-center gap-1.5 shadow-[#6D3BFF]/25"
+              className="flex-1 bg-[#6D3BFF] hover:bg-[#5b2ee6] text-white font-semibold uppercase text-[11px] tracking-wider py-3.5 rounded-2xl text-center transition-all active:scale-95 shadow-md flex items-center justify-center gap-2 shadow-[#6D3BFF]/25"
             >
-              <Icon name="bell" size="xs" className="w-3.5 h-3.5" /> Send Reminder
+              <Icon name="bell" size="xs" className="w-4 h-4" />
+              {outstanding === 0 ? 'Send Confirmation Message' : 'Send Payment Reminder'}
             </button>
           </div>
         </div>
@@ -937,19 +1128,23 @@ const VendorBookings = () => {
                     </div>
                     <div className="flex items-center justify-between sm:justify-end gap-3 border-t border-dashed border-slate-200/30 sm:border-t-0 pt-2 sm:pt-0 shrink-0 font-luxury-sans">
                       <div className="flex flex-col sm:items-end">
-                        <span className="text-[13px] sm:text-[15px] font-medium text-[#1e293b]">₹{(booking.totalPrice || booking.totalAmount || 0).toLocaleString('en-IN')}</span>
-                        <span className="text-[8px] font-medium text-slate-400 uppercase tracking-wider mt-0.5">Total Package</span>
+                        <span className="text-[13px] sm:text-[15px] font-bold text-[#1e293b]">
+                          ₹{(booking.packageTotal || booking.totalPrice || booking.totalAmount || 0).toLocaleString('en-IN')}
+                        </span>
+                        <div className="flex items-center gap-1 text-[8.5px] mt-0.5">
+                          <span className="text-emerald-600 font-semibold">
+                            Paid: ₹{Number(booking.paidAmount || 0).toLocaleString('en-IN')}
+                          </span>
+                          <span className="text-slate-300">·</span>
+                          <span className={(booking.outstandingBalance ?? 0) > 0 ? 'text-rose-600 font-semibold' : 'text-slate-500'}>
+                            Bal: ₹{Number(booking.outstandingBalance !== undefined ? booking.outstandingBalance : Math.max(0, (booking.packageTotal || booking.totalPrice || 0) - (booking.paidAmount || 0))).toLocaleString('en-IN')}
+                          </span>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-medium uppercase tracking-wider px-2.5 py-1 rounded-full text-center" style={{ backgroundColor: status.bg === '#F8FAFC' ? '#F1F5F9' : 'rgba(255,255,255,0.7)', color: status.color }}>
+                        <span className="text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full text-center" style={{ backgroundColor: status.bg === '#F8FAFC' ? '#F1F5F9' : 'rgba(255,255,255,0.7)', color: status.color }}>
                           {booking.status}
                         </span>
-                        <div className="flex items-center gap-1 bg-white/80 rounded-full px-1.5 py-0.5 shadow-3xs">
-                          <div className="h-5 w-5 rounded-full border border-indigo-600 flex items-center justify-center">
-                            <span className="text-[8px] font-medium text-[#1e293b]">100%</span>
-                          </div>
-                          <span className="text-[8px] text-slate-400 font-medium uppercase tracking-wider hidden xs:inline pr-1">Prep</span>
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -960,22 +1155,40 @@ const VendorBookings = () => {
                     >
                       <Icon name="eye" size="xs" className="w-3.5 h-3.5" /> View
                     </button>
-                    <a
-                      href={`tel:${booking.customerPhone || "+919910088204"}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white text-[9px] font-medium uppercase tracking-wide text-slate-600 hover:bg-slate-50 active:scale-95 transition-all shadow-3xs"
-                    >
-                      <Icon name="phone" size="xs" className="w-3.5 h-3.5" /> Call
-                    </a>
-                    <a
-                      href={`https://wa.me/${(booking.customerPhone || "9910088204").replace(/[^0-9]/g, '')}?text=Hello%20${encodeURIComponent(booking.customerName || 'Customer')},%20this%20is%20regarding%20your%20wedding%20booking.`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white text-[9px] font-medium uppercase tracking-wide text-emerald-600 hover:bg-slate-50 active:scale-95 transition-all shadow-3xs"
-                    >
-                      <Icon name="chat" size="xs" className="w-3.5 h-3.5" /> WhatsApp
-                    </a>
+                    {booking.customerPhone ? (
+                      <a
+                        href={`tel:${booking.customerPhone}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white text-[9px] font-medium uppercase tracking-wide text-slate-600 hover:bg-slate-50 active:scale-95 transition-all shadow-3xs"
+                      >
+                        <Icon name="phone" size="xs" className="w-3.5 h-3.5" /> Call
+                      </a>
+                    ) : (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); showToast('Customer phone not available'); }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white text-[9px] font-medium uppercase tracking-wide text-slate-400 hover:bg-slate-50 active:scale-95 transition-all shadow-3xs"
+                      >
+                        <Icon name="phone" size="xs" className="w-3.5 h-3.5 text-slate-300" /> Call
+                      </button>
+                    )}
+                    {booking.customerPhone ? (
+                      <a
+                        href={`https://wa.me/${booking.customerPhone.replace(/[^0-9]/g, '').startsWith('91') ? booking.customerPhone.replace(/[^0-9]/g, '') : '91' + booking.customerPhone.replace(/[^0-9]/g, '')}?text=Hello%20${encodeURIComponent(booking.customerName || 'Customer')},%20this%20is%20regarding%20your%20wedding%20booking.`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white text-[9px] font-medium uppercase tracking-wide text-emerald-600 hover:bg-slate-50 active:scale-95 transition-all shadow-3xs"
+                      >
+                        <Icon name="chat" size="xs" className="w-3.5 h-3.5" /> WhatsApp
+                      </a>
+                    ) : (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); showToast('Customer phone not available'); }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white text-[9px] font-medium uppercase tracking-wide text-slate-400 hover:bg-slate-50 active:scale-95 transition-all shadow-3xs"
+                      >
+                        <Icon name="chat" size="xs" className="w-3.5 h-3.5 text-slate-300" /> WhatsApp
+                      </button>
+                    )}
                     {booking.status === 'Pending' && (
                       <button
                         onClick={(e) => { e.stopPropagation(); handleStatusUpdate(booking._id, 'Accepted'); }}

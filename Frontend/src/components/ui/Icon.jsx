@@ -278,30 +278,10 @@ const Icon = ({
       <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 .621-.504 1.125-1.125 1.125H4.875A1.125 1.125 0 0 1 3.75 18.4V14.15m16.5 0a3 3 0 0 0-3-3H6.75a3 3 0 0 0-3 3m16.5 0-1.591-1.591a2.25 2.25 0 0 0-1.591-.659H6.932c-.597 0-1.17.237-1.591.659L3.75 14.15M12 12.75h.008v.008H12v-.008Z" />
     ),
     cart: (
-      <>
-        <defs>
-          <linearGradient id="gCart" x1="0" x2="1"><stop offset="0%" stopColor="#dffcf6"/><stop offset="100%" stopColor="#d8e6ff"/></linearGradient>
-          <filter id="sCart"><feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#000" floodOpacity="0.12"/></filter>
-        </defs>
-        <g filter="url(#sCart)">
-          <rect x="3" y="6" width="14" height="8" rx="2" fill="url(#gCart)" stroke="#cfefff" strokeWidth="0.6" />
-          <circle cx="8" cy="16" r="1.4" fill="#fff" stroke="#6a35ff" strokeWidth="0.8" />
-          <circle cx="15" cy="16" r="1.4" fill="#fff" stroke="#6a35ff" strokeWidth="0.8" />
-          <path d="M5 8h12" stroke="#6a35ff" strokeWidth="1" strokeLinecap="round" />
-        </g>
-      </>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
     ),
     bag: (
-      <>
-        <defs>
-          <linearGradient id="gBag" x1="0" x2="1"><stop offset="0%" stopColor="#fff0f0"/><stop offset="100%" stopColor="#ffdede"/></linearGradient>
-          <filter id="sBag"><feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#000" floodOpacity="0.12"/></filter>
-        </defs>
-        <g filter="url(#sBag)">
-          <rect x="5" y="7" width="10" height="8" rx="1.6" fill="url(#gBag)" stroke="#ffdede" strokeWidth="0.6" />
-          <path d="M8 7a2 2 0 014 0" stroke="#6a35ff" strokeWidth="1.2" strokeLinecap="round" fill="none" />
-        </g>
-      </>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25c-.669 0-1.189-.578-1.119-1.243l1.263-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
     ),
     whatsapp: (
       <g fill="currentColor" stroke="none">

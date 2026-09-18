@@ -58,6 +58,14 @@ const leadSchema = new mongoose.Schema({
         enum: ['New', 'Contacted', 'Quote Sent', 'Booked', 'Rejected'],
         default: 'New'
     },
+    isImportant: {
+        type: Boolean,
+        default: false
+    },
+    notes: {
+        type: String,
+        default: ''
+    },
     createdAt: {
         type: Date,
         default: Date.now

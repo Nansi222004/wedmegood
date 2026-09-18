@@ -2,6 +2,9 @@ import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '../../../components/ui/Icon';
 import { adminApi } from '../services/adminApi';
+import { toast } from '../../../components/ui/Toast';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
+import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
 
 const AdminVendors = () => {
     const [vendors, setVendors] = useState([]);
@@ -12,6 +15,7 @@ const AdminVendors = () => {
     const [modalOpen, setModalOpen] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
     const [previewImage, setPreviewImage] = useState(null);
+    const [vendorToDelete, setVendorToDelete] = useState(null);
 
     const token = localStorage.getItem('adminToken');
 
@@ -59,12 +63,13 @@ const AdminVendors = () => {
                 setVendors(prev => prev.map(v => v._id === id ? res.data : v));
                 setModalOpen(false);
                 setSelectedVendor(null);
+                toast.success(`Vendor status updated to ${status}`);
             } else {
-                alert(res.message || 'Failed to update status');
+                toast.error(getFriendlyErrorMessage(res.message || 'Failed to update status'));
             }
         } catch (err) {
             console.error('Failed to update status:', err);
-            alert('Server error updating status');
+            toast.error(getFriendlyErrorMessage(err, 'Server error updating status'));
         } finally {
             setActionLoading(false);
         }
@@ -76,12 +81,13 @@ const AdminVendors = () => {
             const res = await adminApi.updateVendorFeatured(vendor._id, nextFeatured, token);
             if (res.success) {
                 setVendors(prev => prev.map(v => v._id === vendor._id ? { ...v, isFeatured: nextFeatured } : v));
+                toast.success(nextFeatured ? 'Vendor marked as featured' : 'Vendor unfeatured');
             } else {
-                alert(res.message || 'Failed to update featured status');
+                toast.error(getFriendlyErrorMessage(res.message || 'Failed to update featured status'));
             }
         } catch (err) {
             console.error('Failed to toggle featured status:', err);
-            alert('Server error updating featured status');
+            toast.error(getFriendlyErrorMessage(err, 'Server error updating featured status'));
         }
     };
 
@@ -95,11 +101,13 @@ const AdminVendors = () => {
             const res = await adminApi.toggleVendorActive(id, !currentIsActive, token);
             if (res.success) {
                 setVendors(prev => prev.map(v => v._id === id ? res.data : v));
+                toast.success(!currentIsActive ? 'Vendor activated' : 'Vendor deactivated');
             } else {
-                alert(res.message || 'Failed to toggle active state');
+                toast.error(getFriendlyErrorMessage(res.message || 'Failed to toggle active state'));
             }
         } catch (err) {
             console.error('Failed to toggle active status:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Failed to toggle active state'));
         }
     };
 
@@ -108,20 +116,27 @@ const AdminVendors = () => {
         setModalOpen(true);
     };
 
-    const deleteVendor = async (id) => {
-        if (window.confirm('Are you sure you want to permanently delete this vendor and all their associated data? This action cannot be undone.')) {
-            try {
-                const res = await adminApi.deleteVendor(id, token);
-                if (res.success) {
-                    setVendors(prev => prev.filter(v => v._id !== id));
-                    alert('Vendor node successfully decoupled from system.');
-                } else {
-                    alert(res.message || 'Failed to delete vendor');
-                }
-            } catch (err) {
-                console.error('Delete error:', err);
-                alert('A system error occurred during deletion.');
+    const deleteVendor = (id) => {
+        setVendorToDelete(id);
+    };
+
+    const confirmDeleteVendor = async () => {
+        if (!vendorToDelete) return;
+        try {
+            setActionLoading(true);
+            const res = await adminApi.deleteVendor(vendorToDelete, token);
+            if (res.success) {
+                setVendors(prev => prev.filter(v => v._id !== vendorToDelete));
+                toast.success('Vendor successfully removed from the system.');
+            } else {
+                toast.error(getFriendlyErrorMessage(res.message || 'Failed to delete vendor'));
             }
+        } catch (err) {
+            console.error('Delete error:', err);
+            toast.error(getFriendlyErrorMessage(err, 'A system error occurred during deletion.'));
+        } finally {
+            setActionLoading(false);
+            setVendorToDelete(null);
         }
     };
 
@@ -690,6 +705,17 @@ const AdminVendors = () => {
                 </div>,
                 document.body
             )}
+            {/* Delete Vendor Confirmation Modal */}
+            <ConfirmModal
+                isOpen={!!vendorToDelete}
+                title="Delete Vendor"
+                message="Are you sure you want to permanently delete this vendor and all their associated data? This action cannot be undone."
+                confirmText={actionLoading ? 'Deleting...' : 'Delete Vendor'}
+                cancelText="Cancel"
+                isDestructive={true}
+                onConfirm={confirmDeleteVendor}
+                onCancel={() => setVendorToDelete(null)}
+            />
         </div>
     );
 };

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../../components/ui/Icon';
+import { toast } from '../../../components/ui/Toast';
 import '../adminTheme.css';
 
 const AdminForgotPassword = () => {
@@ -34,7 +35,7 @@ const AdminForgotPassword = () => {
                         navigate('/admin/reset-password', { state: { token, email } });
                     } else {
                         // Fallback if token is not sent in response
-                        alert('Password reset instructions sent to your email.');
+                        toast.success('Password reset instructions have been sent to your email.');
                         navigate('/admin/login');
                     }
                 }, 1000);

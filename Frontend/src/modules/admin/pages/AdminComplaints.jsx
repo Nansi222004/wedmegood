@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Icon from '../../../components/ui/Icon';
+import { toast } from '../../../components/ui/Toast';
+import getFriendlyErrorMessage from '../../../utils/errorHandler';
 import { adminApi } from '../services/adminApi';
 
 const AdminComplaints = () => {
@@ -27,10 +29,11 @@ const AdminComplaints = () => {
                     setPagination(res.pagination);
                 }
             } else {
-                alert(res.message || 'Failed to fetch complaints');
+                toast.error(getFriendlyErrorMessage(res, 'Failed to fetch complaints.'));
             }
         } catch (err) {
             console.error('Failed to fetch complaints:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Unable to load complaints.'));
         } finally {
             setLoading(false);
         }
@@ -58,14 +61,15 @@ const AdminComplaints = () => {
             };
             const res = await adminApi.updateComplaintStatus(selectedComplaint._id, payload, token);
             if (res.success) {
+                toast.success('Complaint status updated successfully.');
                 setSelectedComplaint(null);
                 await fetchComplaints(pagination.page);
             } else {
-                alert(res.message || 'Failed to update complaint status');
+                toast.error(getFriendlyErrorMessage(res, 'Failed to update complaint status.'));
             }
         } catch (err) {
             console.error('Resolution error:', err);
-            alert('A network or server error occurred');
+            toast.error(getFriendlyErrorMessage(err, 'A network or server error occurred.'));
         } finally {
             setUpdating(false);
         }

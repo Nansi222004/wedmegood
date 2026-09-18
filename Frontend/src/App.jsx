@@ -4,6 +4,7 @@ import { ThemeProvider } from './providers/ThemeProvider';
 import { LenisProvider } from './providers/LenisProvider';
 import { CartProvider } from './contexts/CartContext';
 import { AuthProvider } from './contexts/AuthContext';
+import { ToastProvider } from './components/ui/Toast';
 import AppRouter from './router/index.jsx';
 import VendorSplashScreen from './modules/vendor/components/VendorSplashScreen';
 import './App.css';
@@ -29,14 +30,16 @@ function App() {
       <LenisProvider>
         <AuthProvider>
           <CartProvider>
-            <BrowserRouter>
-              <div className="min-h-screen bg-theme-card">
-                {showSplash && (
-                  <VendorSplashScreen onComplete={handleSplashComplete} />
-                )}
-                <AppRouter />
-              </div>
-            </BrowserRouter>
+            <ToastProvider>
+              <BrowserRouter>
+                <div className="min-h-screen bg-theme-card">
+                  {showSplash && (
+                    <VendorSplashScreen onComplete={handleSplashComplete} />
+                  )}
+                  <AppRouter />
+                </div>
+              </BrowserRouter>
+            </ToastProvider>
           </CartProvider>
         </AuthProvider>
       </LenisProvider>

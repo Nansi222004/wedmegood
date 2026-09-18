@@ -277,10 +277,14 @@ exports.acceptQuote = async (req, res, next) => {
             // Update Lead status
             await Lead.findByIdAndUpdate(lead._id, { status: 'Booked' }, { session });
 
-            // Create real MongoDB Booking
+            // Create real MongoDB Booking with contractual commission snapshot
             const servicesList = (quote.items && quote.items.length > 0)
                 ? quote.items.map(item => item.service || 'Service')
                 : [lead.category || 'Wedding Service'];
+
+            const { calculateActiveCommission } = require('../../services/commission.service');
+            const quoteTotal = Math.max(0, Number(quote.totalAmount) || 0);
+            const commCalc = await calculateActiveCommission(quoteTotal);
 
             const createdBookings = await Booking.create([{
                 vendorId: quote.vendorId,
@@ -294,7 +298,13 @@ exports.acceptQuote = async (req, res, next) => {
                 services: servicesList,
                 guestCount: lead.guestCount || 0,
                 notes: quote.notes || lead.message || '',
-                totalPrice: quote.totalAmount || 0,
+                totalPrice: quoteTotal,
+                commissionRatePercent: commCalc.commissionPercent,
+                commissionRate: commCalc.commissionRate,
+                commissionBasis: commCalc.basis || 'GROSS_PACKAGE_AMOUNT',
+                commissionConfigSource: commCalc.source,
+                commission: commCalc.commissionAmount || 0,
+                vendorEarning: commCalc.vendorEarning !== null ? commCalc.vendorEarning : Math.max(0, quoteTotal - (commCalc.commissionAmount || 0)),
                 status: 'Confirmed',
                 paymentStatus: 'Pending'
             }], { session });

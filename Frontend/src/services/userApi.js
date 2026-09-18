@@ -222,6 +222,18 @@ export const userApi = {
     return request(`/user/payments/${id}/receipt`, { method: 'GET' });
   },
 
+  getBookingReceipt: async (bookingId) => {
+    return request(`/user/bookings/${bookingId}/receipt`, { method: 'GET' });
+  },
+
+  getEligibleReviewBookings: async () => {
+    return request('/user/reviews/eligible-bookings', { method: 'GET' });
+  },
+
+  getUserReviews: async () => {
+    return request('/user/reviews', { method: 'GET' });
+  },
+
   // User Profile & Settings (Phase 2)
   getUserProfile: async () => {
     return request('/user/profile', { method: 'GET' });

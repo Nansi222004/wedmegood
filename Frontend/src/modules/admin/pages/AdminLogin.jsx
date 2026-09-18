@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../../components/ui/Icon';
+import { toast } from '../../../components/ui/Toast';
+import getFriendlyErrorMessage from '../../../utils/errorHandler';
 import '../adminTheme.css';
 
 const AdminLogin = () => {
@@ -29,6 +31,7 @@ const AdminLogin = () => {
                 // Store token
                 localStorage.setItem('adminToken', result.data.token);
                 localStorage.setItem('adminUser', JSON.stringify(result.data.user));
+                toast.success('Admin authenticated successfully.');
                 
                 setTimeout(() => {
                     setIsLoading(false);
@@ -36,12 +39,12 @@ const AdminLogin = () => {
                 }, 1000);
             } else {
                 setIsLoading(false);
-                alert(result.message || 'Invalid Admin Credentials');
+                toast.error(getFriendlyErrorMessage(result, 'Invalid Admin Credentials'));
             }
         } catch (err) {
             setIsLoading(false);
             console.error('Admin Login Error:', err);
-            alert('Connection failed. Please check your backend.');
+            toast.error(getFriendlyErrorMessage(err, 'Connection failed. Please check your backend.'));
         }
     };
 

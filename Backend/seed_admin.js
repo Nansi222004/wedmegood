@@ -8,8 +8,8 @@ const seedAdmin = async () => {
         await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/utsavo-chakra');
         console.log('✅ MongoDB Connected');
 
-        const adminEmail = 'a@gmail.com';
-        const adminPass = '1234';
+        const adminEmail = process.env.ADMIN_EMAIL || 'a@gmail.com';
+        const adminPass = process.env.ADMIN_PASSWORD || '1234';
 
         // Delete existing admin if exists
         await User.findOneAndDelete({ email: adminEmail });

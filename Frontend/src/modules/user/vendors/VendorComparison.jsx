@@ -6,6 +6,7 @@ import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
 import Card from '../../../components/ui/Card';
 import userApi from '../../../services/userApi';
+import { toast } from '../../../components/ui/Toast';
 
 const VendorComparison = () => {
   const location = useLocation();
@@ -158,12 +159,12 @@ const VendorComparison = () => {
         console.log('Error sharing:', err);
         // Fallback to clipboard
         navigator.clipboard.writeText(shareText);
-        alert('Comparison copied to clipboard!');
+        toast.success('Comparison copied to clipboard!');
       }
     } else {
       // Fallback to clipboard
       navigator.clipboard.writeText(shareText);
-      alert('Comparison copied to clipboard!');
+      toast.success('Comparison copied to clipboard!');
     }
   };
 

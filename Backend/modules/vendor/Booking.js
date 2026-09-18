@@ -65,6 +65,22 @@ const bookingSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    commissionRatePercent: {
+        type: Number,
+        default: null
+    },
+    commissionRate: {
+        type: Number,
+        default: null
+    },
+    commissionBasis: {
+        type: String,
+        default: 'GROSS_PACKAGE_AMOUNT'
+    },
+    commissionConfigSource: {
+        type: String,
+        default: null
+    },
     vendorEarning: {
         type: Number,
         default: 0

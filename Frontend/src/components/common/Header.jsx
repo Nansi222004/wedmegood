@@ -59,18 +59,7 @@ const Header = () => {
   const isDashboard = location.pathname === '/user/dashboard';
 
   const headerStyles = {
-    backgroundColor: '#EAE1D8',
-    borderBottomColor: 'rgba(61, 43, 43, 0.08)',
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    boxShadow: '0 1px 1px 0 rgba(0, 0, 0, 0.04)',
-  };
-
-  const logoStyles = {
-    background: theme.semantic.background.gradient.hero,
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-    backgroundClip: 'text',
+    backgroundColor: 'transparent',
   };
 
   const mobileMenuStyles = {
@@ -81,364 +70,91 @@ const Header = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50" style={headerStyles}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          {/* Logo */}
-          <div className="flex items-center">
-            <Link
-              to="/user/home"
-              className="text-2xl sm:text-3xl font-black uppercase tracking-tighter"
-              style={{ color: '#3D2B2B', fontFamily: '"Playfair Display", serif' }}
-            >
-              Utsavo
-            </Link>
+    <header className="sticky top-0 z-50 transition-all duration-300" style={headerStyles}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-3 space-y-3">
+        {/* Row 1: Top Navigation & Branding */}
+        <div className="flex justify-between items-center h-12">
+          
+          {/* Left: Hamburger Menu */}
+          <button
+            onClick={() => setIsHamburgerMenuOpen(!isHamburgerMenuOpen)}
+            className="p-1 -ml-1 text-[#3D2B2B] focus:outline-none active:scale-95 transition-transform"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+
+          {/* Center: Branding */}
+          <div className="flex flex-col items-center justify-center cursor-pointer" onClick={() => navigate('/user/home')}>
+             <div className="flex items-center">
+                {/* SVG Graphic Approximation for the golden U */}
+                <svg width="24" height="28" viewBox="0 0 40 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-1">
+                   <path d="M20 5 C30 5, 35 15, 30 25 C25 35, 10 35, 10 25 C10 15, 20 15, 20 25" stroke="#C59A5A" strokeWidth="3" strokeLinecap="round" fill="none"/>
+                   <path d="M15 10 L20 0 L25 10 Z" fill="#C59A5A"/>
+                   <path d="M5 15 L10 5 L15 15 Z" fill="#C59A5A"/>
+                   <path d="M25 15 L30 5 L35 15 Z" fill="#C59A5A"/>
+                </svg>
+                <span className="text-2xl font-semibold tracking-tight" style={{ color: '#7A1C43', fontFamily: '"Playfair Display", serif' }}>
+                  Utsavo
+                </span>
+             </div>
+             <span className="text-[5px] font-black uppercase tracking-[0.25em]" style={{ color: '#C59A5A', fontFamily: '"Outfit", sans-serif' }}>
+                Celebrate Every Moment
+             </span>
           </div>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-4">
-            {/* Notifications Bell Icon */}
-            {isAuthenticated && (
+          {/* Right: Location & Notifications */}
+          <div className="flex items-center gap-3">
+             <button className="flex items-center gap-1 text-[#3D2B2B] hover:opacity-70 transition-opacity">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="text-[10px] font-semibold">Hyderabad</span>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+             </button>
+
+             {isAuthenticated && (
               <button
                 onClick={handleNotificationsClick}
-                className="relative p-2 rounded-lg transition-colors"
-                title="Notifications"
-                style={{
-                  color: theme.semantic.text.secondary,
-                  backgroundColor: 'transparent'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = theme.semantic.text.primary;
-                  e.currentTarget.style.backgroundColor = theme.semantic.background.accent;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = theme.semantic.text.secondary;
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }}
-              >
-                <Icon name="bell" size="md" />
-                {unreadCount > 0 && (
-                  <div
-                    className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: theme.colors.accent[500] || '#BE185D' }}
-                  >
-                    <span className="text-[10px] font-bold text-white leading-none">
-                      {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
-                  </div>
-                )}
-              </button>
-            )}
-
-            {/* Saved Items Icon */}
-            {isAuthenticated && (
-              <button
-                onClick={() => navigate('/user/favourites')}
-                className="relative p-2 rounded-lg transition-colors"
-                title="Favourites"
-                style={{
-                  color: theme.semantic.text.secondary,
-                  backgroundColor: 'transparent'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = theme.semantic.text.primary;
-                  e.currentTarget.style.backgroundColor = theme.semantic.background.accent;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = theme.semantic.text.secondary;
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }}
-              >
-                <Icon name="heart" size="md" />
-              </button>
-            )}
-
-            {/* Cart Icon */}
-            {!isDashboard && <CartIcon />}
-
-            {/* Theme Switcher */}
-            <select
-              value={themeName}
-              onChange={(e) => changeTheme(e.target.value)}
-              className="px-3 py-1 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2"
-              style={{
-                borderColor: theme.semantic.border.accent,
-                borderWidth: '1px',
-                borderStyle: 'solid',
-                color: theme.semantic.text.secondary,
-                backgroundColor: theme.semantic.navigation.background,
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = theme.semantic.border.focus;
-                e.target.style.boxShadow = `0 0 0 2px ${theme.semantic.border.focus}25`;
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = theme.semantic.border.accent;
-                e.target.style.boxShadow = 'none';
-              }}
-            >
-              {availableThemes.map((theme) => (
-                <option key={theme} value={theme}>
-                  {theme.charAt(0).toUpperCase() + theme.slice(1)}
-                </option>
-              ))}
-            </select>
-
-            {/* Authentication Section */}
-            {isAuthenticated ? (
-              <div className="flex items-center space-x-3">
-                <Link
-                  to="/user/account"
-                  className="flex items-center space-x-2 px-3 py-1 rounded-lg transition-colors"
-                  style={{ color: theme.semantic.text.primary }}
-                  onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = theme.semantic.background.accent;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = 'transparent';
-                  }}
-                >
-                  <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
-                    {user.profileImage ? (
-                      <img
-                        src={formatImageUrl(user.profileImage)}
-                        alt={user.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.style.display = 'none';
-                          if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
-                        }}
-                      />
-                    ) : null}
-                    <div className={`w-full h-full bg-rose-100 items-center justify-center text-rose-600 text-xs font-bold ${user.profileImage ? 'hidden' : 'flex'}`}>
-                      {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
-                    </div>
-                  </div>
-                  <span className="text-sm font-medium">{user.name}</span>
-                </Link>
-                <button
-                  onClick={logout}
-                  className="text-sm px-3 py-1 rounded-lg transition-colors"
-                  style={{
-                    color: theme.semantic.text.secondary,
-                    backgroundColor: 'transparent'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.color = theme.semantic.text.primary;
-                    e.target.style.backgroundColor = theme.semantic.background.accent;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.color = theme.semantic.text.secondary;
-                    e.target.style.backgroundColor = 'transparent';
-                  }}
-                >
-                  Logout
-                </button>
-              </div>
-            ) : (
-              <Link to="/user/account">
-                <Button variant="primary" size="sm">
-                  Login
-                </Button>
-              </Link>
-            )}
-          </div>
-
-          {/* Mobile Menu Button */}
-          <div className="md:hidden flex items-center space-x-2">
-            {/* Notification Bell for Mobile */}
-            {isAuthenticated && (
-              <button
-                onClick={handleNotificationsClick}
-                className="relative p-2 rounded-lg transition-colors"
-                style={{
-                  color: theme.semantic.navigation.text,
-                  backgroundColor: 'transparent'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = theme.semantic.text.accent;
-                  e.currentTarget.style.backgroundColor = theme.semantic.navigation.backgroundHover;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = theme.semantic.navigation.text;
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }}
+                className="relative p-1 text-[#3D2B2B] active:scale-95 transition-transform"
               >
                 <Icon name="bell" size="sm" />
                 {unreadCount > 0 && (
-                  <div
-                    className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: theme.colors.accent[500] || '#BE185D' }}
-                  >
-                    <span className="text-[9px] font-bold text-white leading-none">
+                  <div className="absolute -top-0.5 -right-0.5 min-w-[12px] h-3 px-0.5 rounded-full flex items-center justify-center bg-[#BE185D]">
+                    <span className="text-[8px] font-bold text-white leading-none">
                       {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                   </div>
                 )}
               </button>
             )}
-
-            {/* Saved Items for Mobile */}
-            {isAuthenticated && (
-              <button
-                onClick={() => navigate('/user/favourites')}
-                className="relative p-2 rounded-lg transition-colors"
-                style={{
-                  color: theme.semantic.navigation.text,
-                  backgroundColor: 'transparent'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = theme.semantic.text.accent;
-                  e.currentTarget.style.backgroundColor = theme.semantic.navigation.backgroundHover;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = theme.semantic.navigation.text;
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }}
-              >
-                <Icon name="heart" size="sm" />
-              </button>
-            )}
-
-            {/* Cart Icon for Mobile */}
-            {!isDashboard && <CartIcon />}
-
-            <button
-              onClick={() => setIsHamburgerMenuOpen(!isHamburgerMenuOpen)}
-              className="p-2 rounded-lg transition-colors focus:outline-none"
-              style={{
-                color: theme.semantic.navigation.text,
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.color = theme.semantic.text.accent;
-                e.target.style.backgroundColor = theme.semantic.navigation.backgroundHover;
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.color = theme.semantic.navigation.text;
-                e.target.style.backgroundColor = 'transparent';
-              }}
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                {isHamburgerMenuOpen ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                )}
-              </svg>
-            </button>
           </div>
         </div>
 
-        {/* Mobile Menu */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden" style={mobileMenuStyles}>
-            <div className="px-2 pt-2 pb-3 space-y-3">
-              {/* Theme Switcher Mobile */}
-              <div>
-                <label
-                  className="block text-sm font-medium mb-1"
-                  style={{ color: theme.semantic.text.primary }}
-                >
-                  Theme
-                </label>
-                <select
-                  value={themeName}
-                  onChange={(e) => changeTheme(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2"
-                  style={{
-                    borderColor: theme.semantic.border.accent,
-                    borderWidth: '1px',
-                    borderStyle: 'solid',
-                    color: theme.semantic.text.primary,
-                    backgroundColor: theme.semantic.navigation.background,
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = theme.semantic.border.focus;
-                    e.target.style.boxShadow = `0 0 0 2px ${theme.semantic.border.focus}25`;
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = theme.semantic.border.accent;
-                    e.target.style.boxShadow = 'none';
-                  }}
-                >
-                  {availableThemes.map((theme) => (
-                    <option key={theme} value={theme}>
-                      {theme.charAt(0).toUpperCase() + theme.slice(1)}
-                    </option>
-                  ))}
-                </select>
-              </div>
+        {/* Row 2: Search and Filter */}
+        <div className="flex items-center gap-3">
+           <div className="flex-1 flex items-center gap-2 bg-white/95 backdrop-blur-md rounded-2xl px-4 py-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-white/60">
+              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input 
+                type="text" 
+                placeholder="Search for vendors, services, venues..." 
+                className="bg-transparent border-none outline-none w-full text-xs text-[#3D2B2B] placeholder-gray-400 font-medium"
+                style={{ fontFamily: '"Outfit", sans-serif' }}
+              />
+           </div>
+           <button className="w-10 h-10 flex-shrink-0 bg-[#FDF2F8] shadow-sm rounded-xl flex items-center justify-center text-[#7A1C43] active:scale-95 transition-transform">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+           </button>
+        </div>
 
-              {/* Authentication Section Mobile */}
-              {isAuthenticated ? (
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-3 px-2">
-                    <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
-                      {user.profileImage ? (
-                        <img
-                          src={formatImageUrl(user.profileImage)}
-                          alt={user.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.style.display = 'none';
-                            if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
-                          }}
-                        />
-                      ) : null}
-                      <div className={`w-full h-full bg-rose-100 items-center justify-center text-rose-600 text-sm font-bold ${user.profileImage ? 'hidden' : 'flex'}`}>
-                        {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
-                      </div>
-                    </div>
-                    <div>
-                      <p
-                        className="font-medium"
-                        style={{ color: theme.semantic.text.primary }}
-                      >
-                        {user.name}
-                      </p>
-                      <p
-                        className="text-sm"
-                        style={{ color: theme.semantic.text.secondary }}
-                      >
-                        {user.email}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex space-x-2">
-                    <Link
-                      to="/user/account"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className="flex-1"
-                    >
-                      <Button variant="outline" className="w-full">
-                        Account
-                      </Button>
-                    </Link>
-                    <button
-                      onClick={() => {
-                        logout();
-                        setIsMobileMenuOpen(false);
-                      }}
-                      className="flex-1"
-                    >
-                      <Button variant="outline" className="w-full">
-                        Logout
-                      </Button>
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <Link to="/user/account" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button variant="primary" className="w-full">
-                    Login
-                  </Button>
-                </Link>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Hamburger Menu */}

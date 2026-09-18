@@ -194,6 +194,7 @@ exports.login = async (req, res) => {
           name: user.name,
           email: user.email,
           phone: user.phone,
+          role: user.role,
           weddingDate: user.weddingDate,
           city: user.city,
           isEmailVerified: user.isEmailVerified,

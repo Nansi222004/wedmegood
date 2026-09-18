@@ -14,18 +14,35 @@ async function settleBookingEarnings(bookingId) {
         return { settled: false, reason: 'Booking not found' };
     }
 
-    if (booking.paymentStatus !== 'Paid') {
-        return { settled: false, reason: 'Booking is not paid' };
+    if (booking.status === 'Cancelled' || booking.settlementStatus === 'Refunded') {
+        return { settled: false, reason: 'Cannot settle a cancelled or refunded booking' };
     }
 
     if (booking.settlementStatus === 'Eligible' || booking.settlementStatus === 'Settled') {
         return { settled: false, reason: 'Booking earnings already settled or eligible' };
     }
 
-    const earningToRelease = booking.vendorEarning > 0
-        ? booking.vendorEarning
-        : Math.round(Number(booking.totalPrice || 0) * 0.9 * 100) / 100;
+    const Payment = require('../modules/user/Payment');
+    const payments = await Payment.find({ bookingId: booking._id }).lean();
+    const { reconcileBookingPayments } = require('../utils/financialReconciliation');
+    const reconciliation = reconcileBookingPayments(booking, payments);
 
+    if (reconciliation.hasDiscrepancy) {
+        return { 
+            settled: false, 
+            reason: `Cannot settle: financial discrepancy detected (${reconciliation.discrepancyReasons.join('; ')})` 
+        };
+    }
+
+    if (reconciliation.paidAmount <= 0) {
+        return { settled: false, reason: 'Cannot settle: no verified customer payments found' };
+    }
+
+    if (reconciliation.commissionUnconfigured) {
+        return { settled: false, reason: 'Cannot settle: platform commission is unconfigured in Admin Settings' };
+    }
+
+    const earningToRelease = reconciliation.vendorEarning;
     if (earningToRelease <= 0) {
         return { settled: false, reason: 'Zero earning to release' };
     }
@@ -99,42 +116,65 @@ async function cancelAndRefundBooking({ bookingId, cancelledBy, actorId, reason 
     if (booking.status === 'Completed') {
         return { success: false, statusCode: 400, message: 'Cannot cancel a completed event' };
     }
+    if (booking.settlementStatus === 'Settled') {
+        return { 
+            success: false, 
+            statusCode: 400, 
+            message: 'Cannot cancel a booking that has already been settled to the vendor. Contact support for dispute resolution.' 
+        };
+    }
 
     booking.status = 'Cancelled';
     booking.cancellationReason = reason || `Cancelled by ${cancelledBy.toLowerCase()}`;
     booking.cancelledBy = cancelledBy;
     booking.cancelledAt = new Date();
 
-    // Financial reversal if booking was paid
+    // Financial reversal if booking had verified payments
     const Payment = require('../modules/user/Payment');
-    const payment = await Payment.findOne({ 
+    const payments = await Payment.find({ 
         bookingId: booking._id, 
-        status: { $in: ['Completed', 'Paid'] } 
+        status: { $in: ['Completed', 'Paid', 'PartiallyRefunded'] } 
     });
 
-    if (payment && booking.paymentStatus !== 'Refunded') {
-        payment.status = 'Refunded';
-        payment.refundAmount = payment.amount;
-        payment.refundedAt = new Date();
-        payment.notes = reason || `Cancelled by ${cancelledBy.toLowerCase()}`;
-        await payment.save();
+    let totalRefundAmount = 0;
+    let totalVendorReversal = 0;
 
+    for (const payment of payments) {
+        const unrefundedOnPayment = Math.max(0, payment.amount - (Number(payment.refundAmount) || 0));
+        if (unrefundedOnPayment > 0) {
+            payment.status = 'Refunded';
+            payment.refundAmount = payment.amount;
+            payment.refundedAt = new Date();
+            payment.notes = reason || `Cancelled by ${cancelledBy.toLowerCase()}`;
+            await payment.save();
+
+            totalRefundAmount += unrefundedOnPayment;
+            const rev = payment.vendorEarning ?? (
+                payment.commissionAmount !== undefined && payment.commissionAmount !== null
+                    ? Math.max(0, unrefundedOnPayment - payment.commissionAmount)
+                    : (booking.vendorEarning || unrefundedOnPayment)
+            );
+            totalVendorReversal += rev;
+        }
+    }
+
+    if (payments.length > 0 && totalRefundAmount > 0) {
         booking.paymentStatus = 'Refunded';
         booking.settlementStatus = 'Refunded';
-        booking.refundAmount = payment.amount;
+        booking.refundAmount = (booking.refundAmount || 0) + totalRefundAmount;
         booking.refundedAt = new Date();
-
-        const reverseAmount = payment.vendorEarning || Math.round(payment.amount * 0.9 * 100) / 100;
 
         // Debit vendor wallet safely (safe when balance is insufficient)
         const wallet = await VendorWallet.findOne({ vendorId: booking.vendorId });
         if (wallet) {
-            if (wallet.pendingBalance >= reverseAmount) {
-                wallet.pendingBalance = Math.max(0, wallet.pendingBalance - reverseAmount);
+            if (wallet.pendingBalance >= totalVendorReversal) {
+                wallet.pendingBalance = Math.max(0, wallet.pendingBalance - totalVendorReversal);
             } else {
-                wallet.availableBalance = Math.max(0, wallet.availableBalance - reverseAmount);
+                const remainder = totalVendorReversal - wallet.pendingBalance;
+                wallet.pendingBalance = 0;
+                wallet.availableBalance = Math.max(0, wallet.availableBalance - remainder);
             }
-            wallet.totalRefunded = (wallet.totalRefunded || 0) + reverseAmount;
+            wallet.totalRefunded = (wallet.totalRefunded || 0) + totalVendorReversal;
             await wallet.save();
         }
 
@@ -149,10 +189,9 @@ async function cancelAndRefundBooking({ bookingId, cancelledBy, actorId, reason 
                 {
                     entryType: 'REFUND',
                     direction: 'DEBIT',
-                    amount: payment.amount,
+                    amount: totalRefundAmount,
                     currency: 'INR',
-                    referenceId: payment._id.toString(),
-                    paymentId: payment._id,
+                    referenceId: booking._id.toString(),
                     bookingId: booking._id,
                     vendorId: booking.vendorId,
                     userId: booking.userId,
@@ -162,10 +201,9 @@ async function cancelAndRefundBooking({ bookingId, cancelledBy, actorId, reason 
                 {
                     entryType: 'PAYOUT_REVERSAL',
                     direction: 'DEBIT',
-                    amount: reverseAmount,
+                    amount: totalVendorReversal,
                     currency: 'INR',
-                    referenceId: payment._id.toString(),
-                    paymentId: payment._id,
+                    referenceId: booking._id.toString(),
                     bookingId: booking._id,
                     vendorId: booking.vendorId,
                     status: 'POSTED',

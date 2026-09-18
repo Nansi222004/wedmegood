@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const Vendor = require('./Vendor');
 const Lead = require('./Lead');
 const Booking = require('./Booking');
+const Payment = require('../user/Payment');
+const { reconcileBookingPayments } = require('../../utils/financialReconciliation');
 const Review = require('./Review');
 const Notification = require('./Notification');
 const Quote = require('./Quote');
@@ -501,6 +503,28 @@ const sanitizeLeadForVendor = (leadDoc) => {
     if (!isPermitted && lead.phone) {
         lead.phone = maskCustomerPhone(lead.phone);
     }
+
+    // Enrich with actual populated customer profile data (respecting privacy: no password, tokens, etc.)
+    if (lead.userId && typeof lead.userId === 'object') {
+        const userObj = lead.userId;
+        lead.customerProfile = {
+            id: userObj._id,
+            name: userObj.name || lead.customerName,
+            profileImage: userObj.profileImage || null,
+            city: userObj.city || null,
+            email: isPermitted ? userObj.email : undefined,
+            weddingDate: userObj.weddingDate || null
+        };
+        // Ensure top-level customerName and profileImage match actual profile if generic
+        if (!lead.customerName || lead.customerName === 'Customer' || lead.customerName === 'Valued Customer') {
+            lead.customerName = userObj.name || lead.customerName;
+        }
+        lead.customerImage = userObj.profileImage || null;
+        if (!lead.eventLocation && userObj.city) {
+            lead.eventLocation = userObj.city;
+        }
+    }
+
     return lead;
 };
 
@@ -509,7 +533,9 @@ const sanitizeLeadForVendor = (leadDoc) => {
 // @access  Private
 exports.getLeads = async (req, res, next) => {
     try {
-        const leads = await Lead.find({ vendorId: req.vendor.id }).sort('-createdAt');
+        const leads = await Lead.find({ vendorId: req.vendor.id })
+            .populate('userId', 'name email phone city profileImage weddingDate')
+            .sort('-createdAt');
 
         res.status(200).json({
             success: true,
@@ -525,7 +551,8 @@ exports.getLeads = async (req, res, next) => {
 // @access  Private
 exports.getLeadById = async (req, res, next) => {
     try {
-        const lead = await Lead.findOne({ _id: req.params.id, vendorId: req.vendor.id });
+        const lead = await Lead.findOne({ _id: req.params.id, vendorId: req.vendor.id })
+            .populate('userId', 'name email phone city profileImage weddingDate');
 
         if (!lead) {
             return res.status(404).json({
@@ -543,13 +570,13 @@ exports.getLeadById = async (req, res, next) => {
     }
 };
 
-// @desc    Update lead status
+// @desc    Update lead status, importance flag, or notes
 // @route   PUT /api/vendor/leads/:id
 // @access  Private
 exports.updateLeadStatus = async (req, res, next) => {
     try {
-        const { status } = req.body;
-        if (!status) {
+        const { status, isImportant, notes } = req.body;
+        if (!status && isImportant === undefined && notes === undefined) {
             return res.status(400).json({
                 success: false,
                 message: 'Status is required'
@@ -563,8 +590,8 @@ exports.updateLeadStatus = async (req, res, next) => {
             });
         }
 
-        const allowedVendorStatuses = ['Contacted', 'Quote Sent', 'Rejected'];
-        if (!allowedVendorStatuses.includes(status)) {
+        const allowedVendorStatuses = ['Contacted', 'Quote Sent', 'Rejected', 'New'];
+        if (status && !allowedVendorStatuses.includes(status)) {
             return res.status(400).json({
                 success: false,
                 message: `Invalid lead status. Allowed values: ${allowedVendorStatuses.join(', ')}`
@@ -579,15 +606,25 @@ exports.updateLeadStatus = async (req, res, next) => {
             });
         }
 
-        if (existingLead.status === 'Booked') {
+        if (existingLead.status === 'Booked' && status && status !== 'Booked') {
             return res.status(400).json({
                 success: false,
                 message: 'Cannot modify status of an already booked lead'
             });
         }
 
-        existingLead.status = status;
+        if (status) {
+            existingLead.status = status;
+        }
+        if (isImportant !== undefined) {
+            existingLead.isImportant = Boolean(isImportant);
+        }
+        if (notes !== undefined) {
+            existingLead.notes = String(notes).trim();
+        }
+
         await existingLead.save();
+        await existingLead.populate('userId', 'name email phone city profileImage weddingDate');
 
         res.status(200).json({
             success: true,
@@ -603,11 +640,92 @@ exports.updateLeadStatus = async (req, res, next) => {
 // @access  Private
 exports.getBookings = async (req, res, next) => {
     try {
-        const bookings = await Booking.find({ vendorId: req.vendor.id }).sort('-eventDate');
+        const bookings = await Booking.find({ vendorId: req.vendor.id })
+            .populate('userId', 'name fullName email phone profileImage')
+            .populate('leadId', 'name phone email eventDate location guestCount budget message')
+            .populate('quoteId', 'items totalAmount taxAmount discountAmount status notes')
+            .populate('vendorId', 'businessName email phone city category profileImage')
+            .sort('-eventDate')
+            .lean();
+
+        const bookingIds = bookings.map(b => b._id);
+        const payments = await Payment.find({
+            bookingId: { $in: bookingIds }
+        }).sort('-createdAt').lean();
+
+        const enrichedBookings = bookings.map(booking => {
+            const financial = reconcileBookingPayments(booking, payments);
+
+            const customerName = booking.customerName ||
+                booking.userId?.name ||
+                booking.userId?.fullName ||
+                booking.leadId?.name ||
+                'Customer';
+
+            const customerPhone = booking.userId?.phone || booking.leadId?.phone || '';
+            const customerEmail = booking.userId?.email || booking.leadId?.email || '';
+
+            return {
+                ...booking,
+                customerName,
+                customerPhone,
+                customerEmail,
+                ...financial
+            };
+        });
 
         res.status(200).json({
             success: true,
-            data: bookings
+            count: enrichedBookings.length,
+            data: enrichedBookings
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Get single vendor booking by ID
+// @route   GET /api/vendor/bookings/:id
+// @access  Private
+exports.getBookingById = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid booking ID format' });
+        }
+
+        const booking = await Booking.findOne({ _id: id, vendorId: req.vendor.id })
+            .populate('userId', 'name fullName email phone profileImage')
+            .populate('leadId', 'name phone email eventDate location guestCount budget message')
+            .populate('quoteId', 'items totalAmount taxAmount discountAmount status notes')
+            .populate('vendorId', 'businessName email phone city category profileImage')
+            .lean();
+
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Booking not found or unauthorized' });
+        }
+
+        const payments = await Payment.find({ bookingId: booking._id }).sort('-createdAt').lean();
+        const financial = reconcileBookingPayments(booking, payments);
+
+        const customerName = booking.customerName ||
+            booking.userId?.name ||
+            booking.userId?.fullName ||
+            booking.leadId?.name ||
+            'Customer';
+
+        const customerPhone = booking.userId?.phone || booking.leadId?.phone || '';
+        const customerEmail = booking.userId?.email || booking.leadId?.email || '';
+
+        res.status(200).json({
+            success: true,
+            data: {
+                ...booking,
+                customerName,
+                customerPhone,
+                customerEmail,
+                ...financial
+            }
         });
     } catch (err) {
         next(err);
@@ -754,6 +872,10 @@ exports.createBooking = async (req, res, next) => {
             });
         }
 
+        const { calculateActiveCommission } = require('../../services/commission.service');
+        const bookingTotal = Math.max(0, Number(totalAmount) || 0);
+        const commCalc = await calculateActiveCommission(bookingTotal);
+
         const booking = await Booking.create({
             vendorId: req.vendor.id,
             customerName,
@@ -763,7 +885,13 @@ exports.createBooking = async (req, res, next) => {
             eventType: eventType || 'Wedding',
             guestCount: guestCount || 0,
             notes: notes || '',
-            totalPrice: Math.max(0, Number(totalAmount) || 0),
+            totalPrice: bookingTotal,
+            commissionRatePercent: commCalc.commissionPercent,
+            commissionRate: commCalc.commissionRate,
+            commissionBasis: commCalc.basis || 'GROSS_PACKAGE_AMOUNT',
+            commissionConfigSource: commCalc.source,
+            commission: commCalc.commissionAmount || 0,
+            vendorEarning: commCalc.vendorEarning !== null ? commCalc.vendorEarning : Math.max(0, bookingTotal - (commCalc.commissionAmount || 0)),
             status: 'Confirmed'
         });
 
@@ -1091,18 +1219,24 @@ exports.getSubscriptionPlan = async (req, res, next) => {
 exports.getEarningsSummary = async (req, res, next) => {
     try {
         const vendorId = req.vendor.id;
-        const bookings = await Booking.find({ vendorId });
+        const VendorWallet = require('./VendorWallet');
+        const [bookings, wallet] = await Promise.all([
+            Booking.find({ vendorId }).lean(),
+            VendorWallet.findOne({ vendorId }).lean()
+        ]);
 
-        const totalEarnings = bookings
-            .filter(b => b.status === 'Completed')
-            .reduce((sum, b) => sum + (b.totalPrice || 0), 0);
+        const completedBookings = bookings.filter(b => b.status === 'Completed');
+        const totalEarnings = completedBookings.reduce((sum, b) => sum + (b.totalPrice || 0), 0);
+        const platformCommission = completedBookings.reduce((sum, b) => sum + (Number(b.commission) || 0), 0);
+        const netEarnings = completedBookings.reduce((sum, b) => {
+            const earning = Number(b.vendorEarning);
+            if (!isNaN(earning) && earning > 0) return sum + earning;
+            return sum + Math.max(0, (Number(b.totalPrice) || 0) - (Number(b.commission) || 0));
+        }, 0);
 
         const pendingPayments = bookings
-            .filter(b => b.status === 'Confirmed')
+            .filter(b => b.status === 'Confirmed' && b.paymentStatus !== 'Paid')
             .reduce((sum, b) => sum + (b.totalPrice || 0), 0);
-
-        // Assume 10% commission for now
-        const platformCommission = totalEarnings * 0.1;
 
         res.status(200).json({
             success: true,
@@ -1110,6 +1244,11 @@ exports.getEarningsSummary = async (req, res, next) => {
                 totalEarnings,
                 pendingPayments,
                 platformCommission,
+                netEarnings,
+                availableBalance: wallet ? wallet.availableBalance : 0,
+                pendingBalance: wallet ? wallet.pendingBalance : 0,
+                lockedBalance: wallet ? wallet.lockedBalance : 0,
+                totalWithdrawn: wallet ? wallet.totalWithdrawn : 0,
                 currency: 'INR'
             }
         });

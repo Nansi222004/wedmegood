@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Icon from '../../../components/ui/Icon';
 import { useVendorState } from '../useVendorState';
 import { vendorApi } from '../vendorApi';
@@ -8,6 +9,8 @@ import ConfirmModal from '../../../components/ui/ConfirmModal';
 
 const VendorQuotes = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const consumedPrefillRef = useRef(null);
   const { refreshData } = useVendorState();
   const { showToast, ToastComponent } = useToast();
   const [quotes, setQuotes] = useState([]);
@@ -54,18 +57,44 @@ const VendorQuotes = () => {
     fetchData();
   }, []);
 
-  // Consume prefillLeadId from navigation (e.g. from VendorLeads)
+  const closeModal = () => {
+    setShowModal(false);
+    resetForm();
+    navigate(location.pathname, { replace: true, state: {} });
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && showModal) {
+        closeModal();
+      }
+    };
+
+    if (showModal) {
+      document.addEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [showModal]);
+
+  // Consume prefillLeadId from navigation (e.g. from VendorLeads) exactly ONCE
   useEffect(() => {
     const prefillId = location.state?.prefillLeadId;
-    if (prefillId && leads.length > 0) {
+    if (prefillId && leads.length > 0 && consumedPrefillRef.current !== prefillId) {
+      consumedPrefillRef.current = prefillId;
       const found = leads.find(l => l._id === prefillId);
       if (found) {
         setSelectedLeadId(found._id);
         setServiceName(found.serviceName || found.category || 'Wedding Package');
         setShowModal(true);
       }
+      // Wipe the prefillLeadId from navigation state so subsequent leads state updates don't re-trigger modal opening
+      navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location.state, leads]);
+  }, [location.state, leads, navigate, location.pathname]);
 
   const filteredQuotes = useMemo(() => {
     return quotes.filter(q => {
@@ -134,9 +163,8 @@ const VendorQuotes = () => {
 
       if (res.success) {
         showToast(isEditing ? 'Proposal updated successfully.' : 'Proposal created & sent successfully.', 'success');
+        closeModal();
         fetchData();
-        setShowModal(false);
-        resetForm();
         refreshData();
       } else {
         showToast(res.message || 'Failed to save proposal. Please try again.', 'error');
@@ -457,74 +485,80 @@ const VendorQuotes = () => {
       </div>
 
       {/* Dynamic Action Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={() => setShowModal(false)}></div>
-          <div className="relative w-full max-w-lg bg-white rounded-xl shadow-2xl p-5 overflow-y-auto max-h-[90vh] animate-in zoom-in-95 duration-300">
-             <div className="flex items-center justify-between mb-4 shrink-0">
+      {showModal && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          {/* Full-screen Dark Backdrop with blur */}
+          <div 
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity animate-in fade-in duration-200" 
+            onClick={closeModal}
+          />
+
+          {/* Dialog Container - Centered and constrained */}
+          <div className="relative z-10 w-full max-w-lg bg-white rounded-2xl shadow-2xl p-5 sm:p-6 overflow-y-auto max-h-[88vh] my-auto border border-slate-100 animate-in zoom-in-95 fade-in duration-200">
+             <div className="flex items-center justify-between mb-3 shrink-0 pb-2.5 border-b border-slate-100">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 tracking-tight">{isEditing ? 'Reconfigure Proposal' : 'New Proposal'}</h3>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">{isEditing ? 'Reconfigure Proposal' : 'New Proposal'}</h3>
                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{isEditing ? 'Update existing proposal details' : 'Draft a professional quote for client approval'}</p>
                 </div>
-                <button onClick={() => setShowModal(false)} className="h-8 w-8 rounded-lg bg-slate-50 flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-all border border-slate-100">
-                   <Icon name="close" size="sm" />
+                <button onClick={closeModal} className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-all border border-slate-200/60 text-slate-500">
+                   <Icon name="close" size="xs" />
                 </button>
              </div>
 
-             <div className="space-y-3.5">
-                <div className="space-y-1.5">
-                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Active Client Inquiry *</label>
+             <div className="space-y-3">
+                <div className="space-y-1">
+                   <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider ml-1">Active Client Inquiry *</label>
                    <div className="relative group">
                       <select 
                         disabled={isEditing}
-                        className="w-full h-11 pl-4 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-[#7C3AED] appearance-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full h-10 pl-3.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#7C3AED] focus:bg-white appearance-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         value={selectedLeadId}
                         onChange={(e) => handleLeadChange(e.target.value)}
                       >
-                         <option value="" className="font-bold">Select a client inquiry</option>
+                         <option value="" className="font-medium">Select a client inquiry</option>
                          {leads.map(l => (
-                           <option key={l._id} value={l._id} className="font-bold">{l.customerName} — {l.serviceName || l.category || 'Wedding Service'}</option>
+                           <option key={l._id} value={l._id} className="font-medium">{l.customerName} — {l.serviceName || l.category || 'Wedding Service'}</option>
                          ))}
                       </select>
                       {!isEditing && (
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-hover:text-[#7C3AED] transition-colors">
+                        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-hover:text-[#7C3AED] transition-colors">
                            <Icon name="chevron-down" size="xs" />
                         </div>
                       )}
                    </div>
                 </div>
 
-                <div className="space-y-1.5">
-                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Service / Package Name *</label>
+                <div className="space-y-1">
+                   <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider ml-1">Service / Package Name *</label>
                    <input
                      type="text"
-                     className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-[#7C3AED] transition-all placeholder:text-slate-300"
+                     className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#7C3AED] focus:bg-white transition-all placeholder:text-slate-400"
                      placeholder="e.g. Premium Wedding Photography Package"
                      value={serviceName}
                      onChange={(e) => setServiceName(e.target.value)}
                    />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                   <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Package Price (₹) *</label>
+                <div className="grid grid-cols-2 gap-2.5">
+                   <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider ml-1">Package Price (₹) *</label>
                       <input
                         type="number"
                         min="1"
                         step="1"
-                        className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-[#7C3AED] transition-all placeholder:text-slate-300"
+                        className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#7C3AED] focus:bg-white transition-all placeholder:text-slate-400"
                         placeholder="e.g. 45000"
                         value={price}
                         onChange={(e) => setPrice(e.target.value)}
                       />
                    </div>
-                   <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Tax / GST (₹)</label>
+                   <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider ml-1">Tax / GST (₹)</label>
                       <input
                         type="number"
                         min="0"
                         step="1"
-                        className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-[#7C3AED] transition-all placeholder:text-slate-300"
+                        className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#7C3AED] focus:bg-white transition-all placeholder:text-slate-400"
                         placeholder="0"
                         value={taxAmount}
                         onChange={(e) => setTaxAmount(e.target.value)}
@@ -532,26 +566,26 @@ const VendorQuotes = () => {
                    </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                   <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Discount (₹)</label>
+                <div className="grid grid-cols-2 gap-2.5">
+                   <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider ml-1">Discount (₹)</label>
                       <input
                         type="number"
                         min="0"
                         step="1"
-                        className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-[#7C3AED] transition-all placeholder:text-slate-300"
+                        className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#7C3AED] focus:bg-white transition-all placeholder:text-slate-400"
                         placeholder="0"
                         value={discountAmount}
                         onChange={(e) => setDiscountAmount(e.target.value)}
                       />
                    </div>
-                   <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Validity (Days)</label>
+                   <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider ml-1">Validity (Days)</label>
                       <input
                         type="number"
                         min="1"
                         max="90"
-                        className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-[#7C3AED] transition-all placeholder:text-slate-300"
+                        className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#7C3AED] focus:bg-white transition-all placeholder:text-slate-400"
                         value={validityDays}
                         onChange={(e) => setValidityDays(e.target.value)}
                       />
@@ -559,9 +593,9 @@ const VendorQuotes = () => {
                 </div>
 
                 {/* Live Total Calculation Preview */}
-                <div className="p-3 bg-purple-50/50 rounded-xl border border-purple-100 flex items-center justify-between">
+                <div className="p-2.5 bg-purple-50/70 rounded-xl border border-purple-100 flex items-center justify-between">
                    <div>
-                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">Total Quotation Value</span>
+                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">Total Quotation Value</span>
                       <span className="text-[10px] text-slate-400">Price + Tax - Discount</span>
                    </div>
                    <span className="text-base font-black text-[#7C3AED]">
@@ -569,10 +603,11 @@ const VendorQuotes = () => {
                    </span>
                 </div>
 
-                <div className="space-y-1.5">
-                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Notes / Terms for Client</label>
+                <div className="space-y-1">
+                   <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider ml-1">Notes / Terms for Client</label>
                    <textarea 
-                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-medium text-slate-900 focus:outline-none focus:border-[#7C3AED] transition-all placeholder:text-slate-300 min-h-[70px] resize-none"
+                     rows={2}
+                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-medium text-slate-900 focus:outline-none focus:border-[#7C3AED] focus:bg-white transition-all placeholder:text-slate-400 resize-none"
                      placeholder="Describe package deliverables, schedule, or payment terms..."
                      value={notes}
                      onChange={(e) => setNotes(e.target.value)}
@@ -580,10 +615,10 @@ const VendorQuotes = () => {
                 </div>
 
                 {selectedLeadId && leads.find(l => l._id === selectedLeadId) && (
-                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                        <div className="flex items-center gap-2 mb-0.5">
+                    <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="flex items-center gap-1.5 mb-0.5">
                             <Icon name="calendar" size="xs" className="w-3.5 h-3.5 text-[#7C3AED]" />
-                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Client Target Event Date</span>
+                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Client Target Event Date</span>
                         </div>
                         <p className="text-xs font-bold text-slate-700">
                             {new Date(leads.find(l => l._id === selectedLeadId).eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
@@ -591,16 +626,16 @@ const VendorQuotes = () => {
                     </div>
                 )}
 
-                <div className="pt-2">
+                <div className="pt-1.5">
                    <button 
                      disabled={isSaving}
                      onClick={handleSaveQuote}
-                     className="w-full h-11 rounded-xl bg-[#7C3AED] text-white text-[10px] font-bold uppercase tracking-wider shadow-sm hover:bg-[#6D28D9] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                     className="w-full h-11 rounded-xl bg-[#7C3AED] text-white text-[11px] font-bold uppercase tracking-wider shadow-sm hover:bg-[#6D28D9] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                    >
                       {isSaving ? (
                          <>
                             <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                            Synchronizing
+                            Synchronizing...
                          </>
                       ) : (
                          <>
@@ -612,7 +647,8 @@ const VendorQuotes = () => {
                 </div>
              </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Toast Component */}

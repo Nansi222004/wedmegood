@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import userApi from '../../../services/userApi';
+import { toast } from '../../../components/ui/Toast';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
+import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
 
 const InspirationBoard = () => {
   const navigate = useNavigate();
@@ -11,6 +14,7 @@ const InspirationBoard = () => {
   const [inspirationData, setInspirationData] = useState(null);
   const [savedItems, setSavedItems] = useState([]);
   const [deletingId, setDeletingId] = useState(null);
+  const [itemToDelete, setItemToDelete] = useState(null);
 
   // Upload modal state
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -48,11 +52,11 @@ const InspirationBoard = () => {
   const handleUploadInspiration = async (e) => {
     e.preventDefault();
     if (!newTitle.trim()) {
-      alert('Please enter a title for this inspiration idea');
+      toast.warning('Please enter a title for this inspiration idea');
       return;
     }
     if (!newImageFile) {
-      alert('Please select an image to upload');
+      toast.warning('Please select an image to upload');
       return;
     }
 
@@ -77,31 +81,41 @@ const InspirationBoard = () => {
         setNewNotes('');
         setNewImageFile(null);
         setNewImagePreview('');
+        toast.success('Inspiration saved to your board!');
         await fetchInspirations();
       } else {
         throw new Error(saveRes.message || 'Failed to save inspiration');
       }
     } catch (err) {
       console.error('Inspiration upload error:', err);
-      alert('Failed to upload inspiration: ' + (err.message || 'Server error'));
+      toast.error(getFriendlyErrorMessage(err, 'Failed to upload inspiration'));
     } finally {
       setIsUploading(false);
     }
   };
 
-  const handleDeleteItem = async (id) => {
-    if (!window.confirm('Are you sure you want to remove this saved inspiration?')) return;
+  const handleDeleteItem = (id) => {
+    setItemToDelete(id);
+  };
+
+  const confirmDeleteItem = async () => {
+    if (!itemToDelete) return;
+    const id = itemToDelete;
     setDeletingId(id);
     try {
       const res = await userApi.deleteInspiration(id);
       if (res.success) {
+        toast.success('Inspiration removed successfully');
         await fetchInspirations();
+      } else {
+        throw new Error(res.message || 'Failed to delete inspiration');
       }
     } catch (err) {
       console.error('Error deleting inspiration:', err);
-      alert('Could not remove inspiration: ' + (err.message || 'Server error'));
+      toast.error(getFriendlyErrorMessage(err, 'Could not remove inspiration'));
     } finally {
       setDeletingId(null);
+      setItemToDelete(null);
     }
   };
 
@@ -470,6 +484,18 @@ const InspirationBoard = () => {
       )}
 
       <div className="h-8"></div>
+
+      {/* Delete Inspiration Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!itemToDelete}
+        title="Remove Saved Inspiration"
+        message="Are you sure you want to remove this saved inspiration from your board?"
+        confirmText={deletingId ? 'Removing...' : 'Remove'}
+        cancelText="Cancel"
+        isDestructive={true}
+        onConfirm={confirmDeleteItem}
+        onCancel={() => setItemToDelete(null)}
+      />
     </div>
   );
 };

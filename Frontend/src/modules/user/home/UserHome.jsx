@@ -230,44 +230,15 @@ const UserHome = () => {
   ];
 
   return (
-    <div className="min-h-screen pb-32 px-4 space-y-8" style={{ backgroundColor: '#EAE1D8' }}>
+    <>
+      <div className="min-h-screen pb-32 px-4 space-y-8">
       
-      {/* 1. Top Category Icons - Editorial Circles */}
-      <div className="pt-6">
-        <div className="flex gap-5 overflow-x-auto scrollbar-hide pb-4">
-          {topCategories.map((category) => (
-            <div
-              key={category.id}
-              onClick={() => navigate(category.route)}
-              className="flex-shrink-0 cursor-pointer active:scale-95 transition-all text-center"
-            >
-              <div className="w-16 h-16 rounded-full overflow-hidden mb-2 p-1 bg-white shadow-sm ring-1 ring-black/5">
-                <img
-                  src={category.image}
-                  alt={category.name}
-                  loading="lazy"
-                  className="w-full h-full object-cover rounded-full"
-                  onError={(e) => {
-                    e.target.src = 'https://images.unsplash.com/photo-1519167758481-83f29d8ae8e4?w=64&h=64&fit=crop&q=80';
-                  }}
-                />
-              </div>
-              <p 
-                className="text-[9px] w-16 font-black uppercase tracking-wider text-[#3D2B2B]/60"
-                style={{ fontFamily: '"Outfit", sans-serif' }}
-              >
-                {category.name.split(' ')[1] || category.name}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Dynamic Hero Main Banner Carousel from Admin */}
+      {/* 1. Dynamic Hero Main Banner Carousel from Admin */}
+      <div className="pt-2">
       {bannersLoading ? (
-        <div className="w-full rounded-3xl aspect-[21/9] sm:aspect-[24/8] min-h-[140px] max-h-[250px] bg-black/5 animate-pulse rounded-[2rem]" />
+        <div className="w-full rounded-2xl h-[200px] md:aspect-[21/9] md:h-auto bg-black/5 animate-pulse" />
       ) : heroBanners.length > 0 ? (
-        <div className="relative group rounded-[2rem] overflow-hidden shadow-sm border border-white/60 aspect-[21/9] sm:aspect-[24/8] min-h-[150px] max-h-[260px] bg-[#3D2B2B]">
+        <div className="relative group rounded-2xl overflow-hidden shadow-sm border border-white/40 h-[200px] md:aspect-[21/9] md:h-auto w-full bg-[#3D2B2B]">
           {heroBanners.map((banner, idx) => (
             <div
               key={banner._id || idx}
@@ -282,37 +253,43 @@ const UserHome = () => {
                 className="w-full h-full object-cover"
                 onError={(e) => handleImageError(e, 'https://images.unsplash.com/photo-1519741497674-611481863552?w=1200&h=500&fit=crop&q=80')}
               />
-              {/* Subtle Gradient & Content Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent flex flex-col justify-end p-5 sm:p-7 text-white">
-                {banner.title && (
+              {/* Smooth Left to right gradient overlay */}
+              <div className="absolute inset-0 bg-gradient-to-r from-[#44263D] via-[#44263D]/90 to-transparent w-full sm:w-[70%] flex flex-col justify-center p-6 md:p-10 pointer-events-none">
+                <div className="max-w-[220px] sm:max-w-[300px] pointer-events-auto">
                   <h3 
-                    className="text-base sm:text-2xl font-bold tracking-tight text-white drop-shadow-md leading-tight"
+                    className="text-2xl md:text-4xl font-medium text-[#F6E3CD] leading-tight mb-3 whitespace-pre-line"
                     style={{ fontFamily: '"Playfair Display", serif' }}
                   >
-                    {banner.title}
+                    {banner.title || "Beautiful Celebrations Brighter Lives"}
                   </h3>
-                )}
-                {banner.description && (
+                  
+                  <div className="w-12 h-[1px] bg-[#C59A5A]/60 mb-3" />
+                  
                   <p 
-                    className="text-xs sm:text-sm text-white/90 line-clamp-1 max-w-xl drop-shadow-sm mt-1"
+                    className="text-xs md:text-sm text-white/90 line-clamp-3 mb-5 font-light leading-relaxed whitespace-pre-line"
                     style={{ fontFamily: '"Outfit", sans-serif' }}
                   >
-                    {banner.description}
+                    {banner.description || "Find trusted vendors for your special moments"}
                   </p>
-                )}
-                {banner.linkUrl && (
-                  <span className="inline-flex items-center gap-1 mt-2 text-[9px] font-black uppercase tracking-widest text-[#ffd6e0] hover:underline">
-                    Explore Details
-                    <Icon name="chevronRight" size="xs" />
-                  </span>
-                )}
+                  
+                  <button 
+                    onClick={(e) => {
+                       e.stopPropagation();
+                       if(banner.linkUrl) window.open(banner.linkUrl, '_blank');
+                    }}
+                    className="flex items-center gap-1.5 bg-gradient-to-r from-[#F8DF9E] to-[#E3AE56] text-[#3D2B2B] px-5 py-2 rounded-full w-fit text-[11px] md:text-xs font-bold shadow-lg hover:scale-105 transition-transform active:scale-95"
+                  >
+                    Explore Now
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                  </button>
+                </div>
               </div>
             </div>
           ))}
 
           {/* Carousel Dot Indicators */}
           {heroBanners.length > 1 && (
-            <div className="absolute bottom-3 right-5 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md">
+            <div className="absolute bottom-5 left-6 z-20 flex items-center gap-1.5">
               {heroBanners.map((_, dotIdx) => (
                 <button
                   key={dotIdx}
@@ -320,8 +297,8 @@ const UserHome = () => {
                     e.stopPropagation();
                     setCurrentBannerIndex(dotIdx);
                   }}
-                  className={`h-1.5 rounded-full transition-all ${
-                    dotIdx === currentBannerIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/40'
+                  className={`h-1.5 rounded-full transition-all border border-white/50 ${
+                    dotIdx === currentBannerIndex ? 'w-1.5 bg-white' : 'w-1.5 bg-transparent'
                   }`}
                   aria-label={`Go to slide ${dotIdx + 1}`}
                 />
@@ -356,6 +333,38 @@ const UserHome = () => {
           )}
         </div>
       ) : null}
+      </div>
+
+      {/* 2. Top Category Icons - Editorial Circles */}
+      <div className="pt-2">
+        <div className="flex gap-5 overflow-x-auto scrollbar-hide pb-4">
+          {topCategories.map((category) => (
+            <div
+              key={category.id}
+              onClick={() => navigate(category.route)}
+              className="flex-shrink-0 cursor-pointer active:scale-95 transition-all text-center"
+            >
+              <div className="w-16 h-16 rounded-full overflow-hidden mb-2 p-1 bg-white shadow-sm ring-1 ring-black/5">
+                <img
+                  src={category.image}
+                  alt={category.name}
+                  loading="lazy"
+                  className="w-full h-full object-cover rounded-full"
+                  onError={(e) => {
+                    e.target.src = 'https://images.unsplash.com/photo-1519167758481-83f29d8ae8e4?w=64&h=64&fit=crop&q=80';
+                  }}
+                />
+              </div>
+              <p 
+                className="text-[9px] w-16 font-black uppercase tracking-wider text-[#3D2B2B]/60"
+                style={{ fontFamily: '"Outfit", sans-serif' }}
+              >
+                {category.name.split(' ')[1] || category.name}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* 2. Wedding Planning Tools - Boutique Arched Cards */}
       <div className="space-y-4">
@@ -1205,6 +1214,7 @@ const UserHome = () => {
       </div>
 
     </div>
+    </>
   );
 };
 

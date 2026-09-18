@@ -408,57 +408,77 @@ exports.processRefund = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Payment record not found' });
         }
 
-        if (payment.status === 'Refunded') {
+        const existingPaymentRefund = Number(payment.refundAmount) || 0;
+        const maxRefundableOnPayment = Math.max(0, payment.amount - existingPaymentRefund);
+
+        if (maxRefundableOnPayment <= 0) {
             return res.status(400).json({
                 success: false,
-                message: 'This payment has already been refunded'
+                message: 'This payment has already been fully refunded'
             });
         }
 
-        if (payment.status !== 'Completed' && payment.status !== 'Paid') {
-            return res.status(400).json({
-                success: false,
-                message: `Cannot refund payment in '${payment.status}' status`
-            });
-        }
-
-        const booking = await Booking.findById(payment.bookingId);
-        const refundAmount = reqRefundAmount ? Math.min(payment.amount, Number(reqRefundAmount)) : payment.amount;
+        const refundAmount = reqRefundAmount ? Math.min(maxRefundableOnPayment, Number(reqRefundAmount)) : maxRefundableOnPayment;
 
         if (refundAmount <= 0) {
             return res.status(400).json({ success: false, message: 'Invalid refund amount' });
         }
 
+        const booking = await Booking.findById(payment.bookingId);
+
+        // Proportional commission and vendor earning reversal
+        const originalAmount = payment.amount || 1;
+        const refundRatio = refundAmount / originalAmount;
+        const commissionToReverse = payment.commissionAmount !== undefined && payment.commissionAmount !== null
+            ? Math.round((payment.commissionAmount * refundRatio) * 100) / 100
+            : 0;
+        const vendorEarningToReverse = Math.max(0, Math.round((refundAmount - commissionToReverse) * 100) / 100);
+
         // 1. Update Payment record
-        payment.status = 'Refunded';
-        payment.refundAmount = refundAmount;
+        const newPaymentRefundTotal = existingPaymentRefund + refundAmount;
+        payment.refundAmount = newPaymentRefundTotal;
+        payment.status = newPaymentRefundTotal >= payment.amount ? 'Refunded' : 'PartiallyRefunded';
         payment.refundedAt = new Date();
+        payment.commissionAmount = Math.max(0, (payment.commissionAmount || 0) - commissionToReverse);
+        payment.vendorEarning = Math.max(0, (payment.vendorEarning || 0) - vendorEarningToReverse);
         payment.notes = reason ? `Refund reason: ${reason}` : payment.notes;
         await payment.save();
 
         // 2. Update Booking record
         if (booking) {
-            booking.paymentStatus = 'Refunded';
-            booking.status = 'Cancelled';
-            booking.settlementStatus = 'Refunded';
-            booking.refundAmount = refundAmount;
+            const allPayments = await Payment.find({ bookingId: booking._id }).lean();
+            const totalRefundsOnBooking = allPayments.reduce((acc, p) => {
+                const pRefund = p._id.toString() === payment._id.toString() ? newPaymentRefundTotal : (Number(p.refundAmount) || 0);
+                return acc + pRefund;
+            }, 0);
+            const totalGrossPaidOnBooking = allPayments.reduce((acc, p) => {
+                return acc + (['Completed', 'Paid', 'PartiallyRefunded', 'Refunded'].includes(p.status) ? Number(p.amount) : 0);
+            }, 0);
+
+            booking.refundAmount = totalRefundsOnBooking;
             booking.refundedAt = new Date();
-            booking.cancellationReason = reason || 'Refunded by Admin';
-            booking.cancelledBy = 'Admin';
+            if (totalRefundsOnBooking >= totalGrossPaidOnBooking && totalGrossPaidOnBooking > 0) {
+                booking.paymentStatus = 'Refunded';
+                booking.settlementStatus = 'Refunded';
+                booking.status = 'Cancelled';
+                booking.cancelledBy = booking.cancelledBy || 'Admin';
+                booking.cancellationReason = reason || 'Fully refunded by Admin';
+            } else if (totalRefundsOnBooking > 0) {
+                booking.paymentStatus = 'PartiallyRefunded';
+            }
             await booking.save();
         }
 
         // 3. Reverse Vendor Wallet balances
-        const vendorEarningToReverse = payment.vendorEarning || Math.round(refundAmount * 0.9 * 100) / 100;
         const vendorId = payment.vendorId;
-
-        // Check if booking was pending or eligible/settled
         const wallet = await VendorWallet.findOne({ vendorId });
         if (wallet) {
             if (wallet.pendingBalance >= vendorEarningToReverse) {
                 wallet.pendingBalance = Math.max(0, wallet.pendingBalance - vendorEarningToReverse);
             } else {
-                wallet.availableBalance = Math.max(0, wallet.availableBalance - vendorEarningToReverse);
+                const remainingToDebit = vendorEarningToReverse - wallet.pendingBalance;
+                wallet.pendingBalance = 0;
+                wallet.availableBalance = Math.max(0, wallet.availableBalance - remainingToDebit);
             }
             wallet.totalRefunded = (wallet.totalRefunded || 0) + vendorEarningToReverse;
             await wallet.save();
@@ -499,7 +519,9 @@ exports.processRefund = async (req, res, next) => {
             data: {
                 payment,
                 booking,
-                refundAmount
+                refundAmount,
+                commissionReversed: commissionToReverse,
+                vendorEarningReversed: vendorEarningToReverse
             }
         });
     } catch (err) {
@@ -507,7 +529,7 @@ exports.processRefund = async (req, res, next) => {
     }
 };
 
-// @desc    Financial reconciliation check across ledger, payments, and wallets
+// @desc    Financial Reconciliation Summary
 // @route   GET /api/admin/financial/reconciliation
 // @access  Private/Admin
 exports.getReconciliation = async (req, res, next) => {
@@ -519,34 +541,22 @@ exports.getReconciliation = async (req, res, next) => {
             ledgerTotals
         ] = await Promise.all([
             Payment.aggregate([
-                { $match: { status: { $in: ['Completed', 'Paid'] } } },
+                { $match: { status: { $in: ['Completed', 'Paid', 'PartiallyRefunded'] } } },
                 {
                     $group: {
                         _id: null,
                         totalAmount: { $sum: '$amount' },
                         totalCommission: {
-                            $sum: {
-                                $cond: [
-                                    { $gt: ['$commissionAmount', 0] },
-                                    '$commissionAmount',
-                                    { $multiply: ['$amount', 0.10] }
-                                ]
-                            }
+                            $sum: { $ifNull: ['$commissionAmount', 0] }
                         },
                         totalVendorEarnings: {
-                            $sum: {
-                                $cond: [
-                                    { $gt: ['$vendorEarning', 0] },
-                                    '$vendorEarning',
-                                    { $multiply: ['$amount', 0.90] }
-                                ]
-                            }
+                            $sum: { $ifNull: ['$vendorEarning', { $subtract: ['$amount', { $ifNull: ['$commissionAmount', 0] }] }] }
                         }
                     }
                 }
             ]),
             Payment.aggregate([
-                { $match: { status: 'Refunded' } },
+                { $match: { status: { $in: ['Refunded', 'PartiallyRefunded'] } } },
                 { $group: { _id: null, totalRefunded: { $sum: '$refundAmount' } } }
             ]),
             VendorWallet.aggregate([

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Icon from '../../../components/ui/Icon';
+import { toast } from '../../../components/ui/Toast';
+import getFriendlyErrorMessage from '../../../utils/errorHandler';
 import { adminApi } from '../services/adminApi';
 
 const AdminQuotes = () => {
@@ -23,10 +25,11 @@ const AdminQuotes = () => {
                     setPagination(res.pagination);
                 }
             } else {
-                alert(res.message || 'Failed to fetch quotes');
+                toast.error(getFriendlyErrorMessage(res, 'Failed to fetch quotes.'));
             }
         } catch (err) {
             console.error('Failed to fetch quotes:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Unable to load quotes.'));
         } finally {
             setLoading(false);
         }

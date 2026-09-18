@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import Icon from '../../../components/ui/Icon';
+import { toast } from '../../../components/ui/Toast';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
+import getFriendlyErrorMessage from '../../../utils/errorHandler';
 import { adminApi } from '../services/adminApi';
 
 const AdminSubCategories = () => {
@@ -12,6 +15,8 @@ const AdminSubCategories = () => {
     // UI State
     const [isEditing, setIsEditing] = useState(false);
     const [subForm, setSubForm] = useState(null);
+    const [subToDelete, setSubToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
     
     const token = localStorage.getItem('adminToken');
@@ -63,40 +68,58 @@ const AdminSubCategories = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!subForm.name || !subForm.categoryId) return alert('Name and Category required');
+        if (!subForm.name?.trim() || !subForm.categoryId) {
+            toast.warning('Subcategory name and category are required.');
+            return;
+        }
 
         try {
             setActionLoading(true);
             let res;
-            if (subForm._id) {
-                res = await adminApi.updateSubCategory(subForm._id, subForm, token);
+            const payload = { ...subForm, name: subForm.name.trim() };
+            if (payload._id) {
+                res = await adminApi.updateSubCategory(payload._id, payload, token);
             } else {
-                res = await adminApi.createSubCategory(subForm, token);
+                res = await adminApi.createSubCategory(payload, token);
             }
 
             if (res.success) {
+                toast.success(payload._id ? 'Subcategory updated successfully.' : 'Subcategory created successfully.');
                 await fetchData();
                 setIsEditing(false);
                 setSubForm(null);
             } else {
-                alert(res.message || 'Error');
+                toast.error(getFriendlyErrorMessage(res, 'Failed to save subcategory.'));
             }
         } catch (err) {
             console.error('Submit error:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Failed to save subcategory.'));
         } finally {
             setActionLoading(false);
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Delete this subcategory?')) return;
+    const handleDelete = (id) => {
+        setSubToDelete(id);
+    };
+
+    const confirmDeleteSub = async () => {
+        if (!subToDelete) return;
         try {
-            const res = await adminApi.deleteSubCategory(id, token);
+            setIsDeleting(true);
+            const res = await adminApi.deleteSubCategory(subToDelete, token);
             if (res.success) {
+                toast.success('Subcategory deleted successfully.');
                 fetchData();
+                setSubToDelete(null);
+            } else {
+                toast.error(getFriendlyErrorMessage(res, 'Failed to delete subcategory.'));
             }
         } catch (err) {
             console.error('Delete error:', err);
+            toast.error(getFriendlyErrorMessage(err, 'Unable to delete subcategory.'));
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -253,6 +276,17 @@ const AdminSubCategories = () => {
                     </div>
                 )}
             </div>
+
+            <ConfirmModal
+                isOpen={!!subToDelete}
+                title="Delete Subcategory"
+                message="Are you sure you want to delete this subcategory? This action cannot be undone."
+                confirmText="Delete Subcategory"
+                isDanger={true}
+                isLoading={isDeleting}
+                onConfirm={confirmDeleteSub}
+                onCancel={() => setSubToDelete(null)}
+            />
         </div>
     );
 };

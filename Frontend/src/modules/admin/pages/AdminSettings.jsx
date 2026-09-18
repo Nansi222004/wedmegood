@@ -22,11 +22,14 @@ const AdminSettings = () => {
             const res = await adminApi.getPlatformSettings(token);
             if (res.success && res.data) {
                 setSettings({
-                    platformCommissionPercent: res.data.platformCommissionPercent ?? 10,
+                    platformCommissionPercent: res.data.platformCommissionPercent !== null && res.data.platformCommissionPercent !== undefined ? res.data.platformCommissionPercent : '',
                     serviceGstPercent: res.data.serviceGstPercent ?? '',
                     minWithdrawalAmount: res.data.minWithdrawalAmount ?? '',
                     maintenanceMode: !!res.data.maintenanceMode,
-                    autoPayouts: !!res.data.autoPayouts
+                    autoPayouts: !!res.data.autoPayouts,
+                    commissionConfig: res.data.commissionConfig || null,
+                    updatedAt: res.data.updatedAt || null,
+                    updatedBy: res.data.updatedBy || null
                 });
             } else {
                 setStatusMsg({ text: res.message || 'Failed to fetch platform settings', type: 'error' });
@@ -85,11 +88,14 @@ const AdminSettings = () => {
             const res = await adminApi.updatePlatformSettings(payload, token);
             if (res.success && res.data) {
                 setSettings({
-                    platformCommissionPercent: res.data.platformCommissionPercent ?? 10,
+                    platformCommissionPercent: res.data.platformCommissionPercent !== null && res.data.platformCommissionPercent !== undefined ? res.data.platformCommissionPercent : '',
                     serviceGstPercent: res.data.serviceGstPercent ?? '',
                     minWithdrawalAmount: res.data.minWithdrawalAmount ?? '',
                     maintenanceMode: !!res.data.maintenanceMode,
-                    autoPayouts: !!res.data.autoPayouts
+                    autoPayouts: !!res.data.autoPayouts,
+                    commissionConfig: res.data.commissionConfig || null,
+                    updatedAt: res.data.updatedAt || null,
+                    updatedBy: res.data.updatedBy || null
                 });
                 setStatusMsg({ text: 'Platform configurations updated and logged successfully!', type: 'success' });
             } else {
@@ -153,12 +159,25 @@ const AdminSettings = () => {
                                     min="0"
                                     max="100"
                                     required
+                                    placeholder="e.g. 10"
                                     value={settings.platformCommissionPercent}
                                     onChange={(e) => setSettings({ ...settings, platformCommissionPercent: e.target.value })}
                                     className="w-24 h-9 text-right px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-900 outline-none focus:border-[#4F35C3]" 
                                 />
                                 <span className="text-xs font-bold text-slate-500">%</span>
                             </div>
+                        </div>
+
+                        <div className="p-3 rounded-2xl bg-indigo-50/70 border border-indigo-100 text-[11px] text-indigo-950 space-y-1">
+                            <div className="flex items-center justify-between font-bold">
+                                <span>Commission Basis: Gross Agreed Amount</span>
+                                <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[9px] uppercase tracking-wider">
+                                    {settings.platformCommissionPercent !== '' ? 'Active Policy' : 'Unconfigured'}
+                                </span>
+                            </div>
+                            <p className="text-[10px] text-indigo-700 leading-normal">
+                                Changes apply dynamically to new bookings upon quote acceptance. Historical bookings retain their applied commission rate and calculation basis for audit integrity.
+                            </p>
                         </div>
 
                         <div className="flex items-center justify-between gap-4">

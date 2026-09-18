@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import Icon from '../../../components/ui/Icon';
 import { adminApi } from '../services/adminApi';
 import { useToast } from '../../../components/ui/Toast';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
+import getFriendlyErrorMessage from '../../../utils/errorHandler';
 
 const AdminSubscriptions = () => {
     const [plans, setPlans] = useState([]);
@@ -12,6 +14,9 @@ const AdminSubscriptions = () => {
     const [subs, setSubs] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(true);
+    const [planToDelete, setPlanToDelete] = useState(null);
+    const [subToRevoke, setSubToRevoke] = useState(null);
+    const [isDeletingPlan, setIsDeletingPlan] = useState(false);
     const { showToast, ToastComponent } = useToast();
 
     const token = localStorage.getItem('adminToken');
@@ -107,32 +112,41 @@ const AdminSubscriptions = () => {
         }
     };
 
-    const handleDeletePlan = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this subscription tier? This cannot be undone.')) return;
+    const handleDeletePlan = (id) => {
+        setPlanToDelete(id);
+    };
+
+    const confirmDeletePlan = async () => {
+        if (!planToDelete) return;
 
         try {
-            setSubLoading(true);
-            const res = await adminApi.deleteSubscriptionPlan(id, token);
+            setIsDeletingPlan(true);
+            const res = await adminApi.deleteSubscriptionPlan(planToDelete, token);
             if (res.success) {
-                showToast('Plan deleted successfully', 'success');
+                showToast('Subscription plan deleted successfully.', 'success');
                 fetchData();
-                if (editingPlanId === id) setIsEditing(false);
+                if (editingPlanId === planToDelete) setIsEditing(false);
+                setPlanToDelete(null);
             } else {
-                showToast(res.message || 'Failed to delete plan', 'error');
+                showToast(getFriendlyErrorMessage(res, 'Failed to delete subscription plan.'), 'error');
             }
         } catch (err) {
             console.error('Delete error:', err);
-            showToast('Failed to delete plan due to network error', 'error');
+            showToast(getFriendlyErrorMessage(err, 'Failed to delete plan due to a network error.'), 'error');
         } finally {
-            setSubLoading(false);
+            setIsDeletingPlan(false);
         }
     };
 
     const terminateSub = (id) => {
-        if (window.confirm('Revoke this partner license? Access will be decoupled immediately.')) {
-            // Terminate logic
-            setSubs(prev => prev.filter(s => s._id !== id));
-        }
+        setSubToRevoke(id);
+    };
+
+    const confirmRevokeSub = () => {
+        if (!subToRevoke) return;
+        setSubs(prev => prev.filter(s => s._id !== subToRevoke));
+        showToast('Partner license access revoked.', 'success');
+        setSubToRevoke(null);
     };
 
     const filteredSubs = useMemo(() => {
@@ -324,6 +338,27 @@ const AdminSubscriptions = () => {
                 </div>
             </div>
             <ToastComponent />
+
+            <ConfirmModal
+                isOpen={!!planToDelete}
+                title="Delete Subscription Tier"
+                message="Are you sure you want to delete this subscription tier? This action cannot be undone."
+                confirmText="Delete Tier"
+                isDanger={true}
+                isLoading={isDeletingPlan}
+                onConfirm={confirmDeletePlan}
+                onCancel={() => setPlanToDelete(null)}
+            />
+
+            <ConfirmModal
+                isOpen={!!subToRevoke}
+                title="Revoke Partner License"
+                message="Are you sure you want to revoke this partner license? Access will be deactivated immediately."
+                confirmText="Revoke License"
+                isDanger={true}
+                onConfirm={confirmRevokeSub}
+                onCancel={() => setSubToRevoke(null)}
+            />
         </div>
     );
 };
