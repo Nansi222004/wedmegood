@@ -4,8 +4,8 @@ const User = require('../modules/user/user.model');
 
 const initializeAdmin = async () => {
     try {
-        const adminEmail = 'a@gmail.com';
-        const adminPass = '1234';
+        const adminEmail = process.env.ADMIN_EMAIL || 'a@gmail.com';
+        const adminPass = process.env.ADMIN_PASSWORD || '1234';
 
         const existingAdmin = await User.findOne({ email: adminEmail });
         

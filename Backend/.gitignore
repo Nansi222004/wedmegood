@@ -140,3 +140,8 @@ test-*.js
 *.md
 **/*.md
 
+# Scratch and dump files
+scratch_token.txt
+*.txt
+
+
