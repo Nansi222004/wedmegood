@@ -17,6 +17,19 @@ const UserHome = () => {
   const [bannersLoading, setBannersLoading] = useState(true);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
 
+  const [topCategories, setTopCategories] = useState([
+    { id: 'venues', name: 'Wedding Venues', image: 'https://images.unsplash.com/photo-1510076857177-7470076d4098?w=200&h=200&fit=crop&q=80', route: '/user/vendors/venues' },
+    { id: 'photographers', name: 'Wedding Photographers', image: 'https://images.unsplash.com/photo-1537633552985-df8429e8048b?w=200&h=200&fit=crop&q=80', route: '/user/vendors/photographers' },
+    { id: 'makeup', name: 'Bridal Makeup', image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=200&h=200&fit=crop&q=80', route: '/user/vendors/makeup' },
+    { id: 'decorators', name: 'Wedding Decorators', image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=200&h=200&fit=crop&q=80', route: '/user/vendors/decorators' },
+    { id: 'catering', name: 'Catering', image: 'https://images.unsplash.com/photo-1555244162-803834f70033?w=200&h=200&fit=crop&q=80', route: '/user/vendors/catering' },
+    { id: 'mehndi', name: 'Mehndi Artists', image: 'https://images.unsplash.com/photo-1610701596007-11502861dcfa?w=200&h=200&fit=crop&q=80', route: '/user/vendors/mehndi' },
+    { id: 'jewellery', name: 'Bridal Jewellery', image: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=200&h=200&fit=crop&q=80', route: '/user/vendors/jewellery' },
+    { id: 'invitations', name: 'Invitations', image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=200&h=200&fit=crop&q=80', route: '/user/vendors/invitations' },
+    { id: 'music', name: 'Music & DJ', image: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=200&h=200&fit=crop&q=80', route: '/user/vendors/music' },
+    { id: 'choreography', name: 'Choreography', image: 'https://images.unsplash.com/photo-1504609773096-104ff2c73ba4?w=200&h=200&fit=crop&q=80', route: '/user/vendors/choreography' }
+  ]);
+
   // Load checklist stats, banners, and dynamic vendor categories from MongoDB
   useEffect(() => {
     let isMounted = true;
@@ -40,8 +53,9 @@ const UserHome = () => {
       userApi.getVendors({ category: 'Makeup', limit: 10 }).catch(() => ({ data: [] })),
       userApi.getVendors({ category: 'Decoration', limit: 10 }).catch(() => ({ data: [] })),
       userApi.getChecklist().catch(() => ({ data: [] })),
-      userApi.getBanners({ placement: 'Hero Main' }).catch(() => ({ data: [] }))
-    ]).then(([venueRes, photoRes, trendRes, makeupRes, decorRes, checkRes, bannerRes]) => {
+      userApi.getBanners({ placement: 'Hero Main' }).catch(() => ({ data: [] })),
+      userApi.getCategories().catch(() => ({ data: [] }))
+    ]).then(([venueRes, photoRes, trendRes, makeupRes, decorRes, checkRes, bannerRes, catRes]) => {
       if (!isMounted) return;
       if (checkRes?.success && Array.isArray(checkRes?.data)) {
         const completed = checkRes.data.filter(t => t.completed).length;
@@ -54,6 +68,15 @@ const UserHome = () => {
       if (decorRes?.data?.length) setDecorators(decorRes.data.map(v => mapVendor(v, 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=600&h=400&fit=crop&q=80')));
       if (bannerRes?.data?.length) {
         setHeroBanners(bannerRes.data);
+      }
+      if (catRes?.data?.length) {
+        const sortedCats = catRes.data.sort((a, b) => (a.order || 0) - (b.order || 0));
+        setTopCategories(sortedCats.map(c => ({
+          id: c._id || c.slug || c.name.toLowerCase(),
+          name: c.name,
+          image: c.image || 'https://images.unsplash.com/photo-1510076857177-7470076d4098?w=200&h=200&fit=crop&q=80',
+          route: `/user/vendors/${c.slug || c.name.toLowerCase().replace(/\s+/g, '-')}`
+        })));
       }
     }).finally(() => {
       if (isMounted) setBannersLoading(false);
@@ -88,19 +111,6 @@ const UserHome = () => {
   };
 
   // Data arrays will be added here
-  const topCategories = [
-    { id: 'venues', name: 'Wedding Venues', image: 'https://images.unsplash.com/photo-1510076857177-7470076d4098?w=200&h=200&fit=crop&q=80', route: '/user/vendors/venues' },
-    { id: 'photographers', name: 'Wedding Photographers', image: 'https://images.unsplash.com/photo-1537633552985-df8429e8048b?w=200&h=200&fit=crop&q=80', route: '/user/vendors/photographers' },
-    { id: 'makeup', name: 'Bridal Makeup', image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=200&h=200&fit=crop&q=80', route: '/user/vendors/makeup' },
-    { id: 'decorators', name: 'Wedding Decorators', image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=200&h=200&fit=crop&q=80', route: '/user/vendors/decorators' },
-    { id: 'catering', name: 'Catering', image: 'https://images.unsplash.com/photo-1555244162-803834f70033?w=200&h=200&fit=crop&q=80', route: '/user/vendors/catering' },
-    { id: 'mehndi', name: 'Mehndi Artists', image: 'https://images.unsplash.com/photo-1610701596007-11502861dcfa?w=200&h=200&fit=crop&q=80', route: '/user/vendors/mehndi' },
-    { id: 'jewellery', name: 'Bridal Jewellery', image: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=200&h=200&fit=crop&q=80', route: '/user/vendors/jewellery' },
-    { id: 'invitations', name: 'Invitations', image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=200&h=200&fit=crop&q=80', route: '/user/vendors/invitations' },
-    { id: 'music', name: 'Music & DJ', image: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=200&h=200&fit=crop&q=80', route: '/user/vendors/music' },
-    { id: 'choreography', name: 'Choreography', image: 'https://images.unsplash.com/photo-1504609773096-104ff2c73ba4?w=200&h=200&fit=crop&q=80', route: '/user/vendors/choreography' }
-  ];
- 
   const planningTools = [
     { id: 'e-invites', title: 'Build your Digital E-Invites', subtitle: "Let's get started", icon: 'https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?w=100&h=100&fit=crop&q=80', bgColor: '#F0F9FF', route: '/user/e-invites' },
     { id: 'shortlist', title: 'Your shortlisted vendors', subtitle: 'Browse vendors', icon: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=100&h=100&fit=crop&q=80', bgColor: '#F5F3FF', route: '/user/shortlist' },
@@ -335,34 +345,48 @@ const UserHome = () => {
       ) : null}
       </div>
 
-      {/* 2. Top Category Icons - Editorial Circles */}
+      {/* 2. Top Category Icons - Editorial Squares */}
       <div className="pt-2">
-        <div className="flex gap-5 overflow-x-auto scrollbar-hide pb-4">
-          {topCategories.map((category) => (
-            <div
-              key={category.id}
-              onClick={() => navigate(category.route)}
-              className="flex-shrink-0 cursor-pointer active:scale-95 transition-all text-center"
-            >
-              <div className="w-16 h-16 rounded-full overflow-hidden mb-2 p-1 bg-white shadow-sm ring-1 ring-black/5">
-                <img
-                  src={category.image}
-                  alt={category.name}
-                  loading="lazy"
-                  className="w-full h-full object-cover rounded-full"
-                  onError={(e) => {
-                    e.target.src = 'https://images.unsplash.com/photo-1519167758481-83f29d8ae8e4?w=64&h=64&fit=crop&q=80';
-                  }}
-                />
-              </div>
-              <p 
-                className="text-[9px] w-16 font-black uppercase tracking-wider text-[#3D2B2B]/60"
-                style={{ fontFamily: '"Outfit", sans-serif' }}
+        <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 px-1">
+          {topCategories.map((category, idx) => {
+            const colors = [
+              { bg: 'bg-[#FBE8F1]', border: 'border border-[#D48AAC]', text: 'text-[#872A5E]' },
+              { bg: 'bg-[#F4F2F4]', border: 'border border-transparent', text: 'text-[#3D2B2B]' },
+              { bg: 'bg-[#FEF5F1]', border: 'border border-transparent', text: 'text-[#3D2B2B]' },
+              { bg: 'bg-[#FAF1F8]', border: 'border border-transparent', text: 'text-[#3D2B2B]' },
+              { bg: 'bg-[#F7EEF8]', border: 'border border-transparent', text: 'text-[#3D2B2B]' },
+              { bg: 'bg-[#F3F6F4]', border: 'border border-transparent', text: 'text-[#3D2B2B]' },
+              { bg: 'bg-[#FFF7F0]', border: 'border border-transparent', text: 'text-[#3D2B2B]' },
+              { bg: 'bg-[#FCECF2]', border: 'border border-transparent', text: 'text-[#3D2B2B]' }
+            ];
+            const theme = colors[idx % colors.length];
+
+            return (
+              <div
+                key={category.id}
+                onClick={() => navigate(category.route)}
+                className={`flex-shrink-0 w-[76px] h-[86px] rounded-2xl flex flex-col items-center justify-center p-2 cursor-pointer active:scale-95 transition-all shadow-sm ${theme.bg} ${theme.border}`}
               >
-                {category.name.split(' ')[1] || category.name}
-              </p>
-            </div>
-          ))}
+                <div className="w-8 h-8 mb-2 flex items-center justify-center">
+                  <img
+                    src={category.image}
+                    alt={category.name}
+                    loading="lazy"
+                    className="w-full h-full object-contain mix-blend-multiply"
+                    onError={(e) => {
+                      e.target.src = 'https://images.unsplash.com/photo-1519167758481-83f29d8ae8e4?w=64&h=64&fit=crop&q=80';
+                    }}
+                  />
+                </div>
+                <p 
+                  className={`text-[9px] w-full text-center font-medium leading-tight ${theme.text}`}
+                  style={{ fontFamily: '"Outfit", sans-serif' }}
+                >
+                  {category.name}
+                </p>
+              </div>
+            );
+          })}
         </div>
       </div>
 

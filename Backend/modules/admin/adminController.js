@@ -1045,11 +1045,16 @@ exports.deleteCategory = async (req, res, next) => {
             SubCategory.countDocuments({ categoryId: category._id })
         ]);
 
-        if (vendorCount > 0 || leadCount > 0 || subCount > 0) {
+        if (vendorCount > 0 || leadCount > 0) {
             return res.status(400).json({
                 success: false,
-                message: `Cannot delete category in active use (${vendorCount} vendor(s), ${leadCount} lead(s), ${subCount} subcategory(ies)). Please deactivate it (set isActive: false) instead.`
+                message: `Cannot delete category in active use (${vendorCount} vendor(s), ${leadCount} lead(s)). Please deactivate it (set isActive: false) instead.`
             });
+        }
+
+        // Cascade delete subcategories
+        if (subCount > 0) {
+            await SubCategory.deleteMany({ categoryId: category._id });
         }
 
         await category.deleteOne();

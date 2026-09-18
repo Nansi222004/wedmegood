@@ -17,6 +17,22 @@ const AdminCategories = () => {
     const [mainForm, setMainForm] = useState({ name: '', description: '', image: '', order: 0 });
     const [subForm, setSubForm] = useState(null); // { _id?, name: '', description: '', isActive: true }
     
+    // Image Upload State
+    const [imageFile, setImageFile] = useState(null);
+    const [imagePreview, setImagePreview] = useState(null);
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setImageFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setImagePreview(reader.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+    
     // Deletion Confirmation States
     const [categoryToDelete, setCategoryToDelete] = useState(null);
     const [subToDelete, setSubToDelete] = useState(null);
@@ -62,6 +78,8 @@ const AdminCategories = () => {
         setSelectedCategory(null);
         setIsCreatingMain(true);
         setMainForm({ name: '', description: '', image: '', order: categories.length });
+        setImageFile(null);
+        setImagePreview(null);
     };
 
     const handleEditMainClick = () => {
@@ -72,6 +90,8 @@ const AdminCategories = () => {
             image: selectedCategory.image || '', 
             order: selectedCategory.order || 0 
         });
+        setImageFile(null);
+        setImagePreview(selectedCategory.image || null);
     };
 
     const handleMainSubmit = async (e) => {
@@ -84,11 +104,31 @@ const AdminCategories = () => {
         try {
             setActionLoading(true);
             let res;
+            let finalImageUrl = mainForm.image;
+            
+            if (imageFile) {
+                const formData = new FormData();
+                formData.append('image', imageFile);
+                const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
+                const uploadRes = await fetch(`${API_BASE_URL}/upload/single`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const uploadData = await uploadRes.json();
+                if (uploadData.success) {
+                    finalImageUrl = uploadData.data.url;
+                } else {
+                    toast.error(getFriendlyErrorMessage(uploadData, 'Failed to upload image.'));
+                    setActionLoading(false);
+                    return;
+                }
+            }
             
             // If editing, preserve subCategories. If new, subCategories is empty.
             const payload = {
                 ...mainForm,
                 name: mainForm.name.trim(),
+                image: finalImageUrl,
                 subCategories: selectedCategory ? selectedCategory.subCategories : []
             };
 
@@ -349,11 +389,41 @@ const AdminCategories = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Image URL</label>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Upload Cover Image</label>
+                                    <div className="relative group">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleFileChange}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                        />
+                                        <div className="w-full h-32 bg-[#F9F8FF] border-2 border-dashed border-[#EAE6FF] rounded-xl flex flex-col items-center justify-center gap-2 group-hover:border-[#4F35C3]/30 transition-all overflow-hidden">
+                                            {imagePreview ? (
+                                                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                            ) : mainForm.image ? (
+                                                <img src={mainForm.image} alt="Preview" className="w-full h-full object-cover opacity-50" />
+                                            ) : (
+                                                <>
+                                                    <Icon name="camera" size="sm" color="#cbd5e1" />
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Click to upload image</p>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-3 mt-4 mb-2">
+                                        <div className="h-[1px] flex-1 bg-[#EAE6FF]"></div>
+                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">OR PASTE URL</span>
+                                        <div className="h-[1px] flex-1 bg-[#EAE6FF]"></div>
+                                    </div>
+                                    
                                     <input
                                         type="text"
                                         value={mainForm.image}
-                                        onChange={(e) => setMainForm({...mainForm, image: e.target.value})}
+                                        onChange={(e) => {
+                                            setMainForm({...mainForm, image: e.target.value});
+                                            if (!imageFile) setImagePreview(e.target.value);
+                                        }}
                                         className="w-full bg-[#F9F8FF] border border-[#EAE6FF] rounded-xl px-4 py-3 text-[12px] font-medium text-slate-600 focus:ring-4 focus:ring-[#4F35C3]/10 focus:border-[#4F35C3]/30 outline-none transition-all"
                                         placeholder="https://images.unsplash.com/..."
                                     />
