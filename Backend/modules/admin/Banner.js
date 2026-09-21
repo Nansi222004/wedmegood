@@ -20,7 +20,7 @@ const bannerSchema = new mongoose.Schema({
     },
     placement: {
         type: String,
-        enum: ['Hero Main', 'Sub-Category', 'Featured List', 'Popup Modal'],
+        enum: ['Hero Main', 'Sub-Category', 'Featured List', 'Popup Modal', 'Promo Banner'],
         default: 'Hero Main'
     },
     platform: {
@@ -37,6 +37,18 @@ const bannerSchema = new mongoose.Schema({
         type: String,
         default: 'All'
     },
+    buttonText: {
+        type: String,
+        default: 'See How It Works'
+    },
+    buttonUrl: {
+        type: String,
+        default: ''
+    },
+    features: [{
+        icon: { type: String, default: 'verified' },
+        label: { type: String, default: '' }
+    }],
     status: {
         type: String,
         enum: ['Active', 'Draft', 'Scheduled', 'Expired'],

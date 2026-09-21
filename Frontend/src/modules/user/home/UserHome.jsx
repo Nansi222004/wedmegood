@@ -16,6 +16,7 @@ const UserHome = () => {
   const [heroBanners, setHeroBanners] = useState([]);
   const [bannersLoading, setBannersLoading] = useState(true);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  const [promoBanners, setPromoBanners] = useState([]);
 
   const [topCategories, setTopCategories] = useState([
     { id: 'venues', name: 'Wedding Venues', image: 'https://images.unsplash.com/photo-1510076857177-7470076d4098?w=200&h=200&fit=crop&q=80', route: '/user/vendors/venues' },
@@ -54,8 +55,9 @@ const UserHome = () => {
       userApi.getVendors({ category: 'Decoration', limit: 10 }).catch(() => ({ data: [] })),
       userApi.getChecklist().catch(() => ({ data: [] })),
       userApi.getBanners({ placement: 'Hero Main' }).catch(() => ({ data: [] })),
-      userApi.getCategories().catch(() => ({ data: [] }))
-    ]).then(([venueRes, photoRes, trendRes, makeupRes, decorRes, checkRes, bannerRes, catRes]) => {
+      userApi.getCategories().catch(() => ({ data: [] })),
+      userApi.getBanners({ placement: 'Promo Banner' }).catch(() => ({ data: [] }))
+    ]).then(([venueRes, photoRes, trendRes, makeupRes, decorRes, checkRes, bannerRes, catRes, promoRes]) => {
       if (!isMounted) return;
       if (checkRes?.success && Array.isArray(checkRes?.data)) {
         const completed = checkRes.data.filter(t => t.completed).length;
@@ -77,6 +79,9 @@ const UserHome = () => {
           image: c.image || 'https://images.unsplash.com/photo-1510076857177-7470076d4098?w=200&h=200&fit=crop&q=80',
           route: `/user/vendors/${c.slug || c.name.toLowerCase().replace(/\s+/g, '-')}`
         })));
+      }
+      if (promoRes?.data?.length) {
+        setPromoBanners(promoRes.data);
       }
     }).finally(() => {
       if (isMounted) setBannersLoading(false);
@@ -346,8 +351,9 @@ const UserHome = () => {
       </div>
 
       {/* 2. Top Category Icons - Editorial Squares */}
+      {/* 2. Top Category Icons - Editorial Squares */}
       <div className="pt-2">
-        <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 px-1">
+        <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 px-1 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {topCategories.map((category, idx) => {
             const colors = [
               { bg: 'bg-[#FBE8F1]', border: 'border border-[#D48AAC]', text: 'text-[#872A5E]' },
@@ -365,9 +371,9 @@ const UserHome = () => {
               <div
                 key={category.id}
                 onClick={() => navigate(category.route)}
-                className={`flex-shrink-0 w-[76px] h-[86px] rounded-2xl flex flex-col items-center justify-center p-2 cursor-pointer active:scale-95 transition-all shadow-sm ${theme.bg} ${theme.border}`}
+                className={`flex-shrink-0 w-[90px] h-[100px] rounded-2xl flex flex-col items-center justify-center p-2 cursor-pointer active:scale-95 transition-all shadow-sm ${theme.bg} ${theme.border}`}
               >
-                <div className="w-8 h-8 mb-2 flex items-center justify-center">
+                <div className="w-12 h-12 mb-2 flex items-center justify-center">
                   <img
                     src={category.image}
                     alt={category.name}
@@ -390,6 +396,79 @@ const UserHome = () => {
         </div>
       </div>
 
+      {/* Promo Banner - Dynamic from Admin */}
+      {promoBanners.length > 0 && promoBanners.map((promo) => (
+        <div key={promo._id} className="relative w-full overflow-hidden rounded-2xl group cursor-pointer shadow-sm hover:shadow-md transition-all">
+          {/* Base Image determines the aspect ratio of the container perfectly */}
+          <img 
+            src={promo.imageUrl} 
+            alt={promo.title || "Promo"} 
+            className="w-full h-auto block object-cover bg-slate-50 min-h-[100px]" 
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+          
+          {/* Absolute overlay for text and button */}
+          <div className="absolute inset-0 flex flex-row w-full h-full">
+            {/* Left content (Text & Button) */}
+            <div className="w-[55%] md:w-[50%] p-4 md:p-8 flex flex-col justify-center">
+              <h3
+                className="text-[12px] sm:text-sm md:text-2xl font-bold text-[#3D1F3F] leading-tight mb-1 md:mb-2"
+                style={{ fontFamily: '"Playfair Display", serif', fontStyle: 'italic' }}
+              >
+                {promo.title}
+              </h3>
+              {promo.description && (
+                <p
+                  className="text-[9px] sm:text-[10px] md:text-sm text-[#3D1F3F]/80 leading-snug mb-2 md:mb-4 max-w-[280px] font-medium hidden sm:block"
+                  style={{ fontFamily: '"Outfit", sans-serif' }}
+                >
+                  {promo.description}
+                </p>
+              )}
+              {promo.buttonText && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (promo.buttonUrl) {
+                      if (promo.buttonUrl.startsWith('http')) {
+                        window.open(promo.buttonUrl, '_blank');
+                      } else {
+                        navigate(promo.buttonUrl);
+                      }
+                    }
+                  }}
+                  className="flex items-center gap-1 md:gap-2 bg-[#4A2545] text-white px-3 py-1.5 md:px-5 md:py-2.5 rounded-full w-fit text-[8px] md:text-[12px] font-bold shadow-lg hover:bg-[#3D1F3F] transition-all active:scale-95"
+                  style={{ fontFamily: '"Outfit", sans-serif' }}
+                >
+                  {promo.buttonText}
+                  <span className="w-3 h-3 md:w-5 md:h-5 rounded-full bg-white/20 flex items-center justify-center">
+                    <svg className="w-1.5 h-1.5 md:w-3 md:h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                  </span>
+                </button>
+              )}
+            </div>
+
+            {/* Right side - Dynamic features are hidden on mobile */}
+            <div className="w-[45%] md:w-[50%] relative flex flex-col justify-center items-end hidden md:flex">
+              {promo.features && promo.features.length > 0 && (
+                <div className="grid grid-cols-4 gap-2 lg:gap-3 px-5 py-4 z-10 relative bg-transparent">
+                  {promo.features.map((feat, fi) => (
+                    <div key={fi} className="flex flex-col items-center gap-1">
+                      <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-white/40 backdrop-blur-md flex items-center justify-center border border-[#3D1F3F]/10 shadow-sm hover:scale-110 transition-transform">
+                        <Icon name={feat.icon || 'verified'} size="sm" color="#3D1F3F" />
+                      </div>
+                      <span className="text-[8px] lg:text-[9px] text-[#3D1F3F] font-bold text-center leading-tight max-w-[60px]" style={{ fontFamily: '"Outfit", sans-serif' }}>
+                        {feat.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+
       {/* 2. Wedding Planning Tools - Boutique Arched Cards */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -399,26 +478,25 @@ const UserHome = () => {
            <span className="text-[10px] font-black uppercase tracking-widest text-[#3D2B2B]/30">Editorial Guide</span>
         </div>
         
-        <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4">
+        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-4 px-1 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {planningTools.map((tool) => (
             <div
               key={tool.id}
               onClick={() => navigate(tool.route)}
-              className="flex-shrink-0 w-40 overflow-hidden cursor-pointer active:scale-95 transition-all"
+              className="flex-shrink-0 w-36 md:w-44 cursor-pointer active:scale-95 transition-all group"
             >
-              <div className="bg-white rounded-t-[3rem] rounded-b-[1rem] p-4 shadow-sm border border-white/50 aspect-[4/5] flex flex-col items-center text-center justify-center space-y-3">
-                <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-[#EAE1D8]">
-                  <img 
-                    src={tool.icon} 
-                    alt={tool.title} 
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <h3 className="text-xs font-bold text-[#3D2B2B] leading-tight" style={{ fontFamily: '"Playfair Display", serif' }}>
+              <div className="relative overflow-hidden rounded-xl aspect-[4/3] shadow-sm ring-1 ring-black/5">
+                <img
+                  src={tool.icon}
+                  alt={tool.title}
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+                <div className="absolute bottom-3 left-3 right-3">
+                  <h3 className="text-[11px] md:text-[13px] font-bold text-white leading-tight line-clamp-1" style={{ fontFamily: '"Outfit", sans-serif' }}>
                     {tool.title}
                   </h3>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-[#3D2B2B]/30" style={{ fontFamily: '"Outfit", sans-serif' }}>
+                  <p className="text-[8px] md:text-[9px] font-medium text-white/70 uppercase tracking-widest mt-0.5 line-clamp-1" style={{ fontFamily: '"Outfit", sans-serif' }}>
                     {tool.subtitle}
                   </p>
                 </div>

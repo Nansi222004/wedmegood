@@ -20,7 +20,10 @@ const AdminBanners = () => {
         placement: 'Hero Main',
         target: 'All',
         category: 'All',
-        status: 'Active'
+        status: 'Active',
+        buttonText: 'See How It Works',
+        buttonUrl: '',
+        features: []
     });
 
     useEffect(() => {
@@ -83,6 +86,11 @@ const AdminBanners = () => {
         data.append('target', formData.target);
         data.append('category', formData.category);
         data.append('status', formData.status);
+        if (formData.placement === 'Promo Banner') {
+            data.append('buttonText', formData.buttonText);
+            data.append('buttonUrl', formData.buttonUrl);
+            data.append('features', JSON.stringify(formData.features));
+        }
         if (imageFile) {
             data.append('image', imageFile);
         }
@@ -114,7 +122,10 @@ const AdminBanners = () => {
                     placement: 'Hero Main', 
                     target: 'All', 
                     category: 'All',
-                    status: 'Active' 
+                    status: 'Active',
+                    buttonText: 'See How It Works',
+                    buttonUrl: '',
+                    features: []
                 });
             } else {
                 toast.error(getFriendlyErrorMessage(result, 'Failed to save banner asset.'));
@@ -163,7 +174,10 @@ const AdminBanners = () => {
             placement: banner.placement,
             target: banner.target || 'All',
             category: banner.category || 'All',
-            status: banner.status
+            status: banner.status,
+            buttonText: banner.buttonText || 'See How It Works',
+            buttonUrl: banner.buttonUrl || '',
+            features: banner.features || []
         });
         setIsModalOpen(true);
     };
@@ -186,7 +200,10 @@ const AdminBanners = () => {
                             placement: 'Hero Main', 
                             target: 'All', 
                             category: 'All', 
-                            status: 'Active' 
+                            status: 'Active',
+                            buttonText: 'See How It Works',
+                            buttonUrl: '',
+                            features: []
                         });
                         setIsModalOpen(true);
                     }}
@@ -378,8 +395,95 @@ const AdminBanners = () => {
                                         <option>Sub-Category</option>
                                         <option>Featured List</option>
                                         <option>Popup Modal</option>
+                                        <option>Promo Banner</option>
                                     </select>
                                 </div>
+
+                                {/* Promo Banner Extra Fields */}
+                                {formData.placement === 'Promo Banner' && (
+                                    <div className="space-y-4 p-4 bg-purple-50/50 rounded-2xl border border-purple-100">
+                                        <p className="text-[9px] font-black text-purple-500 uppercase tracking-widest">Promo Banner Settings</p>
+                                        
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1.5">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Button Text</label>
+                                                <input
+                                                    type="text"
+                                                    value={formData.buttonText}
+                                                    onChange={(e) => setFormData({ ...formData, buttonText: e.target.value })}
+                                                    className="w-full h-11 px-4 bg-white border border-slate-100 rounded-xl text-[12px] font-bold text-slate-900 outline-none focus:border-primary-400/50 transition-all"
+                                                    placeholder="See How It Works"
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Button URL</label>
+                                                <input
+                                                    type="text"
+                                                    value={formData.buttonUrl}
+                                                    onChange={(e) => setFormData({ ...formData, buttonUrl: e.target.value })}
+                                                    className="w-full h-11 px-4 bg-white border border-slate-100 rounded-xl text-[12px] font-bold text-slate-900 outline-none focus:border-primary-400/50 transition-all"
+                                                    placeholder="/user/vendors"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Feature Pills</label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, features: [...formData.features, { icon: 'verified', label: '' }] })}
+                                                    className="text-[9px] font-black text-purple-600 uppercase tracking-widest hover:text-purple-800"
+                                                >
+                                                    + Add Feature
+                                                </button>
+                                            </div>
+                                            {(formData.features || []).map((feat, fIdx) => (
+                                                <div key={fIdx} className="flex items-center gap-2">
+                                                    <select
+                                                        value={feat.icon}
+                                                        onChange={(e) => {
+                                                            const updated = [...formData.features];
+                                                            updated[fIdx].icon = e.target.value;
+                                                            setFormData({ ...formData, features: updated });
+                                                        }}
+                                                        className="w-28 h-9 px-2 bg-white border border-slate-100 rounded-lg text-[11px] font-bold text-slate-700 outline-none appearance-none"
+                                                    >
+                                                        <option value="verified">Verified</option>
+                                                        <option value="star">Star</option>
+                                                        <option value="heart">Heart</option>
+                                                        <option value="shield">Shield</option>
+                                                        <option value="chat">Chat</option>
+                                                        <option value="money">Money</option>
+                                                        <option value="check">Check</option>
+                                                        <option value="sparkles">Sparkles</option>
+                                                    </select>
+                                                    <input
+                                                        type="text"
+                                                        value={feat.label}
+                                                        onChange={(e) => {
+                                                            const updated = [...formData.features];
+                                                            updated[fIdx].label = e.target.value;
+                                                            setFormData({ ...formData, features: updated });
+                                                        }}
+                                                        className="flex-1 h-9 px-3 bg-white border border-slate-100 rounded-lg text-[11px] font-bold text-slate-900 outline-none"
+                                                        placeholder="e.g. Verified Vendors"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const updated = formData.features.filter((_, i) => i !== fIdx);
+                                                            setFormData({ ...formData, features: updated });
+                                                        }}
+                                                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                    >
+                                                        <Icon name="trash" size="xs" color="currentColor" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
                                 <button
                                     type="submit"
