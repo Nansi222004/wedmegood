@@ -3,6 +3,20 @@ const Lead = require('../vendor/Lead');
 const Vendor = require('../vendor/Vendor');
 const Notification = require('../vendor/Notification');
 const Category = require('../admin/Category');
+const RoundRobinSequence = require('../vendor/RoundRobinSequence');
+
+const SPECIAL_ROUND_ROBIN_CATEGORIES = [
+    'led walls', 'led wall', 'led-walls', 'led-wall',
+    'live streaming', 'live stream', 'live-streaming', 'live-stream',
+    'flower decorators', 'flower decorator', 'flower-decorators', 'floral decor', 'flower decoration',
+    'special welcome / entry', 'special welcome', 'special entry', 'special-entry', 'welcome-entry', 'grand entry'
+];
+
+function isSpecialRoundRobinCategory(catName = '') {
+    if (!catName) return false;
+    const clean = catName.trim().toLowerCase();
+    return SPECIAL_ROUND_ROBIN_CATEGORIES.some(special => clean.includes(special) || special.includes(clean));
+}
 
 // @desc    Create a new lead (Direct or Category Round-Robin)
 // @route   POST /api/user/leads
@@ -12,11 +26,13 @@ exports.createLead = async (req, res, next) => {
         const {
             vendorId,
             category,
+            weddingType,
             eventDate,
             eventLocation,
             guestCount,
             budget,
             requirements,
+            venueType,
             message,
             referencePhotos,
             phone
@@ -32,8 +48,11 @@ exports.createLead = async (req, res, next) => {
         let assignedVendorId = null;
         let assignedType = 'Direct';
 
-        if (vendorId) {
-            // Direct inquiry
+        // Check if category is a designated Round-Robin Special Category
+        const isSpecialCategory = isSpecialRoundRobinCategory(category);
+
+        if (vendorId && !isSpecialCategory) {
+            // Direct inquiry (only if not an enforced round-robin special category)
             if (!mongoose.Types.ObjectId.isValid(vendorId)) {
                 return res.status(400).json({
                     success: false,
@@ -56,12 +75,12 @@ exports.createLead = async (req, res, next) => {
 
             assignedVendorId = vendor._id;
             assignedType = 'Direct';
-        } else if (category) {
-            // Round-robin assignment based on category
+        } else if (category || isSpecialCategory) {
+            // Round-robin sequential assignment among eligible subscribed vendors
             const catDoc = await Category.findOne({
                 $or: [
-                    { slug: category.toLowerCase() },
-                    { name: new RegExp(`^${category.trim()}$`, 'i') }
+                    { slug: (category || '').toLowerCase() },
+                    { name: new RegExp(`^${(category || '').trim()}$`, 'i') }
                 ]
             });
 
@@ -70,16 +89,19 @@ exports.createLead = async (req, res, next) => {
                     $or: [
                         { 'selectedCategories.categoryId': catDoc._id },
                         { 'selectedCategories.categoryName': new RegExp(`^${catDoc.name}$`, 'i') },
-                        { 'services.category': new RegExp(`^${catDoc.name}$`, 'i') }
+                        { 'services.category': new RegExp(`^${catDoc.name}$`, 'i') },
+                        { 'services.name': new RegExp(category, 'i') }
                     ]
                 }
                 : {
                     $or: [
-                        { 'selectedCategories.categoryName': new RegExp(category.replace(/-/g, ' '), 'i') },
-                        { 'services.category': new RegExp(category.replace(/-/g, ' '), 'i') }
+                        { 'selectedCategories.categoryName': new RegExp((category || '').replace(/-/g, ' '), 'i') },
+                        { 'services.category': new RegExp((category || '').replace(/-/g, ' '), 'i') },
+                        { 'services.name': new RegExp((category || '').replace(/-/g, ' '), 'i') }
                     ]
                 };
 
+            // Only approved, active, subscribed vendors receive round-robin leads
             const eligibleVendors = await Vendor.find({
                 status: 'Approved',
                 isActive: true,
@@ -90,27 +112,26 @@ exports.createLead = async (req, res, next) => {
             if (!eligibleVendors || eligibleVendors.length === 0) {
                 return res.status(404).json({
                     success: false,
-                    message: 'No active vendors currently available in this category'
+                    message: 'No active subscribed vendors currently available in this category'
                 });
             }
 
-            if (eligibleVendors.length === 1) {
-                assignedVendorId = eligibleVendors[0]._id;
-            } else {
-                // Persistent round-robin counter on Category document
-                let nextIndex = 0;
-                if (catDoc) {
-                    const updatedCat = await Category.findByIdAndUpdate(
-                        catDoc._id,
-                        { $inc: { lastAssignedVendorIndex: 1 } },
-                        { new: true }
-                    );
-                    nextIndex = (updatedCat.lastAssignedVendorIndex - 1) % eligibleVendors.length;
-                } else {
-                    nextIndex = Math.floor(Math.random() * eligibleVendors.length);
-                }
-                assignedVendorId = eligibleVendors[nextIndex]._id;
-            }
+            const categoryKey = (catDoc ? catDoc.slug : (category || 'general')).toLowerCase();
+
+            // Atomic concurrency-safe sequential index increment
+            const seq = await RoundRobinSequence.findOneAndUpdate(
+                { categoryKey },
+                { $inc: { currentIndex: 1 }, $set: { lastAssignedAt: new Date() } },
+                { upsert: true, new: true, setDefaultsOnInsert: true }
+            );
+
+            const nextIndex = (seq.currentIndex - 1) % eligibleVendors.length;
+            assignedVendorId = eligibleVendors[nextIndex]._id;
+
+            await RoundRobinSequence.updateOne(
+                { categoryKey },
+                { $set: { lastAssignedVendorId: assignedVendorId } }
+            );
 
             assignedType = 'RoundRobin';
         } else {
@@ -139,6 +160,7 @@ exports.createLead = async (req, res, next) => {
             guestCount: Number(guestCount) || 0,
             budget: Number(budget) || 0,
             requirements: requirements || '',
+            venueType: venueType || 'Not Specified',
             referencePhotos: Array.isArray(referencePhotos) ? referencePhotos : [],
             message: message || 'Inquiry regarding wedding services',
             assignedType,

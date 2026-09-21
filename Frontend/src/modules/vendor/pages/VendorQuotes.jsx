@@ -6,6 +6,26 @@ import { useVendorState } from '../useVendorState';
 import { vendorApi } from '../vendorApi';
 import { useToast } from '../../../components/ui/Toast';
 import ConfirmModal from '../../../components/ui/ConfirmModal';
+import QuotationModal from '../../common/QuotationModal';
+
+const GST_RATES = [
+  { label: '0% (Exempt)', value: 0 },
+  { label: '5% (Basic)', value: 5 },
+  { label: '12% (Standard)', value: 12 },
+  { label: '18% (Services GST)', value: 18 },
+  { label: '28% (Luxury)', value: 28 },
+  { label: 'Custom Amount', value: 'custom' }
+];
+
+const ADVANCE_PRESETS = [
+  { label: '0% (No Advance)', value: 0 },
+  { label: '10%', value: 10 },
+  { label: '20%', value: 20 },
+  { label: '25% (Standard)', value: 25 },
+  { label: '30%', value: 30 },
+  { label: '50% (High Priority)', value: 50 },
+  { label: 'Custom Amount', value: 'custom' }
+];
 
 const VendorQuotes = () => {
   const location = useLocation();
@@ -13,6 +33,7 @@ const VendorQuotes = () => {
   const consumedPrefillRef = useRef(null);
   const { refreshData } = useVendorState();
   const { showToast, ToastComponent } = useToast();
+  
   const [quotes, setQuotes] = useState([]);
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,16 +42,26 @@ const VendorQuotes = () => {
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
   const [quoteToDelete, setQuoteToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  
+  const [downloadingQuoteId, setDownloadingQuoteId] = useState(null);
+  const [previewQuote, setPreviewQuote] = useState(null);
+
   // Form State
   const [selectedLeadId, setSelectedLeadId] = useState('');
-  const [serviceName, setServiceName] = useState('');
-  const [price, setPrice] = useState('');
-  const [taxAmount, setTaxAmount] = useState('0');
+  const [items, setItems] = useState([
+    { id: 1, service: '', description: '', quantity: 1, price: '' }
+  ]);
+  const [taxOption, setTaxOption] = useState('18');
+  const [customTaxAmount, setCustomTaxAmount] = useState('0');
+  const [discountType, setDiscountType] = useState('amount'); // 'amount' | 'percent'
   const [discountAmount, setDiscountAmount] = useState('0');
+  const [discountPercent, setDiscountPercent] = useState('0');
+  const [advanceOption, setAdvanceOption] = useState('25');
+  const [customAdvanceAmount, setCustomAdvanceAmount] = useState('0');
   const [validityDays, setValidityDays] = useState(14);
-  const [isSaving, setIsSaving] = useState(false);
   const [notes, setNotes] = useState('');
+  const [milestoneTerms, setMilestoneTerms] = useState('25% advance to confirm booking, 50% one week prior to event, 25% upon event day.');
+  const [cancellationTerms, setCancellationTerms] = useState('Full refund if cancelled 30+ days before event. 50% refund if 15-29 days. Non-refundable within 14 days.');
+  const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
 
@@ -44,10 +75,11 @@ const VendorQuotes = () => {
         vendorApi.getLeads(token)
       ]);
 
-      if (quotesRes.success) setQuotes(quotesRes.data);
-      if (leadsRes.success) setLeads(leadsRes.data);
+      if (quotesRes.success) setQuotes(quotesRes.data || []);
+      if (leadsRes.success) setLeads(leadsRes.data || []);
     } catch (err) {
       console.error('Failed to fetch data:', err);
+      showToast('Error syncing vendor quotes', 'error');
     } finally {
       setLoading(false);
     }
@@ -80,7 +112,7 @@ const VendorQuotes = () => {
     };
   }, [showModal]);
 
-  // Consume prefillLeadId from navigation (e.g. from VendorLeads) exactly ONCE
+  // Handle prefill from leads
   useEffect(() => {
     const prefillId = location.state?.prefillLeadId;
     if (prefillId && leads.length > 0 && consumedPrefillRef.current !== prefillId) {
@@ -88,30 +120,106 @@ const VendorQuotes = () => {
       const found = leads.find(l => l._id === prefillId);
       if (found) {
         setSelectedLeadId(found._id);
-        setServiceName(found.serviceName || found.category || 'Wedding Package');
+        setItems([
+          {
+            id: Date.now(),
+            service: found.serviceName || found.category || 'Wedding Service Package',
+            description: found.message ? `Inquiry scope: ${found.message.slice(0, 100)}` : 'Comprehensive wedding service deliverables',
+            quantity: 1,
+            price: ''
+          }
+        ]);
         setShowModal(true);
       }
-      // Wipe the prefillLeadId from navigation state so subsequent leads state updates don't re-trigger modal opening
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, leads, navigate, location.pathname]);
 
-  const filteredQuotes = useMemo(() => {
-    return quotes.filter(q => {
-      const matchesSearch = (q.userId?.fullName || q.leadId?.customerName || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
-                           q._id.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === 'All' || q.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [quotes, searchQuery, statusFilter]);
-
   const handleLeadChange = (leadId) => {
     setSelectedLeadId(leadId);
     const found = leads.find(l => l._id === leadId);
-    if (found) {
-      setServiceName(prev => prev || found.serviceName || found.category || 'Wedding Package');
+    if (found && items.length === 1 && !items[0].service) {
+      setItems([
+        {
+          id: Date.now(),
+          service: found.serviceName || found.category || 'Wedding Package',
+          description: found.message || '',
+          quantity: 1,
+          price: ''
+        }
+      ]);
     }
   };
+
+  // Line Items Operations
+  const handleAddItem = () => {
+    setItems(prev => [
+      ...prev,
+      { id: Date.now(), service: '', description: '', quantity: 1, price: '' }
+    ]);
+  };
+
+  const handleRemoveItem = (id) => {
+    if (items.length <= 1) {
+      showToast('Quotation must contain at least one line item', 'warning');
+      return;
+    }
+    setItems(prev => prev.filter(it => it.id !== id));
+  };
+
+  const handleItemChange = (id, field, value) => {
+    setItems(prev => prev.map(it => {
+      if (it.id === id) {
+        return { ...it, [field]: value };
+      }
+      return it;
+    }));
+  };
+
+  // Dynamic Live Calculation
+  const calculation = useMemo(() => {
+    const subtotal = items.reduce((sum, it) => {
+      const q = Math.max(1, Number(it.quantity) || 1);
+      const p = Math.max(0, Number(it.price) || 0);
+      return sum + (q * p);
+    }, 0);
+
+    let calculatedDiscount = 0;
+    if (discountType === 'percent') {
+      const pct = Math.min(100, Math.max(0, Number(discountPercent) || 0));
+      calculatedDiscount = Math.round((subtotal * pct) / 100);
+    } else {
+      calculatedDiscount = Math.min(subtotal, Math.max(0, Number(discountAmount) || 0));
+    }
+
+    const postDiscount = Math.max(0, subtotal - calculatedDiscount);
+
+    let calculatedTax = 0;
+    if (taxOption === 'custom') {
+      calculatedTax = Math.max(0, Number(customTaxAmount) || 0);
+    } else {
+      const rate = Number(taxOption) || 0;
+      calculatedTax = Math.round((postDiscount * rate) / 100);
+    }
+
+    const total = postDiscount + calculatedTax;
+
+    let calculatedAdvance = 0;
+    if (advanceOption === 'custom') {
+      calculatedAdvance = Math.min(total, Math.max(0, Number(customAdvanceAmount) || 0));
+    } else {
+      const advRate = Number(advanceOption) || 0;
+      calculatedAdvance = Math.round((total * advRate) / 100);
+    }
+
+    return {
+      subtotal,
+      discount: calculatedDiscount,
+      tax: calculatedTax,
+      total,
+      advance: calculatedAdvance
+    };
+  }, [items, discountType, discountPercent, discountAmount, taxOption, customTaxAmount, advanceOption, customAdvanceAmount]);
 
   const handleSaveQuote = async () => {
     if (!selectedLeadId) {
@@ -119,38 +227,47 @@ const VendorQuotes = () => {
       return;
     }
 
-    if (!serviceName.trim()) {
-      showToast('Please enter a service or package name.', 'warning');
-      return;
-    }
-
-    const numPrice = Number(price);
-    if (!price || isNaN(numPrice) || numPrice <= 0) {
-      showToast('Please enter a valid proposal price greater than ₹0.', 'warning');
-      return;
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (!it.service.trim()) {
+        showToast(`Line item #${i + 1} must have a service name.`, 'warning');
+        return;
+      }
+      const numP = Number(it.price);
+      if (!it.price || isNaN(numP) || numP <= 0) {
+        showToast(`Line item #${i + 1} must have a valid price greater than ₹0.`, 'warning');
+        return;
+      }
     }
 
     const lead = leads.find(l => l._id === selectedLeadId);
     if (!lead) return;
 
-    const numTax = Math.max(0, Number(taxAmount) || 0);
-    const numDiscount = Math.max(0, Number(discountAmount) || 0);
-    const totalAmount = Math.max(0, numPrice + numTax - numDiscount);
-
     setIsSaving(true);
     try {
+      const lineItems = items.map(it => ({
+        service: it.service.trim(),
+        description: (it.description || '').trim(),
+        quantity: Math.max(1, Number(it.quantity) || 1),
+        price: Number(it.price),
+        amount: (Math.max(1, Number(it.quantity) || 1)) * Number(it.price)
+      }));
+
       const quoteData = {
         leadId: lead._id,
         userId: lead.userId?._id || lead.userId,
-        items: [{
-          service: serviceName.trim(),
-          price: numPrice,
-          quantity: 1
-        }],
-        taxAmount: numTax,
-        discountAmount: numDiscount,
-        totalAmount: totalAmount,
+        items: lineItems,
+        subtotal: calculation.subtotal,
+        discountAmount: calculation.discount,
+        discountPercent: discountType === 'percent' ? Number(discountPercent) : 0,
+        taxRatePercent: taxOption !== 'custom' ? Number(taxOption) : undefined,
+        taxAmount: calculation.tax,
+        totalAmount: calculation.total,
+        advancePaymentPercent: advanceOption !== 'custom' ? Number(advanceOption) : undefined,
+        advancePaymentAmount: calculation.advance,
         validUntil: new Date(Date.now() + (Number(validityDays) || 14) * 24 * 60 * 60 * 1000),
+        milestonePaymentTerms: milestoneTerms.trim(),
+        cancellationTerms: cancellationTerms.trim(),
         notes: notes.trim()
       };
 
@@ -162,7 +279,7 @@ const VendorQuotes = () => {
       }
 
       if (res.success) {
-        showToast(isEditing ? 'Proposal updated successfully.' : 'Proposal created & sent successfully.', 'success');
+        showToast(isEditing ? 'Official quotation updated successfully.' : 'Official quotation generated & sent to client.', 'success');
         closeModal();
         fetchData();
         refreshData();
@@ -177,6 +294,89 @@ const VendorQuotes = () => {
     }
   };
 
+  const openEditModal = (quote) => {
+    setIsEditing(true);
+    setSelectedQuoteId(quote._id);
+    setSelectedLeadId(quote.leadId?._id || '');
+    
+    if (Array.isArray(quote.items) && quote.items.length > 0) {
+      setItems(quote.items.map((it, idx) => ({
+        id: idx + 1,
+        service: it.service || '',
+        description: it.description || '',
+        quantity: it.quantity || 1,
+        price: it.price !== undefined ? String(it.price) : ''
+      })));
+    } else {
+      setItems([{
+        id: 1,
+        service: quote.leadId?.serviceName || 'Wedding Service Package',
+        description: quote.notes || '',
+        quantity: 1,
+        price: String(quote.totalAmount || '')
+      }]);
+    }
+
+    if (quote.taxRatePercent !== undefined && quote.taxRatePercent !== null) {
+      setTaxOption(String(quote.taxRatePercent));
+      setCustomTaxAmount('0');
+    } else if (quote.taxAmount > 0) {
+      setTaxOption('custom');
+      setCustomTaxAmount(String(quote.taxAmount));
+    } else {
+      setTaxOption('0');
+      setCustomTaxAmount('0');
+    }
+
+    if (quote.discountPercent > 0) {
+      setDiscountType('percent');
+      setDiscountPercent(String(quote.discountPercent));
+      setDiscountAmount('0');
+    } else if (quote.discountAmount > 0) {
+      setDiscountType('amount');
+      setDiscountAmount(String(quote.discountAmount));
+      setDiscountPercent('0');
+    } else {
+      setDiscountType('amount');
+      setDiscountAmount('0');
+      setDiscountPercent('0');
+    }
+
+    if (quote.advancePaymentPercent !== undefined && quote.advancePaymentPercent !== null) {
+      setAdvanceOption(String(quote.advancePaymentPercent));
+      setCustomAdvanceAmount('0');
+    } else if (quote.advancePaymentAmount > 0) {
+      setAdvanceOption('custom');
+      setCustomAdvanceAmount(String(quote.advancePaymentAmount));
+    } else {
+      setAdvanceOption('0');
+      setCustomAdvanceAmount('0');
+    }
+
+    setMilestoneTerms(quote.milestonePaymentTerms || quote.terms || '25% advance to confirm booking, 50% one week prior to event, 25% upon event day.');
+    setCancellationTerms(quote.cancellationTerms || 'Full refund if cancelled 30+ days before event. 50% refund if 15-29 days. Non-refundable within 14 days.');
+    setNotes(quote.notes || '');
+    setShowModal(true);
+  };
+
+  const resetForm = () => {
+    setIsEditing(false);
+    setSelectedQuoteId(null);
+    setSelectedLeadId('');
+    setItems([{ id: 1, service: '', description: '', quantity: 1, price: '' }]);
+    setTaxOption('18');
+    setCustomTaxAmount('0');
+    setDiscountType('amount');
+    setDiscountAmount('0');
+    setDiscountPercent('0');
+    setAdvanceOption('25');
+    setCustomAdvanceAmount('0');
+    setValidityDays(14);
+    setNotes('');
+    setMilestoneTerms('25% advance to confirm booking, 50% one week prior to event, 25% upon event day.');
+    setCancellationTerms('Full refund if cancelled 30+ days before event. 50% refund if 15-29 days. Non-refundable within 14 days.');
+  };
+
   const handleDeleteQuote = (id) => {
     setQuoteToDelete(id);
   };
@@ -189,92 +389,41 @@ const VendorQuotes = () => {
       if (res.success) {
         setQuotes(prev => prev.filter(q => q._id !== quoteToDelete));
         refreshData();
-        showToast('Proposal deleted successfully.', 'success');
+        showToast('Quotation deleted successfully.', 'success');
         setQuoteToDelete(null);
       } else {
-        showToast(res.message || 'Failed to delete proposal.', 'error');
+        showToast(res.message || 'Failed to delete quotation.', 'error');
       }
     } catch (err) {
       console.error('Delete error:', err);
-      showToast('Unable to delete proposal. Please try again.', 'error');
+      showToast('Unable to delete quotation. Please try again.', 'error');
     } finally {
       setIsDeleting(false);
     }
   };
 
-  const openEditModal = (quote) => {
-    setIsEditing(true);
-    setSelectedQuoteId(quote._id);
-    setSelectedLeadId(quote.leadId?._id || '');
-    const firstItem = quote.items?.[0] || {};
-    setServiceName(firstItem.service || quote.leadId?.serviceName || 'Wedding Package');
-    setPrice(firstItem.price !== undefined ? String(firstItem.price) : (quote.totalAmount ? String(quote.totalAmount) : ''));
-    setTaxAmount(quote.taxAmount !== undefined ? String(quote.taxAmount) : '0');
-    setDiscountAmount(quote.discountAmount !== undefined ? String(quote.discountAmount) : '0');
-    setNotes(quote.notes || '');
-    setShowModal(true);
+  const handleDownloadPdf = async (quoteId) => {
+    try {
+      setDownloadingQuoteId(quoteId);
+      await vendorApi.downloadQuotePdf(quoteId, token);
+      showToast('Official quotation PDF downloaded successfully!', 'success');
+    } catch (err) {
+      console.error('PDF export failed:', err);
+      showToast('Failed to download PDF quotation.', 'error');
+    } finally {
+      setDownloadingQuoteId(null);
+    }
   };
 
-  const resetForm = () => {
-    setIsEditing(false);
-    setSelectedQuoteId(null);
-    setSelectedLeadId('');
-    setServiceName('');
-    setPrice('');
-    setTaxAmount('0');
-    setDiscountAmount('0');
-    setValidityDays(14);
-    setNotes('');
-  };
-
-  const getCardDesignProps = (status, fullName = '') => {
-    const name = fullName.toLowerCase();
-    const statusNormalized = status ? status.toLowerCase() : '';
-    if (statusNormalized === 'accepted' || name.includes('rahul')) {
-      return {
-        cardBg: 'bg-[#F4FDF9]',
-        cardBorder: 'border-[#DCFCE7]',
-        avatarBg: 'bg-[#E6FBF0]',
-        avatarText: 'text-[#10B981]',
-        statusBg: 'bg-[#E6FBF0]',
-        statusText: 'text-[#10B981]',
-        statusLabel: 'ACCEPTED'
-      };
-    }
-    if (statusNormalized === 'rejected' || name.includes('vikram')) {
-      return {
-        cardBg: 'bg-[#FFF5F6]',
-        cardBorder: 'border-[#FFE4E6]',
-        avatarBg: 'bg-[#FFF1F2]',
-        avatarText: 'text-[#F43F5E]',
-        statusBg: 'bg-[#FFF1F2]',
-        statusText: 'text-[#F43F5E]',
-        statusLabel: 'REJECTED'
-      };
-    }
-    // For SENT status, Amit Verma has pink avatar, Pooja Singh has orange avatar
-    if (name.includes('pooja') || name.includes('singh')) {
-      return {
-        cardBg: 'bg-[#FFFDF5]',
-        cardBorder: 'border-[#FEF3C7]',
-        avatarBg: 'bg-[#FEF3C7]',
-        avatarText: 'text-[#D97706]',
-        statusBg: 'bg-[#EFF6FF]',
-        statusText: 'text-[#2563EB]',
-        statusLabel: 'SENT'
-      };
-    }
-    // Default SENT (Amit Verma)
-    return {
-      cardBg: 'bg-[#FFF5FA]',
-      cardBorder: 'border-[#FCE7F3]',
-      avatarBg: 'bg-[#FCE7F3]',
-      avatarText: 'text-[#DB2777]',
-      statusBg: 'bg-[#EFF6FF]',
-      statusText: 'text-[#2563EB]',
-      statusLabel: 'SENT'
-    };
-  };
+  const filteredQuotes = useMemo(() => {
+    return quotes.filter(q => {
+      const matchesSearch = (q.userId?.fullName || q.userId?.name || q.leadId?.customerName || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                           (q.quotationNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           q._id.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = statusFilter === 'All' || q.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [quotes, searchQuery, statusFilter]);
 
   const stats = useMemo(() => {
     const accepted = quotes.filter(q => q.status === 'Accepted').length;
@@ -292,77 +441,51 @@ const VendorQuotes = () => {
 
   return (
     <div className="space-y-4">
-      {/* Header Stat Strip (Side-by-Side with Premium Compact Style) */}
+      {/* Header Stat Strip */}
       <div className="grid grid-cols-2 gap-3">
-         {/* Accepted Proposals Card */}
          <div className="rounded-xl p-2.5 sm:p-3 h-16 sm:h-20 group border transition-all duration-300 hover:scale-[1.02] hover:shadow-md relative overflow-hidden flex items-center justify-between shadow-2xs bg-[#F4FDF9] border-[#D1FAE5]">
-            {/* Concentric Circle Waves in Background */}
-            <div className="absolute -right-6 -bottom-6 w-24 sm:w-28 h-24 sm:h-28 rounded-full pointer-events-none group-hover:scale-110 transition-transform duration-500 bg-[rgba(16,185,129,0.06)]"></div>
-            <div className="absolute -right-12 -bottom-12 w-32 sm:w-36 h-32 sm:h-36 rounded-full pointer-events-none bg-[rgba(16,185,129,0.06)]"></div>
-
-            {/* Left Content */}
             <div className="relative z-10 flex flex-col justify-center min-w-0 flex-1 py-0.5">
                <h3 className="text-[10px] sm:text-xs font-bold text-slate-500 tracking-tight uppercase leading-none mb-1">Accepted</h3>
                <div className="flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-1.5 min-w-0 mt-0.5 sm:mt-0">
                   <span className="text-base sm:text-xl font-extrabold text-slate-900 tracking-tight truncate leading-none">{stats.accepted}</span>
-                  <span className="text-[8px] sm:text-[9px] font-bold text-[#10B981] truncate leading-none mt-0.5 sm:mt-0 uppercase tracking-wider">Proposals</span>
+                  <span className="text-[8px] sm:text-[9px] font-bold text-[#10B981] truncate leading-none mt-0.5 sm:mt-0 uppercase tracking-wider">Booked Quotes</span>
                </div>
             </div>
-
-            {/* Right Content: Solid Icon Badge */}
             <div className="relative z-10 ml-1.5 sm:ml-2 h-8 w-8 sm:h-9 sm:w-9 rounded-lg sm:rounded-xl flex items-center justify-center text-white shadow-xs flex-shrink-0 group-hover:rotate-6 transition-transform duration-300 bg-[#10B981]">
                <Icon name="check" size="sm" color="currentColor" />
             </div>
          </div>
 
-         {/* Total Conversion Card */}
          <div className="rounded-xl p-2.5 sm:p-3 h-16 sm:h-20 group border transition-all duration-300 hover:scale-[1.02] hover:shadow-md relative overflow-hidden flex items-center justify-between shadow-2xs bg-[#FFF5F6] border-[#FFE4E6]">
-            {/* Concentric Circle Waves in Background */}
-            <div className="absolute -right-6 -bottom-6 w-24 sm:w-28 h-24 sm:h-28 rounded-full pointer-events-none group-hover:scale-110 transition-transform duration-500 bg-[rgba(244,63,94,0.06)]"></div>
-            <div className="absolute -right-12 -bottom-12 w-32 sm:w-36 h-32 sm:h-36 rounded-full pointer-events-none bg-[rgba(244,63,94,0.06)]"></div>
-
-            {/* Left Content */}
             <div className="relative z-10 flex flex-col justify-center min-w-0 flex-1 py-0.5">
-               <h3 className="text-[10px] sm:text-xs font-bold text-slate-500 tracking-tight uppercase leading-none mb-1">Rate</h3>
+               <h3 className="text-[10px] sm:text-xs font-bold text-slate-500 tracking-tight uppercase leading-none mb-1">Conversion</h3>
                <div className="flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-1.5 min-w-0 mt-0.5 sm:mt-0">
                   <span className="text-base sm:text-xl font-extrabold text-slate-900 tracking-tight truncate leading-none">{stats.count > 0 ? ((stats.accepted / stats.count) * 100).toFixed(0) : 0}%</span>
-                  <span className="text-[8px] sm:text-[9px] font-bold text-[#F43F5E] truncate leading-none mt-0.5 sm:mt-0 uppercase tracking-wider">Conversion</span>
+                  <span className="text-[8px] sm:text-[9px] font-bold text-[#F43F5E] truncate leading-none mt-0.5 sm:mt-0 uppercase tracking-wider">Win Rate</span>
                </div>
             </div>
-
-            {/* Right Content: Solid Icon Badge */}
             <div className="relative z-10 ml-1.5 sm:ml-2 h-8 w-8 sm:h-9 sm:w-9 rounded-lg sm:rounded-xl flex items-center justify-center text-white shadow-xs flex-shrink-0 group-hover:rotate-6 transition-transform duration-300 bg-[#F43F5E]">
-               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                  <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
-                  <polyline points="17 6 23 6 23 12" />
-               </svg>
+               <Icon name="trendingUp" size="sm" color="currentColor" />
             </div>
          </div>
       </div>
 
-      {/* Advanced Filter & Search Row Controls */}
+      {/* Advanced Filter & Search Row */}
       <div className="flex flex-col gap-3">
-         {/* Inline Search and Filter */}
          <div className="flex gap-2.5 items-center w-full">
             <div className="relative flex-1 group">
                <Icon name="search" size="xs" color="#94a3b8" className="absolute left-3 top-1/2 -translate-y-1/2" />
                <input 
                   type="text"
-                  placeholder="Search by client or ID..."
+                  placeholder="Search quotation #, client name, or ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full h-10 pl-9 pr-4 bg-[#F8FAFC]/90 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#7C3AED] transition-all"
                />
             </div>
-            <button className="h-10 px-4 border border-slate-200 rounded-xl text-xs font-bold text-[#7C3AED] bg-white hover:bg-slate-50 flex items-center gap-2 transition-all shrink-0">
-               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-               </svg>
-               Filter
-            </button>
          </div>
 
-         {/* Status Tabs Segment */}
+         {/* Status Tabs */}
          <div className="flex bg-[#F8FAFC] p-1 rounded-xl border border-slate-200/60 justify-between items-center w-full">
             {['All', 'Sent', 'Accepted', 'Rejected'].map(status => (
                <button
@@ -379,12 +502,12 @@ const VendorQuotes = () => {
             ))}
          </div>
 
-         {/* Full-width primary action button */}
+         {/* Action button */}
          <button 
             onClick={() => { resetForm(); setShowModal(true); }}
-            className="w-full h-11 bg-[#7C3AED] text-white rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] hover:bg-[#6D28D9] transition-all"
+            className="w-full h-11 bg-[#7C3AED] text-white rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.98] hover:bg-[#6D28D9] transition-all cursor-pointer"
          >
-            <Icon name="plus" size="xs" className="w-3.5 h-3.5" /> New Proposal
+            <Icon name="plus" size="xs" className="w-3.5 h-3.5" /> Create Official Quotation
          </button>
       </div>
 
@@ -393,90 +516,111 @@ const VendorQuotes = () => {
         {filteredQuotes.length === 0 ? (
           <div className="p-16 text-center bg-[#F8FAFC]/50 border border-dashed border-slate-200 rounded-xl">
             <div className="h-14 w-14 rounded-xl bg-white mx-auto flex items-center justify-center text-slate-300 mb-4 shadow-sm border border-slate-100">
-               <Icon name="mail" size="md" color="current" />
+               <Icon name="mail" size="md" color="currentColor" />
             </div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No Proposals</p>
-            <p className="text-[11px] font-medium text-slate-400/80 mt-1">Start sending professional proposals to your leads.</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No Quotations Found</p>
+            <p className="text-[11px] font-medium text-slate-400/80 mt-1">Generate professional itemized quotations with PDF export.</p>
           </div>
         ) : (
           filteredQuotes.map((quote) => {
-            const name = quote.userId?.fullName || quote.leadId?.customerName || 'Customer';
-            const design = getCardDesignProps(quote.status, name);
+            const name = quote.userId?.fullName || quote.userId?.name || quote.leadId?.customerName || 'Customer';
+            const quoteNum = quote.quotationNumber || `UTS-QT-${quote._id.slice(-6).toUpperCase()}`;
+            const isAccepted = quote.status === 'Accepted';
+            const isRejected = quote.status === 'Rejected';
+
             return (
               <div 
                 key={quote._id} 
-                className={`${design.cardBg} p-3 border ${design.cardBorder} flex flex-col gap-2 rounded-xl overflow-hidden relative group transition-all hover:shadow-[0_4px_12px_rgba(0,0,0,0.02)]`}
+                className={`p-3.5 border rounded-2xl transition-all relative group shadow-xs ${
+                  isAccepted ? 'bg-[#F4FDF9] border-[#D1FAE5]' : isRejected ? 'bg-[#FFF5F6] border-[#FFE4E6]' : 'bg-white border-slate-200 hover:border-[#7C3AED]/40'
+                }`}
               >
-                {/* Edit/Delete Hover Controls */}
-                <div className="absolute top-2.5 right-12 opacity-0 group-hover:opacity-100 transition-all flex gap-1.5 translate-y-1 group-hover:translate-y-0 z-10">
-                    <button 
-                      onClick={() => openEditModal(quote)}
-                      className="h-8 w-8 rounded-lg bg-white text-slate-500 hover:bg-[#7C3AED]/10 hover:text-[#7C3AED] flex items-center justify-center border border-slate-100 transition-all shadow-sm"
-                      title="Edit Proposal"
-                    >
-                      <Icon name="edit" size="xs" />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteQuote(quote._id)}
-                      className="h-8 w-8 rounded-lg bg-white text-slate-500 hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center border border-slate-100 transition-all shadow-sm"
-                      title="Delete Proposal"
-                    >
-                      <Icon name="trash" size="xs" />
-                    </button>
-                </div>
-
-                {/* Card Top Header */}
-                <div className="flex items-center justify-between">
-                   <div className="flex items-center gap-2">
-                      {/* Circle Letter Avatar badge */}
-                      <div className={`h-8 w-8 rounded-full flex items-center justify-center font-extrabold text-xs shadow-sm shrink-0 border border-white/40 ${design.avatarBg} ${design.avatarText}`}>
-                         {name[0].toUpperCase()}
+                {/* Header Row */}
+                <div className="flex items-center justify-between gap-2">
+                   <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`h-9 w-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
+                        isAccepted ? 'bg-emerald-100 text-emerald-700' : isRejected ? 'bg-rose-100 text-rose-700' : 'bg-purple-100 text-[#7C3AED]'
+                      }`}>
+                         {name[0]?.toUpperCase() || 'C'}
                       </div>
-                      <div>
-                         <h3 className="text-[11px] font-extrabold text-slate-800 leading-tight truncate max-w-[170px]">{name}</h3>
-                         <p className="text-[8px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">ID: {quote._id.slice(-6).toUpperCase()}</p>
+                      <div className="min-w-0">
+                         <div className="flex items-center gap-2">
+                           <h3 className="text-xs font-extrabold text-slate-900 truncate">{name}</h3>
+                           <span className="text-[10px] font-mono text-slate-400 font-semibold">{quoteNum}</span>
+                         </div>
+                         <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                           {quote.items?.[0]?.service || quote.leadId?.category || 'Wedding Package'} 
+                           {quote.items?.length > 1 ? ` (+${quote.items.length - 1} more)` : ''}
+                         </p>
                       </div>
                    </div>
-                   
-                   <div className="flex items-center gap-1.5 shrink-0">
-                      {/* Dynamic status pill tag */}
-                      <span className={`text-[8px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full border border-white/20 ${design.statusBg} ${design.statusText}`}>
-                        {design.statusLabel}
+
+                   <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[9px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${
+                        isAccepted ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : isRejected ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-blue-50 text-blue-700 border-blue-200'
+                      }`}>
+                        {quote.status}
                       </span>
-                      {/* Vertical three dots icon */}
-                      <button className="text-slate-300 hover:text-slate-500 p-0.5 cursor-pointer transition-colors" title="Actions">
-                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                            <circle cx="12" cy="12" r="1.5" />
-                            <circle cx="12" cy="5" r="1.5" />
-                            <circle cx="12" cy="19" r="1.5" />
-                         </svg>
+                   </div>
+                </div>
+
+                {/* Price Summary Line */}
+                <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                   <div>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Total Quotation Value</span>
+                      <span className="text-sm font-black text-slate-900">₹{(quote.totalAmount || 0).toLocaleString('en-IN')}</span>
+                      {(quote.advancePaymentAmount || 0) > 0 && (
+                        <span className="text-[10px] text-amber-700 font-bold ml-2">
+                          (Adv: ₹{(quote.advancePaymentAmount).toLocaleString('en-IN')})
+                        </span>
+                      )}
+                   </div>
+
+                   {/* Action Buttons */}
+                   <div className="flex items-center gap-1.5">
+                      {/* View Modal Trigger */}
+                      <button
+                        onClick={() => setPreviewQuote(quote)}
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors"
+                        title="View Full Quotation Sheet"
+                      >
+                         <Icon name="eye" size="xs" /> View
                       </button>
-                   </div>
-                </div>
 
-                {/* Proposal Intent Box (White Card Popping out with border) */}
-                <div className="bg-white border border-[#E2E8F0]/30 rounded-lg p-2 flex flex-col gap-0.5 shadow-[0_1px_3px_rgba(0,0,0,0.01)]">
-                   <div className="flex items-center justify-between">
-                     <p className="text-[8px] font-extrabold text-slate-400 uppercase tracking-wider">Proposal Intent</p>
-                     <p className="text-[11px] font-black text-[#7C3AED]">₹{(quote.totalAmount || 0).toLocaleString('en-IN')}</p>
-                   </div>
-                   <p className="text-[11px] font-extrabold text-slate-700 leading-snug">
-                      {quote.items?.[0]?.service || quote.leadId?.serviceName || 'General Wedding Service'}
-                   </p>
-                </div>
+                      {/* Download PDF */}
+                      <button
+                        disabled={downloadingQuoteId === quote._id}
+                        onClick={() => handleDownloadPdf(quote._id)}
+                        className="px-2.5 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-[#7C3AED] text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors disabled:opacity-50"
+                        title="Download PDF"
+                      >
+                         {downloadingQuoteId === quote._id ? (
+                           <div className="w-3 h-3 border-2 border-[#7C3AED] border-t-transparent rounded-full animate-spin" />
+                         ) : (
+                           <Icon name="download" size="xs" />
+                         )}
+                         PDF
+                      </button>
 
-                {/* Footer Event Details Row */}
-                <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/10 mt-0.5">
-                   <div className="flex items-center gap-1 text-[8px] font-bold text-slate-400 uppercase tracking-wider">
-                      <Icon name="calendar" size="xs" className="w-2.5 h-2.5 text-slate-400" />
-                      {new Date(quote.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {!isAccepted && (
+                        <>
+                          <button
+                            onClick={() => openEditModal(quote)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-[#7C3AED] hover:bg-purple-50 transition-colors"
+                            title="Edit Quote"
+                          >
+                            <Icon name="edit" size="xs" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteQuote(quote._id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                            title="Delete Quote"
+                          >
+                            <Icon name="trash" size="xs" />
+                          </button>
+                        </>
+                      )}
                    </div>
-                   <button className="text-[8px] font-bold text-[#7C3AED] uppercase tracking-wider hover:underline flex items-center gap-0.5">
-                      View Details 
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-2 h-2">
-                         <polyline points="9 18 15 12 9 6" />
-                      </svg>
-                   </button>
                 </div>
               </div>
             );
@@ -484,163 +628,313 @@ const VendorQuotes = () => {
         )}
       </div>
 
-      {/* Dynamic Action Modal */}
+      {/* Itemized Quotation Creator/Editor Modal */}
       {showModal && createPortal(
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-          {/* Full-screen Dark Backdrop with blur */}
           <div 
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity animate-in fade-in duration-200" 
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity" 
             onClick={closeModal}
           />
 
-          {/* Dialog Container - Centered and constrained */}
-          <div className="relative z-10 w-full max-w-lg bg-white rounded-2xl shadow-2xl p-5 sm:p-6 overflow-y-auto max-h-[88vh] my-auto border border-slate-100 animate-in zoom-in-95 fade-in duration-200">
-             <div className="flex items-center justify-between mb-3 shrink-0 pb-2.5 border-b border-slate-100">
+          <div className="relative z-10 w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-5 sm:p-7 overflow-y-auto max-h-[90vh] my-auto border border-slate-100">
+             {/* Header */}
+             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
-                  <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">{isEditing ? 'Reconfigure Proposal' : 'New Proposal'}</h3>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{isEditing ? 'Update existing proposal details' : 'Draft a professional quote for client approval'}</p>
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                    {isEditing ? 'Revise Official Quotation' : 'Create Official Quotation'}
+                  </h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                    Itemized Pricing, GST Breakdown & Payment Terms
+                  </p>
                 </div>
-                <button onClick={closeModal} className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-all border border-slate-200/60 text-slate-500">
-                   <Icon name="close" size="xs" />
+                <button onClick={closeModal} className="h-8 w-8 rounded-xl bg-slate-100 flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-all text-slate-500">
+                   ✕
                 </button>
              </div>
 
-             <div className="space-y-3">
-                <div className="space-y-1">
-                   <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider ml-1">Active Client Inquiry *</label>
-                   <div className="relative group">
+             <div className="space-y-4 mt-4 text-xs">
+                {/* Inquiry Selector */}
+                <div>
+                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                     Client Inquiry *
+                   </label>
+                   <select 
+                     disabled={isEditing}
+                     className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-900 focus:outline-none focus:border-[#7C3AED] focus:bg-white transition-all disabled:opacity-60"
+                     value={selectedLeadId}
+                     onChange={(e) => handleLeadChange(e.target.value)}
+                   >
+                      <option value="">Select client inquiry</option>
+                      {leads.map(l => (
+                        <option key={l._id} value={l._id}>
+                          {l.customerName} — {l.serviceName || l.category || 'Event'} ({new Date(l.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})
+                        </option>
+                      ))}
+                   </select>
+                </div>
+
+                {/* Line Items Table */}
+                <div className="border border-slate-200 rounded-2xl p-3.5 bg-slate-50/50 space-y-3">
+                   <div className="flex items-center justify-between">
+                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-700">Itemized Deliverables & Scope</span>
+                     <button
+                       type="button"
+                       onClick={handleAddItem}
+                       className="text-[10px] font-bold text-[#7C3AED] hover:underline flex items-center gap-1 cursor-pointer"
+                     >
+                       <Icon name="plus" size="xs" /> Add Deliverable
+                     </button>
+                   </div>
+
+                   <div className="space-y-2.5">
+                     {items.map((it, idx) => (
+                       <div key={it.id} className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                         <div className="flex items-start gap-2">
+                           <span className="text-[10px] font-bold text-slate-400 mt-2.5">{idx + 1}.</span>
+                           <div className="flex-1 space-y-1.5">
+                             <input 
+                               type="text"
+                               placeholder="Deliverable / Service Name (e.g. Traditional Photography + Album)"
+                               value={it.service}
+                               onChange={(e) => handleItemChange(it.id, 'service', e.target.value)}
+                               className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-[#7C3AED]"
+                             />
+                             <input 
+                               type="text"
+                               placeholder="Description / Specific inclusion details (optional)"
+                               value={it.description}
+                               onChange={(e) => handleItemChange(it.id, 'description', e.target.value)}
+                               className="w-full h-8 px-3 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-600 focus:outline-none focus:border-[#7C3AED]"
+                             />
+                           </div>
+                           <button
+                             type="button"
+                             onClick={() => handleRemoveItem(it.id)}
+                             className="text-slate-400 hover:text-rose-500 p-1 mt-1 transition-colors"
+                             title="Remove item"
+                           >
+                             <Icon name="trash" size="xs" />
+                           </button>
+                         </div>
+
+                         <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100">
+                           <div>
+                             <span className="text-[9px] font-bold text-slate-400 uppercase">Unit Price (₹)</span>
+                             <input 
+                               type="number"
+                               min="0"
+                               placeholder="Price"
+                               value={it.price}
+                               onChange={(e) => handleItemChange(it.id, 'price', e.target.value)}
+                               className="w-full h-8 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:outline-none focus:border-[#7C3AED]"
+                             />
+                           </div>
+                           <div>
+                             <span className="text-[9px] font-bold text-slate-400 uppercase">Quantity</span>
+                             <input 
+                               type="number"
+                               min="1"
+                               value={it.quantity}
+                               onChange={(e) => handleItemChange(it.id, 'quantity', e.target.value)}
+                               className="w-full h-8 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:outline-none focus:border-[#7C3AED]"
+                             />
+                           </div>
+                           <div className="text-right flex flex-col justify-end">
+                             <span className="text-[9px] font-bold text-slate-400 uppercase">Total</span>
+                             <span className="text-xs font-extrabold text-[#7C3AED] h-8 flex items-center justify-end">
+                               ₹{((Number(it.quantity) || 1) * (Number(it.price) || 0)).toLocaleString('en-IN')}
+                             </span>
+                           </div>
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                </div>
+
+                {/* Taxes & Discounts */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                   {/* Tax Configuration */}
+                   <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50/50 space-y-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 block">GST / Tax Setting</span>
                       <select 
-                        disabled={isEditing}
-                        className="w-full h-10 pl-3.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#7C3AED] focus:bg-white appearance-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                        value={selectedLeadId}
-                        onChange={(e) => handleLeadChange(e.target.value)}
+                        value={taxOption}
+                        onChange={(e) => setTaxOption(e.target.value)}
+                        className="w-full h-9 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#7C3AED]"
                       >
-                         <option value="" className="font-medium">Select a client inquiry</option>
-                         {leads.map(l => (
-                           <option key={l._id} value={l._id} className="font-medium">{l.customerName} — {l.serviceName || l.category || 'Wedding Service'}</option>
+                         {GST_RATES.map(r => (
+                           <option key={r.value} value={r.value}>{r.label}</option>
                          ))}
                       </select>
-                      {!isEditing && (
-                        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-hover:text-[#7C3AED] transition-colors">
-                           <Icon name="chevron-down" size="xs" />
+                      {taxOption === 'custom' && (
+                        <div className="pt-1">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase">Custom Tax Amount (₹)</span>
+                          <input 
+                            type="number"
+                            min="0"
+                            value={customTaxAmount}
+                            onChange={(e) => setCustomTaxAmount(e.target.value)}
+                            className="w-full h-8 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold"
+                          />
+                        </div>
+                      )}
+                   </div>
+
+                   {/* Discount Configuration */}
+                   <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-700">Promotional Discount</span>
+                        <div className="flex rounded-lg overflow-hidden border border-slate-200 text-[10px]">
+                          <button 
+                            type="button" 
+                            onClick={() => setDiscountType('amount')} 
+                            className={`px-2 py-0.5 font-bold ${discountType === 'amount' ? 'bg-[#7C3AED] text-white' : 'bg-white text-slate-600'}`}
+                          >₹ Flat</button>
+                          <button 
+                            type="button" 
+                            onClick={() => setDiscountType('percent')} 
+                            className={`px-2 py-0.5 font-bold ${discountType === 'percent' ? 'bg-[#7C3AED] text-white' : 'bg-white text-slate-600'}`}
+                          >% Pct</button>
+                        </div>
+                      </div>
+
+                      {discountType === 'percent' ? (
+                        <div>
+                          <span className="text-[9px] font-bold text-slate-400 uppercase">Discount Percent (%)</span>
+                          <input 
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={discountPercent}
+                            onChange={(e) => setDiscountPercent(e.target.value)}
+                            className="w-full h-9 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold"
+                          />
+                        </div>
+                      ) : (
+                        <div>
+                          <span className="text-[9px] font-bold text-slate-400 uppercase">Discount Amount (₹)</span>
+                          <input 
+                            type="number"
+                            min="0"
+                            value={discountAmount}
+                            onChange={(e) => setDiscountAmount(e.target.value)}
+                            className="w-full h-9 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold"
+                          />
                         </div>
                       )}
                    </div>
                 </div>
 
-                <div className="space-y-1">
-                   <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider ml-1">Service / Package Name *</label>
-                   <input
-                     type="text"
-                     className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#7C3AED] focus:bg-white transition-all placeholder:text-slate-400"
-                     placeholder="e.g. Premium Wedding Photography Package"
-                     value={serviceName}
-                     onChange={(e) => setServiceName(e.target.value)}
-                   />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2.5">
-                   <div className="space-y-1">
-                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider ml-1">Package Price (₹) *</label>
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#7C3AED] focus:bg-white transition-all placeholder:text-slate-400"
-                        placeholder="e.g. 45000"
-                        value={price}
-                        onChange={(e) => setPrice(e.target.value)}
-                      />
-                   </div>
-                   <div className="space-y-1">
-                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider ml-1">Tax / GST (₹)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#7C3AED] focus:bg-white transition-all placeholder:text-slate-400"
-                        placeholder="0"
-                        value={taxAmount}
-                        onChange={(e) => setTaxAmount(e.target.value)}
-                      />
-                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2.5">
-                   <div className="space-y-1">
-                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider ml-1">Discount (₹)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#7C3AED] focus:bg-white transition-all placeholder:text-slate-400"
-                        placeholder="0"
-                        value={discountAmount}
-                        onChange={(e) => setDiscountAmount(e.target.value)}
-                      />
-                   </div>
-                   <div className="space-y-1">
-                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider ml-1">Validity (Days)</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="90"
-                        className="w-full h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#7C3AED] focus:bg-white transition-all placeholder:text-slate-400"
-                        value={validityDays}
-                        onChange={(e) => setValidityDays(e.target.value)}
-                      />
-                   </div>
-                </div>
-
-                {/* Live Total Calculation Preview */}
-                <div className="p-2.5 bg-purple-50/70 rounded-xl border border-purple-100 flex items-center justify-between">
-                   <div>
-                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">Total Quotation Value</span>
-                      <span className="text-[10px] text-slate-400">Price + Tax - Discount</span>
-                   </div>
-                   <span className="text-base font-black text-[#7C3AED]">
-                      ₹{(Math.max(0, (Number(price) || 0) + (Number(taxAmount) || 0) - (Number(discountAmount) || 0))).toLocaleString('en-IN')}
-                   </span>
-                </div>
-
-                <div className="space-y-1">
-                   <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider ml-1">Notes / Terms for Client</label>
-                   <textarea 
-                     rows={2}
-                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-medium text-slate-900 focus:outline-none focus:border-[#7C3AED] focus:bg-white transition-all placeholder:text-slate-400 resize-none"
-                     placeholder="Describe package deliverables, schedule, or payment terms..."
-                     value={notes}
-                     onChange={(e) => setNotes(e.target.value)}
-                   />
-                </div>
-
-                {selectedLeadId && leads.find(l => l._id === selectedLeadId) && (
-                    <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                            <Icon name="calendar" size="xs" className="w-3.5 h-3.5 text-[#7C3AED]" />
-                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Client Target Event Date</span>
+                {/* Advance Booking Policy & Validity */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                   <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50/50 space-y-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 block">Advance Deposit Required</span>
+                      <select 
+                        value={advanceOption}
+                        onChange={(e) => setAdvanceOption(e.target.value)}
+                        className="w-full h-9 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#7C3AED]"
+                      >
+                         {ADVANCE_PRESETS.map(r => (
+                           <option key={r.value} value={r.value}>{r.label}</option>
+                         ))}
+                      </select>
+                      {advanceOption === 'custom' && (
+                        <div className="pt-1">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase">Custom Advance (₹)</span>
+                          <input 
+                            type="number"
+                            min="0"
+                            value={customAdvanceAmount}
+                            onChange={(e) => setCustomAdvanceAmount(e.target.value)}
+                            className="w-full h-8 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold"
+                          />
                         </div>
-                        <p className="text-xs font-bold text-slate-700">
-                            {new Date(leads.find(l => l._id === selectedLeadId).eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
-                        </p>
-                    </div>
-                )}
+                      )}
+                   </div>
 
-                <div className="pt-1.5">
+                   <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50/50 space-y-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 block">Quotation Validity</span>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number"
+                          min="1"
+                          max="90"
+                          value={validityDays}
+                          onChange={(e) => setValidityDays(e.target.value)}
+                          className="w-20 h-9 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold"
+                        />
+                        <span className="text-slate-600 font-medium">Days from issue date</span>
+                      </div>
+                   </div>
+                </div>
+
+                {/* Live Authoritative Breakdown */}
+                <div className="p-4 bg-purple-50/70 rounded-2xl border border-purple-100 space-y-1.5">
+                   <div className="flex justify-between text-slate-600 font-medium text-xs">
+                     <span>Subtotal ({items.length} items):</span>
+                     <span>₹{calculation.subtotal.toLocaleString('en-IN')}</span>
+                   </div>
+                   {calculation.discount > 0 && (
+                     <div className="flex justify-between text-emerald-600 font-medium text-xs">
+                       <span>Discount:</span>
+                       <span>-₹{calculation.discount.toLocaleString('en-IN')}</span>
+                     </div>
+                   )}
+                   {calculation.tax > 0 && (
+                     <div className="flex justify-between text-slate-600 font-medium text-xs">
+                       <span>GST / Tax:</span>
+                       <span>+₹{calculation.tax.toLocaleString('en-IN')}</span>
+                     </div>
+                   )}
+                   <div className="flex justify-between pt-2 border-t border-purple-200 text-sm font-black text-slate-900">
+                     <span>Total Quotation Payable:</span>
+                     <span className="text-[#7C3AED]">₹{calculation.total.toLocaleString('en-IN')}</span>
+                   </div>
+                   {calculation.advance > 0 && (
+                     <div className="flex justify-between pt-1 text-amber-800 font-bold text-xs">
+                       <span>Advance Deposit to Confirm:</span>
+                       <span>₹{calculation.advance.toLocaleString('en-IN')}</span>
+                     </div>
+                   )}
+                </div>
+
+                {/* Milestone & Cancellation Terms */}
+                <div className="space-y-2">
+                   <div>
+                     <span className="text-[9px] font-bold text-slate-400 uppercase">Payment Milestone Terms</span>
+                     <input 
+                       type="text"
+                       value={milestoneTerms}
+                       onChange={(e) => setMilestoneTerms(e.target.value)}
+                       className="w-full h-8 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                     />
+                   </div>
+                   <div>
+                     <span className="text-[9px] font-bold text-slate-400 uppercase">Cancellation & Refund Policy</span>
+                     <input 
+                       type="text"
+                       value={cancellationTerms}
+                       onChange={(e) => setCancellationTerms(e.target.value)}
+                       className="w-full h-8 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                     />
+                   </div>
+                </div>
+
+                {/* Submit Action */}
+                <div className="pt-2">
                    <button 
                      disabled={isSaving}
                      onClick={handleSaveQuote}
-                     className="w-full h-11 rounded-xl bg-[#7C3AED] text-white text-[11px] font-bold uppercase tracking-wider shadow-sm hover:bg-[#6D28D9] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                     className="w-full h-11 rounded-xl bg-[#7C3AED] text-white text-xs font-bold uppercase tracking-wider shadow-sm hover:bg-[#6D28D9] active:scale-98 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                    >
                       {isSaving ? (
                          <>
                             <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                            Synchronizing...
+                            Processing Quotation...
                          </>
                       ) : (
                          <>
                             <Icon name="sparkles" size="xs" />
-                            {isEditing ? 'Update Proposal' : 'Send Proposal'}
+                            {isEditing ? 'Update & Resend Quotation' : 'Generate & Send Official Quotation'}
                          </>
                       )}
                    </button>
@@ -651,15 +945,26 @@ const VendorQuotes = () => {
         document.body
       )}
 
+      {/* Official Quotation View/Print Modal */}
+      {previewQuote && (
+        <QuotationModal 
+          isOpen={Boolean(previewQuote)}
+          onClose={() => setPreviewQuote(null)}
+          quote={previewQuote}
+          isVendor={true}
+          token={token}
+        />
+      )}
+
       {/* Toast Component */}
       <ToastComponent />
 
       {/* Confirm Delete Proposal Modal */}
       <ConfirmModal
         isOpen={Boolean(quoteToDelete)}
-        title="Delete Proposal?"
-        message="Are you sure you want to permanently delete this proposal? This action cannot be undone."
-        confirmText="Delete Proposal"
+        title="Delete Quotation?"
+        message="Are you sure you want to permanently delete this quotation? This action cannot be undone."
+        confirmText="Delete Quotation"
         cancelText="Cancel"
         isDanger={true}
         isLoading={isDeleting}

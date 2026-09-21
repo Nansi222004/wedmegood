@@ -416,6 +416,23 @@ export const vendorApi = {
         return response.json();
     },
 
+    downloadQuotePdf: async (id, token) => {
+        const response = await fetch(`${BASE_URL}/quotes/${id}/pdf`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Failed to download PDF quotation');
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Quote_${id}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    },
+
     getEarnings: async (token) => {
         const response = await fetch(`${BASE_URL}/earnings`, {
             method: 'GET',
@@ -604,6 +621,38 @@ export const vendorApi = {
         const response = await fetch(`${BASE_URL}/inventory/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+    },
+
+    getBlockedDates: async (token) => {
+        const response = await fetch(`${BASE_URL}/blocked-dates`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+    },
+
+    addBlockedDate: async (date, token) => {
+        const response = await fetch(`${BASE_URL}/blocked-dates`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ date })
+        });
+        return response.json();
+    },
+
+    removeBlockedDate: async (date, token) => {
+        const response = await fetch(`${BASE_URL}/blocked-dates`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ date })
         });
         return response.json();
     }

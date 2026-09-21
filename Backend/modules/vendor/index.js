@@ -29,6 +29,7 @@ const {
     createQuote,
     updateQuote,
     deleteQuote,
+    getQuotePdf,
     getConversations,
     getMessages,
     sendMessage,
@@ -121,6 +122,7 @@ router.put('/leads/:id', protectVendor, requireSubscription, requireVendorApprov
 // Quotes
 router.get('/quotes', protectVendor, requireSubscription, requireVendorApproval, getQuotes);
 router.post('/quotes', protectVendor, requireSubscription, requireVendorApproval, createQuote);
+router.get('/quotes/:id/pdf', protectVendor, requireSubscription, requireVendorApproval, getQuotePdf);
 router.put('/quotes/:id', protectVendor, requireSubscription, requireVendorApproval, updateQuote);
 router.delete('/quotes/:id', protectVendor, requireSubscription, requireVendorApproval, deleteQuote);
 

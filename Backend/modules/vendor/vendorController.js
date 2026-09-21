@@ -1277,12 +1277,11 @@ exports.getQuotes = async (req, res, next) => {
 };
 
 // @desc    Update a quote
+// @desc    Update a quote
 // @route   PUT /api/vendor/quotes/:id
 // @access  Private
 exports.updateQuote = async (req, res, next) => {
     try {
-        const { items, taxAmount, discountAmount, notes, terms, validUntil } = req.body;
-
         const quote = await Quote.findOne({
             _id: req.params.id,
             vendorId: req.vendor.id
@@ -1300,26 +1299,38 @@ exports.updateQuote = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Cannot modify an expired quote' });
         }
 
-        const itemsToUse = items !== undefined ? items : quote.items;
-        if (!Array.isArray(itemsToUse) || itemsToUse.length === 0) {
-            return res.status(400).json({ success: false, message: 'Quote must contain at least one item' });
-        }
+        const { calculateQuotePricing } = require('../../utils/quotePricing');
+        const payloadToUse = {
+            items: req.body.items !== undefined ? req.body.items : quote.items,
+            taxRatePercent: req.body.taxRatePercent !== undefined ? req.body.taxRatePercent : quote.taxRatePercent,
+            taxAmount: req.body.taxAmount !== undefined ? req.body.taxAmount : quote.taxAmount,
+            discountPercent: req.body.discountPercent !== undefined ? req.body.discountPercent : quote.discountPercent,
+            discountAmount: req.body.discountAmount !== undefined ? req.body.discountAmount : quote.discountAmount,
+            advancePaymentPercent: req.body.advancePaymentPercent !== undefined ? req.body.advancePaymentPercent : quote.advancePaymentPercent,
+            advancePaymentAmount: req.body.advancePaymentAmount !== undefined ? req.body.advancePaymentAmount : quote.advancePaymentAmount,
+            milestonePaymentTerms: req.body.milestonePaymentTerms !== undefined ? req.body.milestonePaymentTerms : quote.milestonePaymentTerms,
+            notes: req.body.notes !== undefined ? req.body.notes : quote.notes,
+            terms: req.body.terms !== undefined ? req.body.terms : quote.terms,
+            cancellationTerms: req.body.cancellationTerms !== undefined ? req.body.cancellationTerms : quote.cancellationTerms
+        };
 
-        const taxToUse = taxAmount !== undefined ? taxAmount : (quote.taxAmount || 0);
-        const discToUse = discountAmount !== undefined ? discountAmount : (quote.discountAmount || 0);
+        const pricing = calculateQuotePricing(payloadToUse);
 
-        const subtotal = itemsToUse.reduce((sum, item) => sum + (Math.max(0, Number(item.price) || 0) * Math.max(1, Number(item.quantity) || 1)), 0);
-        const tax = Math.max(0, Number(taxToUse) || 0);
-        const discount = Math.max(0, Number(discToUse) || 0);
-        const totalAmount = Math.max(0, subtotal + tax - discount);
-
-        quote.items = itemsToUse;
-        quote.taxAmount = tax;
-        quote.discountAmount = discount;
-        quote.totalAmount = totalAmount;
-        if (notes !== undefined) quote.notes = notes;
-        if (terms !== undefined) quote.terms = terms;
-        if (validUntil !== undefined) quote.validUntil = validUntil;
+        quote.items = pricing.items;
+        quote.subtotal = pricing.subtotal;
+        quote.discountAmount = pricing.discountAmount;
+        quote.discountPercent = pricing.discountPercent;
+        quote.taxRatePercent = pricing.taxRatePercent;
+        quote.taxAmount = pricing.taxAmount;
+        quote.totalAmount = pricing.totalAmount;
+        quote.advancePaymentAmount = pricing.advancePaymentAmount;
+        quote.advancePaymentPercent = pricing.advancePaymentPercent;
+        quote.milestonePaymentTerms = pricing.milestonePaymentTerms;
+        quote.notes = pricing.notes;
+        quote.terms = pricing.terms;
+        quote.cancellationTerms = pricing.cancellationTerms;
+        if (req.body.validUntil !== undefined) quote.validUntil = req.body.validUntil;
+        if (req.body.status && ['Draft', 'Sent'].includes(req.body.status)) quote.status = req.body.status;
 
         await quote.save();
 
@@ -1361,7 +1372,7 @@ exports.deleteQuote = async (req, res, next) => {
 exports.createQuote = async (req, res, next) => {
     try {
         const vendorId = req.vendor.id;
-        const { leadId, items, taxAmount, discountAmount, validUntil, notes, terms } = req.body;
+        const { leadId, validUntil, status } = req.body;
 
         if (!leadId) {
             return res.status(400).json({
@@ -1379,20 +1390,10 @@ exports.createQuote = async (req, res, next) => {
             });
         }
 
-        if (!Array.isArray(items) || items.length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'Quote must include at least one service item'
-            });
-        }
+        const { calculateQuotePricing } = require('../../utils/quotePricing');
+        const pricing = calculateQuotePricing(req.body);
 
-        // Server-authoritative price calculation
-        const subtotal = items.reduce((sum, item) => sum + (Math.max(0, Number(item.price) || 0) * Math.max(1, Number(item.quantity) || 1)), 0);
-        const tax = Math.max(0, Number(taxAmount) || 0);
-        const discount = Math.max(0, Number(discountAmount) || 0);
-        const totalAmount = Math.max(0, subtotal + tax - discount);
-
-        if (totalAmount <= 0) {
+        if (pricing.totalAmount <= 0) {
             return res.status(400).json({
                 success: false,
                 message: 'Quote total amount must be greater than zero'
@@ -1401,28 +1402,83 @@ exports.createQuote = async (req, res, next) => {
 
         // Derive authoritative userId from lead
         const userId = lead.userId;
+        const initialStatus = status === 'Draft' ? 'Draft' : 'Sent';
 
         const quote = await Quote.create({
             vendorId,
             leadId: lead._id,
             userId,
-            items,
-            totalAmount,
-            taxAmount: tax,
-            discountAmount: discount,
+            items: pricing.items,
+            subtotal: pricing.subtotal,
+            discountAmount: pricing.discountAmount,
+            discountPercent: pricing.discountPercent,
+            taxRatePercent: pricing.taxRatePercent,
+            taxAmount: pricing.taxAmount,
+            totalAmount: pricing.totalAmount,
+            advancePaymentAmount: pricing.advancePaymentAmount,
+            advancePaymentPercent: pricing.advancePaymentPercent,
+            milestonePaymentTerms: pricing.milestonePaymentTerms,
             validUntil: validUntil || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // default 14 days
-            notes,
-            terms,
-            status: 'Sent'
+            notes: pricing.notes,
+            terms: pricing.terms,
+            cancellationTerms: pricing.cancellationTerms,
+            status: initialStatus,
+            sentAt: initialStatus === 'Sent' ? new Date() : null
         });
 
-        // Update lead status
-        lead.status = 'Quote Sent';
-        await lead.save();
+        // Update lead status if sent
+        if (initialStatus === 'Sent') {
+            lead.status = 'Quote Sent';
+            await lead.save();
+
+            // Create notification for customer
+            const Notification = require('./Notification');
+            await Notification.create({
+                vendorId,
+                message: `Quotation #${quote.quotationNumber} sent to customer for ₹${pricing.totalAmount.toLocaleString('en-IN')}`,
+                type: 'Lead',
+                isRead: true
+            }).catch(() => {});
+        }
 
         res.status(201).json({
             success: true,
             data: quote
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Download Quote PDF (Vendor)
+// @route   GET /api/vendor/quotes/:id/pdf
+// @access  Private (Vendor)
+exports.getQuotePdf = async (req, res, next) => {
+    try {
+        const quote = await Quote.findOne({
+            _id: req.params.id,
+            vendorId: req.vendor.id
+        })
+            .populate('vendorId')
+            .populate('userId', 'name fullName email phone city')
+            .populate('leadId');
+
+        if (!quote) {
+            return res.status(404).json({ success: false, message: 'Quote not found or unauthorized' });
+        }
+
+        const { generateQuotePdf } = require('../../services/quotePdf.service');
+        const filename = `Quote_${quote.quotationNumber || quote._id}.pdf`;
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+        await generateQuotePdf({
+            quote,
+            lead: quote.leadId,
+            vendor: quote.vendorId,
+            customer: quote.userId,
+            writeStream: res
         });
     } catch (err) {
         next(err);

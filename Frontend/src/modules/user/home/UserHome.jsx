@@ -351,6 +351,7 @@ const UserHome = () => {
       </div>
 
       {/* 2. Top Category Icons - Editorial Squares */}
+      {/* 2. Top Category Icons - Editorial Squares */}
       <div className="pt-2">
         <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 px-1 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {topCategories.map((category, idx) => {

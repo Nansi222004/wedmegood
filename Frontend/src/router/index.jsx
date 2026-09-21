@@ -37,6 +37,7 @@ import GuestList from '../modules/user/tools/GuestList';
 import VendorManagement from '../modules/user/tools/VendorManagement';
 import InspirationBoard from '../modules/user/tools/InspirationBoard';
 import AIAssistant from '../modules/user/ai/AIAssistant';
+import QuotationComparison from '../modules/user/quotes/QuotationComparison';
 import FamilyContacts from '../modules/user/family/FamilyContacts';
 import CreateGroup from '../modules/user/family/CreateGroup';
 import GroupChat from '../modules/user/family/GroupChat';
@@ -182,6 +183,7 @@ const AppRouter = () => {
                     {/* Quick Access Routes */}
                     <Route path="bookings" element={<MyBookings initialTab="bookings" />} />
                     <Route path="quotes" element={<MyBookings initialTab="quotes" />} />
+                    <Route path="quotes/compare" element={<QuotationComparison />} />
                     <Route path="shortlist" element={<Shortlist />} />
                     <Route path="favourites" element={<Favourites />} />
 

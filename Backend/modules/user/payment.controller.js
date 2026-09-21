@@ -75,7 +75,22 @@ exports.createPaymentOrder = async (req, res, next) => {
             });
         }
 
-        const payableAmount = financial.outstandingBalance;
+        // Server-side authoritative calculation of payable amount (NEVER trust req.body.amount)
+        const advanceRequired = Number(booking.advancePaymentRequired) || 0;
+        let payableAmount;
+        let paymentType;
+
+        if (booking.status === 'Pending' && advanceRequired > 0 && financial.paidAmount < advanceRequired) {
+            // Must charge the advance payment shortfall
+            payableAmount = Math.min(financial.outstandingBalance, advanceRequired - financial.paidAmount);
+            paymentType = 'ADVANCE';
+        } else {
+            // Balance payment
+            payableAmount = financial.outstandingBalance;
+            paymentType = financial.paidAmount > 0 ? 'BALANCE' : 'FULL';
+        }
+
+        payableAmount = Math.round(payableAmount * 100) / 100;
         const amountInPaise = Math.round(Number(payableAmount) * 100);
         if (!amountInPaise || amountInPaise <= 0) {
             return res.status(400).json({
@@ -91,13 +106,14 @@ exports.createPaymentOrder = async (req, res, next) => {
             notes: {
                 bookingId: booking._id.toString(),
                 userId: req.user._id.toString(),
-                vendorId: booking.vendorId.toString()
+                vendorId: booking.vendorId.toString(),
+                paymentType
             }
         };
 
         const order = await razorpay.orders.create(options);
 
-        // Record pending payment for the exact outstanding balance
+        // Record pending payment for the exact server-calculated payable amount
         await Payment.create({
             userId: req.user._id,
             bookingId: booking._id,
@@ -105,6 +121,7 @@ exports.createPaymentOrder = async (req, res, next) => {
             quoteId: booking.quoteId,
             razorpayOrderId: order.id,
             amount: payableAmount,
+            paymentType,
             currency: 'INR',
             status: 'Pending',
             paymentMethod: 'Razorpay'
@@ -113,12 +130,24 @@ exports.createPaymentOrder = async (req, res, next) => {
         res.status(200).json({
             success: true,
             order,
+            data: {
+                orderId: order.id,
+                amount: payableAmount,
+                paymentType,
+                currency: 'INR'
+            },
+            amount: payableAmount,
+            paymentType,
             booking: {
                 id: booking._id,
                 totalPrice: booking.totalPrice,
+                totalContractValue: booking.totalPrice,
+                advancePaymentRequired: advanceRequired,
                 paidAmount: financial.paidAmount,
-                outstandingBalance: payableAmount,
+                outstandingBalance: financial.outstandingBalance,
+                remainingBalanceAfterAdvance: Math.max(0, booking.totalPrice - advanceRequired),
                 payableAmount,
+                paymentType,
                 customerName: booking.customerName,
                 eventDate: booking.eventDate
             },
@@ -239,6 +268,7 @@ exports.verifyPayment = async (req, res, next) => {
                 razorpayPaymentId: razorpay_payment_id,
                 razorpaySignature: razorpay_signature,
                 amount: paymentAmount,
+                paymentType: (booking.status === 'Pending' && (Number(booking.advancePaymentRequired) || 0) > 0) ? 'ADVANCE' : 'BALANCE',
                 currency: 'INR',
                 commissionRate,
                 commissionRatePercent,
@@ -256,7 +286,13 @@ exports.verifyPayment = async (req, res, next) => {
         const { reconcileBookingPayments } = require('../../utils/financialReconciliation');
         const reconciled = reconcileBookingPayments(booking, allPayments);
 
+        booking.paidAmount = reconciled.paidAmount;
+        booking.outstandingBalance = reconciled.outstandingBalance;
         booking.paymentStatus = reconciled.isFullyPaid ? 'Paid' : (reconciled.paidAmount > 0 ? 'Partial' : 'Pending');
+        const advanceRequired = Number(booking.advancePaymentRequired) || 0;
+        if (booking.status === 'Pending' && (reconciled.isFullyPaid || (advanceRequired > 0 && reconciled.paidAmount >= advanceRequired))) {
+            booking.status = 'Confirmed';
+        }
         booking.commission = reconciled.commission;
         booking.commissionRate = commissionRate;
         booking.commissionRatePercent = commissionRatePercent;
@@ -265,6 +301,32 @@ exports.verifyPayment = async (req, res, next) => {
         booking.vendorEarning = reconciled.vendorEarning;
         booking.settlementStatus = booking.settlementStatus || 'Pending';
         await booking.save();
+
+        // Safely synchronize user budget category payment
+        try {
+            const Budget = require('./Budget');
+            const userBudget = await Budget.findOne({ userId: booking.userId });
+            if (userBudget && Array.isArray(userBudget.categories)) {
+                const bService = (booking.services?.[0] || 'general').toLowerCase();
+                const matched = userBudget.categories.find(c =>
+                    c.name.toLowerCase() === bService ||
+                    c.id.toLowerCase() === bService ||
+                    bService.includes(c.id.toLowerCase()) ||
+                    bService.includes(c.name.toLowerCase())
+                );
+                if (matched) {
+                    matched.advancePaid = (matched.advancePaid || 0) + paymentAmount;
+                    matched.spent = (matched.spent || 0) + paymentAmount;
+                    matched.status = 'Confirmed';
+                    if (matched.totalAmount > 0) {
+                        matched.balanceAmount = Math.max(0, matched.totalAmount - matched.spent);
+                    }
+                    await userBudget.save();
+                }
+            }
+        } catch (bSyncErr) {
+            console.warn('Budget payment sync notice:', bSyncErr.message);
+        }
 
         // 1. Immutable Financial Ledger Entries
         await FinancialLedger.create([

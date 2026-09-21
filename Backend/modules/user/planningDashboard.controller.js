@@ -581,24 +581,31 @@ exports.getPlanningCalendar = async (req, res) => {
 // @access  Private (User)
 exports.getWeather = async (req, res) => {
   try {
-    const { city } = req.query;
-    const apiKey = process.env.WEATHER_API_KEY || process.env.OPENWEATHER_API_KEY;
+    const { city, date, month } = req.query;
+    const { getWeatherForDate, getWeatherForMonth } = require('../../services/weather.service');
+    const resolvedCity = city || req.user?.city || 'Indore';
 
-    if (!apiKey) {
+    if (date) {
+      const weather = await getWeatherForDate(resolvedCity, date);
       return res.status(200).json({
         success: true,
-        configured: false,
-        message: 'Weather service is not configured with an external API key. Live forecasts unavailable.',
-        data: null
+        data: {
+          city: resolvedCity,
+          ...weather
+        }
       });
     }
 
+    const currentYearMonth = month || new Date().toISOString().substring(0, 7);
+    const forecastMap = await getWeatherForMonth(resolvedCity, currentYearMonth);
+    const forecastList = Object.values(forecastMap);
+
     res.status(200).json({
       success: true,
-      configured: true,
       data: {
-        city: city || 'Indore',
-        forecast: []
+        city: resolvedCity,
+        forecast: forecastList,
+        forecastMap
       }
     });
   } catch (error) {
