@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useVendorState } from '../useVendorState';
 import { vendorApi } from '../vendorApi';
 import Icon from '../../../components/ui/Icon';
+import { useDragToScroll } from '../../../hooks/useDragToScroll';
 
 /* ─── Config & Constants ────────────────────────────────────────── */
 const EVENT_TYPES = [
@@ -58,6 +59,7 @@ const VendorCalendar = () => {
   
   // Modals
   const [addModal, setAddModal]               = useState(false);
+  const addModalScrollRef                     = useDragToScroll(addModal);
   const [blockModal, setBlockModal]           = useState(false);
   const [selectedEventModal, setSelectedEventModal] = useState(null);
   const [isSubmitting, setIsSubmitting]       = useState(false);
@@ -119,7 +121,9 @@ const VendorCalendar = () => {
     fetchCalendarData();
   }, [fetchCalendarData]);
 
-  // Handle ESC key for open modals
+  // Handle ESC key, body scroll locking, and Lenis smooth scroll for open modals
+  const anyModalOpen = Boolean(addModal || blockModal || selectedEventModal);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
@@ -128,9 +132,22 @@ const VendorCalendar = () => {
         if (selectedEventModal) setSelectedEventModal(null);
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [addModal, blockModal, selectedEventModal]);
+
+    if (anyModalOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'hidden';
+      if (window.lenis && typeof window.lenis.stop === 'function') {
+        window.lenis.stop();
+      }
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+      if (window.lenis && typeof window.lenis.start === 'function') {
+        window.lenis.start();
+      }
+    };
+  }, [anyModalOpen, addModal, blockModal, selectedEventModal]);
 
   const showToast = (msg, type = 'ok') => {
     setToast({ msg, type });
@@ -671,14 +688,21 @@ const VendorCalendar = () => {
 
       {/* ── Add Event Modal (Rendered in Portal) ───────────── */}
       {addModal && createPortal(
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 overflow-y-auto">
+        <div 
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 overflow-y-auto"
+          data-lenis-prevent="true"
+        >
           <div
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
             onClick={() => setAddModal(false)}
           />
 
-          <div className="relative z-10 w-full max-w-lg bg-white rounded-3xl shadow-2xl p-6 sm:p-7 overflow-y-auto max-h-[90vh] my-auto border border-slate-100 animate-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
+          <div 
+            className="relative z-10 w-full max-w-lg bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh] my-auto border border-slate-100 animate-in zoom-in-95 overflow-hidden"
+            data-lenis-prevent="true"
+          >
+            {/* Pinned Header */}
+            <div className="flex items-center justify-between p-6 sm:p-7 pb-3.5 border-b border-slate-100 bg-white shrink-0">
               <div>
                 <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">Schedule New Event</h3>
                 <p className="text-[11px] font-semibold text-slate-400">Add an offline or direct client booking to your schedule</p>
@@ -691,12 +715,16 @@ const VendorCalendar = () => {
               </button>
             </div>
 
+            {/* Scrollable Form Body */}
             <form
+              ref={addModalScrollRef}
+              data-lenis-prevent="true"
+              style={{ overscrollBehavior: 'contain' }}
               onSubmit={(e) => {
                 e.preventDefault();
                 handleAddEvent();
               }}
-              className="space-y-3.5 mt-4 text-xs"
+              className="flex-1 overflow-y-auto p-6 sm:p-7 pt-4 space-y-3.5 text-xs custom-scrollbar"
             >
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
@@ -821,13 +849,19 @@ const VendorCalendar = () => {
 
       {/* ── Block Date Modal (Rendered in Portal) ──────────── */}
       {blockModal && createPortal(
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 overflow-y-auto">
+        <div 
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 overflow-y-auto"
+          data-lenis-prevent="true"
+        >
           <div
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
             onClick={() => setBlockModal(false)}
           />
 
-          <div className="relative z-10 w-full max-w-sm bg-white rounded-3xl shadow-2xl p-6 border border-slate-100 animate-in zoom-in-95 space-y-4 text-xs">
+          <div 
+            className="relative z-10 w-full max-w-sm bg-white rounded-3xl shadow-2xl p-6 border border-slate-100 animate-in zoom-in-95 space-y-4 text-xs"
+            data-lenis-prevent="true"
+          >
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <h3 className="text-sm font-black text-slate-900">Manage Date Block</h3>
               <button
@@ -872,13 +906,19 @@ const VendorCalendar = () => {
 
       {/* ── Event Details Modal (Rendered in Portal) ────────── */}
       {selectedEventModal && createPortal(
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 overflow-y-auto">
+        <div 
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 overflow-y-auto"
+          data-lenis-prevent="true"
+        >
           <div
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
             onClick={() => setSelectedEventModal(null)}
           />
 
-          <div className="relative z-10 w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 border border-slate-100 animate-in zoom-in-95 space-y-4 text-xs">
+          <div 
+            className="relative z-10 w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 border border-slate-100 animate-in zoom-in-95 space-y-4 text-xs"
+            data-lenis-prevent="true"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
                 <span className="text-[10px] font-bold text-purple-600 uppercase tracking-widest block">

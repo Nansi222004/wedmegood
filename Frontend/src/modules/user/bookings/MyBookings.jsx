@@ -442,7 +442,7 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
             activeTab === 'bookings' ? 'text-[#E91E63]' : 'text-slate-400 hover:text-slate-700'
           }`}
         >
-          Confirmed Bookings ({bookings.length})
+          Bookings ({bookings.length})
           {activeTab === 'bookings' && (
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#E91E63] rounded-full" />
           )}
@@ -716,9 +716,15 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
                         <div>
                           <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getStatusBadge(booking.status)}`}>
-                              {booking.status}
-                            </span>
+                            {booking.status === 'Pending' && (booking.advancePaymentRequired || 0) > 0 && paidAmount < (booking.advancePaymentRequired || 0) ? (
+                              <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-100 text-amber-800 border border-amber-300">
+                                Awaiting Advance (₹{Number(booking.advancePaymentRequired).toLocaleString('en-IN')})
+                              </span>
+                            ) : (
+                              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getStatusBadge(booking.status)}`}>
+                                {booking.status}
+                              </span>
+                            )}
                             <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getPaymentBadge(isPaid ? 'Paid' : booking.paymentStatus)}`}>
                               Payment: {isPaid ? 'Paid' : (booking.paymentStatus || 'Pending')}
                             </span>
@@ -828,7 +834,7 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                         {!isPaid && !isCancelled && outstanding > 0 && (
                           <button
                             onClick={() => handlePayNow(booking)}
-                            className="px-5 py-2.5 bg-[#E91E63] hover:bg-[#D81B60] text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-pink-200 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            className="w-full sm:w-auto px-5 py-2.5 bg-[#E91E63] hover:bg-[#D81B60] text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-pink-200 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                           >
                             <Icon name="creditCard" size="xs" color="white" />
                             {booking.status === 'Pending' && paidAmount === 0 && (booking.advancePaymentRequired || 0) > 0

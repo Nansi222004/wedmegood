@@ -2,8 +2,10 @@ const mongoose = require('mongoose');
 const Quote = require('../vendor/Quote');
 const Lead = require('../vendor/Lead');
 const Booking = require('../vendor/Booking');
+const Payment = require('./Payment');
 const Vendor = require('../vendor/Vendor');
 const Notification = require('../vendor/Notification');
+const { reconcileQuoteFinancials } = require('../../utils/financialReconciliation');
 
 // @desc    Get current user's quotes
 // @route   GET /api/user/quotes
@@ -16,10 +18,58 @@ exports.getUserQuotes = async (req, res, next) => {
             .sort('-createdAt')
             .lean();
 
+        const quoteIds = quotes.map(q => q._id);
+        const bookingIds = quotes.map(q => q.bookingId).filter(Boolean);
+
+        // Fetch associated bookings and payments for reconciliation
+        const bookings = await Booking.find({
+            $or: [
+                { quoteId: { $in: quoteIds } },
+                ...(bookingIds.length > 0 ? [{ _id: { $in: bookingIds } }] : [])
+            ]
+        }).lean();
+
+        const allBookingIds = bookings.map(b => b._id);
+        const payments = await Payment.find({
+            $or: [
+                { quoteId: { $in: quoteIds } },
+                ...(allBookingIds.length > 0 ? [{ bookingId: { $in: allBookingIds } }] : [])
+            ]
+        }).sort('-createdAt').lean();
+
+        const enrichedQuotes = quotes.map(quote => {
+            const matchedBooking = bookings.find(b =>
+                (b.quoteId && b.quoteId.toString() === quote._id.toString()) ||
+                (quote.bookingId && b._id.toString() === quote.bookingId.toString())
+            ) || null;
+
+            const quotePayments = payments.filter(p =>
+                (p.quoteId && p.quoteId.toString() === quote._id.toString()) ||
+                (matchedBooking && p.bookingId && p.bookingId.toString() === matchedBooking._id.toString())
+            );
+
+            const financial = reconcileQuoteFinancials(quote, matchedBooking, quotePayments);
+
+            return {
+                ...quote,
+                financial,
+                booking: matchedBooking ? {
+                    _id: matchedBooking._id,
+                    status: financial.bookingStatus || matchedBooking.status,
+                    paymentStatus: financial.paymentStatus,
+                    advancePaymentRequired: financial.advanceRequired,
+                    paidAmount: financial.amountReceived,
+                    outstandingBalance: financial.outstandingBalance,
+                    totalPrice: financial.totalContractValue,
+                    eventDate: matchedBooking.eventDate
+                } : null
+            };
+        });
+
         res.status(200).json({
             success: true,
-            count: quotes.length,
-            data: quotes
+            count: enrichedQuotes.length,
+            data: enrichedQuotes
         });
     } catch (err) {
         next(err);
@@ -55,9 +105,38 @@ exports.getUserQuoteById = async (req, res, next) => {
             });
         }
 
+        const matchedBooking = await Booking.findOne({
+            $or: [
+                { quoteId: quote._id },
+                ...(quote.bookingId ? [{ _id: quote.bookingId }] : [])
+            ]
+        }).lean();
+
+        const quotePayments = await Payment.find({
+            $or: [
+                { quoteId: quote._id },
+                ...(matchedBooking ? [{ bookingId: matchedBooking._id }] : [])
+            ]
+        }).sort('-createdAt').lean();
+
+        const financial = reconcileQuoteFinancials(quote, matchedBooking, quotePayments);
+
         res.status(200).json({
             success: true,
-            data: quote
+            data: {
+                ...quote,
+                financial,
+                booking: matchedBooking ? {
+                    _id: matchedBooking._id,
+                    status: financial.bookingStatus || matchedBooking.status,
+                    paymentStatus: financial.paymentStatus,
+                    advancePaymentRequired: financial.advanceRequired,
+                    paidAmount: financial.amountReceived,
+                    outstandingBalance: financial.outstandingBalance,
+                    totalPrice: financial.totalContractValue,
+                    eventDate: matchedBooking.eventDate
+                } : null
+            }
         });
     } catch (err) {
         next(err);
@@ -93,16 +172,30 @@ exports.acceptQuote = async (req, res, next) => {
 
         // 2. Verify quote status eligibility
         if (quote.status === 'Accepted') {
-            const existingBooking = await Booking.findOne({ quoteId: quote._id });
+            const existingBooking = await Booking.findOne({
+                $or: [
+                    { quoteId: quote._id },
+                    ...(quote.bookingId ? [{ _id: quote.bookingId }] : [])
+                ]
+            });
             if (existingBooking) {
-                const advanceRequired = existingBooking.advancePaymentRequired || (Number(quote.advancePaymentAmount) || 0);
-                const paidAmt = existingBooking.paidAmount || 0;
-                const outstanding = Math.max(0, (existingBooking.totalPrice || 0) - paidAmt);
+                const payments = await Payment.find({ bookingId: existingBooking._id }).lean();
+                const { reconcileBookingPayments } = require('../../utils/financialReconciliation');
+                const financial = reconcileBookingPayments(existingBooking, payments);
+                const advanceRequired = financial.advanceRequired || (Number(quote.advancePaymentAmount) || 0);
+                const paidAmt = financial.paidAmount || 0;
+                const outstanding = financial.outstandingBalance;
                 return res.status(200).json({
                     success: true,
                     message: 'Quote already accepted. Returning existing booking.',
                     data: {
-                        booking: existingBooking,
+                        booking: {
+                            ...existingBooking.toObject ? existingBooking.toObject() : existingBooking,
+                            status: financial.bookingStatus,
+                            paymentStatus: financial.paymentStatus,
+                            paidAmount: paidAmt,
+                            outstandingBalance: outstanding
+                        },
                         quote,
                         requiresAdvancePayment: advanceRequired > 0 && paidAmt < advanceRequired,
                         advancePaymentAmount: advanceRequired,
@@ -251,18 +344,32 @@ exports.acceptQuote = async (req, res, next) => {
             );
 
             // Check for existing booking for this quote (Idempotent safe retry)
-            const existingBooking = await Booking.findOne({ quoteId: quote._id }).session(session);
+            const existingBooking = await Booking.findOne({
+                $or: [
+                    { quoteId: quote._id },
+                    ...(quote.bookingId ? [{ _id: quote.bookingId }] : [])
+                ]
+            }).session(session);
             if (existingBooking) {
                 await session.abortTransaction();
                 session.endSession();
-                const advanceRequired = existingBooking.advancePaymentRequired || (Number(quote.advancePaymentAmount) || 0);
-                const paidAmt = existingBooking.paidAmount || 0;
-                const outstanding = Math.max(0, (existingBooking.totalPrice || 0) - paidAmt);
+                const payments = await Payment.find({ bookingId: existingBooking._id }).lean();
+                const { reconcileBookingPayments } = require('../../utils/financialReconciliation');
+                const financial = reconcileBookingPayments(existingBooking, payments);
+                const advanceRequired = financial.advanceRequired || (Number(quote.advancePaymentAmount) || 0);
+                const paidAmt = financial.paidAmount || 0;
+                const outstanding = financial.outstandingBalance;
                 return res.status(200).json({
                     success: true,
                     message: 'Quote already accepted. Returning existing booking.',
                     data: {
-                        booking: existingBooking,
+                        booking: {
+                            ...existingBooking.toObject ? existingBooking.toObject() : existingBooking,
+                            status: financial.bookingStatus,
+                            paymentStatus: financial.paymentStatus,
+                            paidAmount: paidAmt,
+                            outstandingBalance: outstanding
+                        },
                         quote,
                         requiresAdvancePayment: advanceRequired > 0 && paidAmt < advanceRequired,
                         advancePaymentAmount: advanceRequired,
@@ -397,16 +504,30 @@ exports.acceptQuote = async (req, res, next) => {
                 // Allow concurrent transaction up to 200ms to commit
                 for (let attempt = 0; attempt < 5; attempt++) {
                     await new Promise(r => setTimeout(r, 40));
-                    const existing = await Booking.findOne({ quoteId: quote._id });
+                    const existing = await Booking.findOne({
+                        $or: [
+                            { quoteId: quote._id },
+                            ...(quote.bookingId ? [{ _id: quote.bookingId }] : [])
+                        ]
+                    });
                     if (existing) {
-                        const advanceRequired = existing.advancePaymentRequired || (Number(quote.advancePaymentAmount) || 0);
-                        const paidAmt = existing.paidAmount || 0;
-                        const outstanding = Math.max(0, (existing.totalPrice || 0) - paidAmt);
+                        const payments = await Payment.find({ bookingId: existing._id }).lean();
+                        const { reconcileBookingPayments } = require('../../utils/financialReconciliation');
+                        const financial = reconcileBookingPayments(existing, payments);
+                        const advanceRequired = financial.advanceRequired || (Number(quote.advancePaymentAmount) || 0);
+                        const paidAmt = financial.paidAmount || 0;
+                        const outstanding = financial.outstandingBalance;
                         return res.status(200).json({
                             success: true,
                             message: 'Quote already accepted. Returning existing booking.',
                             data: {
-                                booking: existing,
+                                booking: {
+                                    ...existing.toObject ? existing.toObject() : existing,
+                                    status: financial.bookingStatus,
+                                    paymentStatus: financial.paymentStatus,
+                                    paidAmount: paidAmt,
+                                    outstandingBalance: outstanding
+                                },
                                 quote,
                                 requiresAdvancePayment: advanceRequired > 0 && paidAmt < advanceRequired,
                                 advancePaymentAmount: advanceRequired,

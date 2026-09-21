@@ -7,6 +7,7 @@ import { vendorApi } from '../vendorApi';
 import { useToast } from '../../../components/ui/Toast';
 import ConfirmModal from '../../../components/ui/ConfirmModal';
 import QuotationModal from '../../common/QuotationModal';
+import { useDragToScroll } from '../../../hooks/useDragToScroll';
 
 const GST_RATES = [
   { label: '0% (Exempt)', value: 0 },
@@ -38,6 +39,7 @@ const VendorQuotes = () => {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const createModalScrollRef = useDragToScroll(showModal);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
   const [quoteToDelete, setQuoteToDelete] = useState(null);
@@ -105,10 +107,16 @@ const VendorQuotes = () => {
     if (showModal) {
       document.addEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'hidden';
+      if (window.lenis && typeof window.lenis.stop === 'function') {
+        window.lenis.stop();
+      }
     }
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
+      if (window.lenis && typeof window.lenis.start === 'function') {
+        window.lenis.start();
+      }
     };
   }, [showModal]);
 
@@ -564,24 +572,59 @@ const VendorQuotes = () => {
                    </div>
                 </div>
 
-                {/* Price Summary Line */}
-                <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
-                   <div>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Total Quotation Value</span>
-                      <span className="text-sm font-black text-slate-900">₹{(quote.totalAmount || 0).toLocaleString('en-IN')}</span>
-                      {(quote.advancePaymentAmount || 0) > 0 && (
-                        <span className="text-[10px] text-amber-700 font-bold ml-2">
-                          (Adv: ₹{(quote.advancePaymentAmount).toLocaleString('en-IN')})
+                {/* Financial Breakdown & Status Row */}
+                <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                   <div className="space-y-1 w-full sm:w-auto">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-black text-slate-900">
+                          ₹{(quote.financial?.totalContractValue || quote.totalAmount || 0).toLocaleString('en-IN')}
                         </span>
+                        
+                        {/* Server-reconciled advance badge */}
+                        {isAccepted && quote.financial ? (
+                          quote.financial.advancePaid ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <Icon name="check" size="xs" className="w-2.5 h-2.5" />
+                              Advance Paid: ₹{(quote.financial.advanceRequired || quote.advancePaymentAmount || 0).toLocaleString('en-IN')}
+                            </span>
+                          ) : quote.financial.advanceRequired > 0 ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
+                              <Icon name="clock" size="xs" className="w-2.5 h-2.5" />
+                              Advance Pending: ₹{(quote.financial.advanceRequired || quote.advancePaymentAmount || 0).toLocaleString('en-IN')}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200">
+                              Zero Advance Required
+                            </span>
+                          )
+                        ) : (quote.advancePaymentAmount || 0) > 0 ? (
+                          <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">
+                            Req. Advance: ₹{(quote.advancePaymentAmount).toLocaleString('en-IN')}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {/* Detail metrics when booking exists */}
+                      {isAccepted && quote.financial && (
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-semibold text-slate-500">
+                          <span>Received: <strong className="text-emerald-700 font-bold">₹{(quote.financial.amountReceived || 0).toLocaleString('en-IN')}</strong></span>
+                          <span>Balance: <strong className="text-slate-800 font-bold">₹{(quote.financial.outstandingBalance || 0).toLocaleString('en-IN')}</strong></span>
+                          <span className="text-slate-400">|</span>
+                          <span>
+                            Booking: <strong className={quote.financial.bookingStatus === 'Confirmed' ? 'text-emerald-700' : 'text-amber-700'}>
+                              {quote.financial.bookingStatus || quote.booking?.status || 'Pending'}
+                            </strong>
+                          </span>
+                        </div>
                       )}
                    </div>
 
                    {/* Action Buttons */}
-                   <div className="flex items-center gap-1.5">
+                   <div className="flex flex-wrap items-center gap-1.5 self-end sm:self-center">
                       {/* View Modal Trigger */}
                       <button
                         onClick={() => setPreviewQuote(quote)}
-                        className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors"
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer"
                         title="View Full Quotation Sheet"
                       >
                          <Icon name="eye" size="xs" /> View
@@ -591,7 +634,7 @@ const VendorQuotes = () => {
                       <button
                         disabled={downloadingQuoteId === quote._id}
                         onClick={() => handleDownloadPdf(quote._id)}
-                        className="px-2.5 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-[#7C3AED] text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors disabled:opacity-50"
+                        className="px-2.5 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-[#7C3AED] text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
                         title="Download PDF"
                       >
                          {downloadingQuoteId === quote._id ? (
@@ -606,14 +649,14 @@ const VendorQuotes = () => {
                         <>
                           <button
                             onClick={() => openEditModal(quote)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-[#7C3AED] hover:bg-purple-50 transition-colors"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-[#7C3AED] hover:bg-purple-50 transition-colors cursor-pointer"
                             title="Edit Quote"
                           >
                             <Icon name="edit" size="xs" />
                           </button>
                           <button
                             onClick={() => handleDeleteQuote(quote._id)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                             title="Delete Quote"
                           >
                             <Icon name="trash" size="xs" />
@@ -630,15 +673,21 @@ const VendorQuotes = () => {
 
       {/* Itemized Quotation Creator/Editor Modal */}
       {showModal && createPortal(
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+        <div 
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
+          data-lenis-prevent="true"
+        >
           <div 
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity" 
             onClick={closeModal}
           />
 
-          <div className="relative z-10 w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-5 sm:p-7 overflow-y-auto max-h-[90vh] my-auto border border-slate-100">
-             {/* Header */}
-             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div 
+            className="relative z-10 w-full max-w-2xl bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh] my-auto border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200"
+            data-lenis-prevent="true"
+          >
+             {/* Pinned Header */}
+             <div className="flex items-center justify-between p-5 sm:p-6 pb-3.5 border-b border-slate-100 bg-white shrink-0">
                 <div>
                   <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
                     {isEditing ? 'Revise Official Quotation' : 'Create Official Quotation'}
@@ -647,12 +696,18 @@ const VendorQuotes = () => {
                     Itemized Pricing, GST Breakdown & Payment Terms
                   </p>
                 </div>
-                <button onClick={closeModal} className="h-8 w-8 rounded-xl bg-slate-100 flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-all text-slate-500">
+                <button onClick={closeModal} className="h-8 w-8 rounded-xl bg-slate-100 flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-all text-slate-500 cursor-pointer">
                    ✕
                 </button>
              </div>
 
-             <div className="space-y-4 mt-4 text-xs">
+             {/* Scrollable Form Body */}
+             <div 
+               ref={createModalScrollRef}
+               data-lenis-prevent="true"
+               style={{ overscrollBehavior: 'contain' }}
+               className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4 text-xs custom-scrollbar"
+             >
                 {/* Inquiry Selector */}
                 <div>
                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">

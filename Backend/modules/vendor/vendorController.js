@@ -1267,14 +1267,61 @@ exports.getQuotes = async (req, res, next) => {
             .populate('leadId')
             .sort('-createdAt');
 
+        const quoteIds = quotes.map(q => q._id);
+        const quoteBookingIds = quotes.map(q => q.bookingId).filter(Boolean);
+
+        // Fetch bookings strictly owned by this authenticated vendor
+        const bookings = await Booking.find({
+            vendorId: req.vendor.id,
+            $or: [
+                { quoteId: { $in: quoteIds } },
+                { _id: { $in: quoteBookingIds } }
+            ]
+        }).lean();
+
+        // Fetch payments strictly owned by this authenticated vendor and linked to these bookings
+        const bookingIds = bookings.map(b => b._id);
+        const payments = await Payment.find({
+            vendorId: req.vendor.id,
+            bookingId: { $in: bookingIds },
+            status: { $in: ['Completed', 'Paid', 'PartiallyRefunded', 'Refunded'] }
+        }).sort('-createdAt').lean();
+
+        const { reconcileQuoteFinancials } = require('../../utils/financialReconciliation');
+
+        const enrichedQuotes = quotes.map(q => {
+            const rawQuote = q.toObject ? q.toObject() : q;
+            const matchedBooking = bookings.find(b => 
+                (b.quoteId && b.quoteId.toString() === rawQuote._id.toString()) ||
+                (rawQuote.bookingId && b._id.toString() === rawQuote.bookingId.toString())
+            );
+
+            const financial = reconcileQuoteFinancials(rawQuote, matchedBooking, payments);
+
+            return {
+                ...rawQuote,
+                financial,
+                booking: matchedBooking ? {
+                    _id: matchedBooking._id,
+                    status: matchedBooking.status,
+                    paymentStatus: matchedBooking.paymentStatus,
+                    paidAmount: financial.amountReceived,
+                    outstandingBalance: financial.outstandingBalance,
+                    advancePaymentRequired: financial.advanceRequired,
+                    eventDate: matchedBooking.eventDate
+                } : null
+            };
+        });
+
         res.status(200).json({
             success: true,
-            data: quotes
+            data: enrichedQuotes
         });
     } catch (err) {
         next(err);
     }
 };
+
 
 // @desc    Update a quote
 // @desc    Update a quote

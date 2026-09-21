@@ -64,8 +64,16 @@ export const getFriendlyErrorMessage = (error, fallback = 'Something went wrong.
     return error;
   }
 
-  // 2. Extract message candidates
-  let rawMsg = error.message || error.error || error.msg || '';
+  // 2. Extract message candidates (checking axios response data first)
+  let rawMsg =
+    error.response?.data?.message ||
+    error.response?.data?.error ||
+    error.response?.data?.msg ||
+    error.message ||
+    error.error ||
+    error.msg ||
+    '';
+
   const status = error.status || error.response?.status || error.statusCode;
 
   // Handle arrays of validation errors (e.g. express-validator)
@@ -77,7 +85,25 @@ export const getFriendlyErrorMessage = (error, fallback = 'Something went wrong.
     }
   }
 
-  // 3. Map HTTP Status Codes
+  // Handle errors array from axios response data
+  if (Array.isArray(error.response?.data?.errors) && error.response.data.errors.length > 0) {
+    const firstErr = error.response.data.errors[0];
+    const validationMsg = firstErr.msg || firstErr.message;
+    if (validationMsg && !isTechnicalMessage(validationMsg)) {
+      return validationMsg;
+    }
+  }
+
+  // If server provided a clean, safe business message, prioritize it
+  if (rawMsg && typeof rawMsg === 'string' && !isTechnicalMessage(rawMsg)) {
+    const trimmed = rawMsg.trim();
+    // Only return if it's meaningful business text and not a generic axios/HTTP status string
+    if (trimmed.length > 2 && trimmed.length < 250 && !/^request failed with status code/i.test(trimmed)) {
+      return trimmed;
+    }
+  }
+
+  // 3. Map HTTP Status Codes when no specific safe server message is available
   if (status === 401) {
     return 'Your session has expired. Please sign in again.';
   }
@@ -88,7 +114,7 @@ export const getFriendlyErrorMessage = (error, fallback = 'Something went wrong.
     return "We couldn't find the requested information.";
   }
   if (status === 409) {
-    return 'This record was recently modified elsewhere. Please refresh and try again.';
+    return 'There was a scheduling or update conflict. Please refresh and try again.';
   }
   if (status === 413) {
     return 'The uploaded file is too large. Please select a smaller file.';
@@ -105,7 +131,7 @@ export const getFriendlyErrorMessage = (error, fallback = 'Something went wrong.
     rawMsg.includes('Failed to fetch') ||
     rawMsg.includes('Network Error') ||
     rawMsg.includes('ERR_CONNECTION_REFUSED') ||
-    error.name === 'TypeError' && rawMsg.includes('fetch')
+    (error.name === 'TypeError' && rawMsg.includes('fetch'))
   ) {
     return 'Unable to reach the server. Please check your internet connection and try again.';
   }
@@ -118,11 +144,6 @@ export const getFriendlyErrorMessage = (error, fallback = 'Something went wrong.
   // 6. If the message is technical or database-related, return the fallback
   if (isTechnicalMessage(rawMsg)) {
     return fallback;
-  }
-
-  // 7. If it's a clean user-facing validation message, return it
-  if (rawMsg && rawMsg.length > 3 && rawMsg.length < 250) {
-    return rawMsg;
   }
 
   return fallback;
