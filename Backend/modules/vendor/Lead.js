@@ -45,6 +45,11 @@ const leadSchema = new mongoose.Schema({
     requirements: {
         type: String
     },
+    venueType: {
+        type: String,
+        enum: ['Outdoor', 'Indoor', 'Both', 'Not Specified'],
+        default: 'Not Specified'
+    },
     referencePhotos: [{
         type: String
     }],

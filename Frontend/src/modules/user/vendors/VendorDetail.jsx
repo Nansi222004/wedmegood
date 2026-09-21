@@ -8,6 +8,7 @@ import Button from '../../../components/ui/Button';
 import userApi from '../../../services/userApi';
 import { toast } from '../../../components/ui/Toast';
 import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
+import VendorAvailabilityCalendar from './VendorAvailabilityCalendar';
 
 const VendorDetail = () => {
   const { vendorId } = useParams();
@@ -38,6 +39,7 @@ const VendorDetail = () => {
     date: '',
     openToOtherDates: false,
     guestCount: '100-200',
+    venueType: 'Not Specified',
     message: ''
   });
 
@@ -433,6 +435,7 @@ const VendorDetail = () => {
         eventDate: formData.date,
         eventLocation: formData.location || user?.city || vendor?.city || 'Indore',
         guestCount: guestNum,
+        venueType: formData.venueType || 'Not Specified',
         budget: Number(formData.budget) || 0,
         requirements: formData.guestCount ? `Approx ${formData.guestCount} guests` : '',
         message: formData.message || `Inquiry for ${vendor?.businessName || 'wedding services'}`,
@@ -744,62 +747,27 @@ const VendorDetail = () => {
             )}
           </div>
 
-          {/* Check Availability */}
-          <div
-            className="rounded-2xl p-4 sm:p-6 mt-4 sm:mt-6"
-            style={{ backgroundColor: theme.semantic.card.background }}
-          >
-            <h3
-              className="text-base sm:text-lg font-semibold mb-3 sm:mb-4"
-              style={{ color: theme.semantic.text.primary }}
-            >
-              Check Date Availability
-            </h3>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <input
-                  type="date"
-                  value={selectedEventDate}
-                  min={new Date().toISOString().split('T')[0]}
-                  onChange={(e) => setSelectedEventDate(e.target.value)}
-                  className="w-full p-2 sm:p-3 border rounded-lg text-sm sm:text-base"
-                  style={{
-                    borderColor: theme.semantic.card.border,
-                    backgroundColor: theme.semantic.background.primary
-                  }}
-                />
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => handleCheckAvailability()}
-                disabled={isCheckingAvailability || !selectedEventDate}
-                className="px-4 sm:px-6 text-sm sm:text-base"
-                style={{
-                  borderColor: theme.colors.primary[500],
-                  color: theme.colors.primary[600]
-                }}
-              >
-                {isCheckingAvailability ? 'Checking...' : 'Check Availability'}
-              </Button>
-            </div>
-
-            {availabilityStatus && (
-              <div
-                className={`mt-4 p-3 rounded-xl text-xs sm:text-sm font-medium border flex items-center gap-2 ${
-                  availabilityStatus.available
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                    : 'bg-amber-50 text-amber-800 border-amber-200'
-                }`}
-              >
-                <Icon
-                  name={availabilityStatus.available ? 'check' : 'alertTriangle'}
-                  size="xs"
-                  className={availabilityStatus.available ? 'text-emerald-600' : 'text-amber-600'}
-                />
-                <span>{availabilityStatus.message}</span>
-              </div>
-            )}
+          {/* Vendor Availability Calendar with Weather Forecast & Rainfall Alerts */}
+          <div className="mt-4 sm:mt-6">
+            <VendorAvailabilityCalendar
+              vendorId={vendor?._id || vendorId}
+              vendorName={vendor?.businessName}
+              vendorCity={vendor?.city}
+              initialDate={selectedEventDate}
+              onSelectDate={(dateStr, isAvail, weather) => {
+                setSelectedEventDate(dateStr);
+                setFormData(prev => ({ ...prev, eventDate: dateStr }));
+                setAvailabilityStatus({
+                  available: isAvail,
+                  message: isAvail
+                    ? `Selected date (${dateStr}) is available for booking!`
+                    : `Selected date (${dateStr}) is booked or unavailable.`
+                });
+                if (isAvail) {
+                  toast.success(`Date selected: ${dateStr}. Ready to submit inquiry!`);
+                }
+              }}
+            />
           </div>
         </div>
 
@@ -1283,6 +1251,33 @@ const VendorDetail = () => {
                               }`}
                           >
                             {count}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="relative">
+                      <label className="text-[11px] uppercase font-bold text-gray-400 mb-3 block tracking-widest px-1">
+                        Venue Setup (Indoor / Outdoor)
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { id: 'Indoor', label: '🏛️ Indoor', sub: 'Hall / Banquet' },
+                          { id: 'Outdoor', label: '🌿 Outdoor', sub: 'Lawn / Open Air' },
+                          { id: 'Both', label: '✨ Both', sub: 'Hybrid Setup' }
+                        ].map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, venueType: item.id }))}
+                            className={`py-2.5 px-2 rounded-2xl text-xs font-bold border transition-all cursor-pointer flex flex-col items-center gap-0.5 ${
+                              formData.venueType === item.id
+                                ? 'bg-rose-50 border-[#e11d48] text-[#e11d48] shadow-sm'
+                                : 'bg-gray-50/50 border-gray-100 text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            <span>{item.label}</span>
+                            <span className="text-[10px] font-normal opacity-70">{item.sub}</span>
                           </button>
                         ))}
                       </div>

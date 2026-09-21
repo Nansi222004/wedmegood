@@ -93,6 +93,26 @@ exports.acceptQuote = async (req, res, next) => {
 
         // 2. Verify quote status eligibility
         if (quote.status === 'Accepted') {
+            const existingBooking = await Booking.findOne({ quoteId: quote._id });
+            if (existingBooking) {
+                const advanceRequired = existingBooking.advancePaymentRequired || (Number(quote.advancePaymentAmount) || 0);
+                const paidAmt = existingBooking.paidAmount || 0;
+                const outstanding = Math.max(0, (existingBooking.totalPrice || 0) - paidAmt);
+                return res.status(200).json({
+                    success: true,
+                    message: 'Quote already accepted. Returning existing booking.',
+                    data: {
+                        booking: existingBooking,
+                        quote,
+                        requiresAdvancePayment: advanceRequired > 0 && paidAmt < advanceRequired,
+                        advancePaymentAmount: advanceRequired,
+                        totalContractValue: existingBooking.totalPrice,
+                        paidAmount: paidAmt,
+                        outstandingBalance: outstanding,
+                        remainingBalanceAfterAdvance: Math.max(0, (existingBooking.totalPrice || 0) - advanceRequired)
+                    }
+                });
+            }
             return res.status(400).json({
                 success: false,
                 message: 'This quote has already been accepted'
@@ -230,15 +250,27 @@ exports.acceptQuote = async (req, res, next) => {
                 { session }
             );
 
-            // Check for existing booking for this quote
+            // Check for existing booking for this quote (Idempotent safe retry)
             const existingBooking = await Booking.findOne({ quoteId: quote._id }).session(session);
             if (existingBooking) {
                 await session.abortTransaction();
                 session.endSession();
-                return res.status(400).json({
-                    success: false,
-                    message: 'Booking already exists for this quote',
-                    data: { booking: existingBooking }
+                const advanceRequired = existingBooking.advancePaymentRequired || (Number(quote.advancePaymentAmount) || 0);
+                const paidAmt = existingBooking.paidAmount || 0;
+                const outstanding = Math.max(0, (existingBooking.totalPrice || 0) - paidAmt);
+                return res.status(200).json({
+                    success: true,
+                    message: 'Quote already accepted. Returning existing booking.',
+                    data: {
+                        booking: existingBooking,
+                        quote,
+                        requiresAdvancePayment: advanceRequired > 0 && paidAmt < advanceRequired,
+                        advancePaymentAmount: advanceRequired,
+                        totalContractValue: existingBooking.totalPrice,
+                        paidAmount: paidAmt,
+                        outstandingBalance: outstanding,
+                        remainingBalanceAfterAdvance: Math.max(0, (existingBooking.totalPrice || 0) - advanceRequired)
+                    }
                 });
             }
 
@@ -258,10 +290,36 @@ exports.acceptQuote = async (req, res, next) => {
                 });
             }
 
+            // Determine authoritative total contract amount
+            const quoteTotal = Number(quote.totalAmount || quote.subtotal || 0);
+
+            // Create full immutable snapshot of accepted quotation terms
+            const quoteSnapshot = {
+                quotationNumber: quote.quotationNumber,
+                items: quote.items,
+                subtotal: quote.subtotal,
+                discountAmount: quote.discountAmount,
+                discountPercent: quote.discountPercent,
+                taxRatePercent: quote.taxRatePercent,
+                taxAmount: quote.taxAmount,
+                totalAmount: quoteTotal,
+                advancePaymentAmount: quote.advancePaymentAmount || 0,
+                advancePaymentPercent: quote.advancePaymentPercent || 0,
+                milestonePaymentTerms: quote.milestonePaymentTerms,
+                cancellationTerms: quote.cancellationTerms,
+                notes: quote.notes,
+                terms: quote.terms,
+                acceptedAt: new Date()
+            };
+
             // Atomically update Quote status
             const updatedQuote = await Quote.findOneAndUpdate(
                 { _id: quote._id, status: { $in: ['Pending', 'Sent'] } },
-                { status: 'Accepted' },
+                {
+                    status: 'Accepted',
+                    acceptedAt: new Date(),
+                    acceptedSnapshot: quoteSnapshot
+                },
                 { new: true, session }
             );
 
@@ -274,16 +332,20 @@ exports.acceptQuote = async (req, res, next) => {
                 });
             }
 
-            // Update Lead status
+            // Update Lead status to Booked
             await Lead.findByIdAndUpdate(lead._id, { status: 'Booked' }, { session });
 
-            // Create real MongoDB Booking with contractual commission snapshot
+            // Safeguard 1 & 3: Determine booking status
+            // If advance is required, booking is created as 'Pending' awaiting payment verification.
+            // If zero advance is required, booking is created as 'Pending' awaiting vendor schedule confirmation.
+            const advanceReq = Math.max(0, Number(quote.advancePaymentAmount) || 0);
+            const bookingStatus = 'Pending';
+
             const servicesList = (quote.items && quote.items.length > 0)
                 ? quote.items.map(item => item.service || 'Service')
                 : [lead.category || 'Wedding Service'];
 
             const { calculateActiveCommission } = require('../../services/commission.service');
-            const quoteTotal = Math.max(0, Number(quote.totalAmount) || 0);
             const commCalc = await calculateActiveCommission(quoteTotal);
 
             const createdBookings = await Booking.create([{
@@ -295,6 +357,7 @@ exports.acceptQuote = async (req, res, next) => {
                 eventDate: targetDate,
                 location: lead.eventLocation || 'Venue to be confirmed',
                 eventType: 'Wedding',
+                venueType: lead.venueType || 'Not Specified',
                 services: servicesList,
                 guestCount: lead.guestCount || 0,
                 notes: quote.notes || lead.message || '',
@@ -305,11 +368,16 @@ exports.acceptQuote = async (req, res, next) => {
                 commissionConfigSource: commCalc.source,
                 commission: commCalc.commissionAmount || 0,
                 vendorEarning: commCalc.vendorEarning !== null ? commCalc.vendorEarning : Math.max(0, quoteTotal - (commCalc.commissionAmount || 0)),
-                status: 'Confirmed',
-                paymentStatus: 'Pending'
+                status: bookingStatus,
+                paymentStatus: 'Pending',
+                quoteSnapshot,
+                advancePaymentRequired: advanceReq
             }], { session });
 
             booking = createdBookings[0];
+
+            // Link booking reference back to Quote
+            await Quote.findByIdAndUpdate(quote._id, { bookingId: booking._id }, { session });
 
             await session.commitTransaction();
             session.endSession();
@@ -317,11 +385,39 @@ exports.acceptQuote = async (req, res, next) => {
             await session.abortTransaction();
             session.endSession();
 
-            if (txError.code === 11000 || txError.message?.includes('duplicate key')) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Booking already exists for this quote'
-                });
+            // Check if concurrent request already created the booking for this quote
+            if (
+                txError.code === 11000 ||
+                txError.message?.includes('duplicate key') ||
+                txError.code === 112 ||
+                txError.codeName === 'WriteConflict' ||
+                txError.hasErrorLabel?.('TransientTransactionError') ||
+                txError.message?.includes('WriteConflict')
+            ) {
+                // Allow concurrent transaction up to 200ms to commit
+                for (let attempt = 0; attempt < 5; attempt++) {
+                    await new Promise(r => setTimeout(r, 40));
+                    const existing = await Booking.findOne({ quoteId: quote._id });
+                    if (existing) {
+                        const advanceRequired = existing.advancePaymentRequired || (Number(quote.advancePaymentAmount) || 0);
+                        const paidAmt = existing.paidAmount || 0;
+                        const outstanding = Math.max(0, (existing.totalPrice || 0) - paidAmt);
+                        return res.status(200).json({
+                            success: true,
+                            message: 'Quote already accepted. Returning existing booking.',
+                            data: {
+                                booking: existing,
+                                quote,
+                                requiresAdvancePayment: advanceRequired > 0 && paidAmt < advanceRequired,
+                                advancePaymentAmount: advanceRequired,
+                                totalContractValue: existing.totalPrice,
+                                paidAmount: paidAmt,
+                                outstandingBalance: outstanding,
+                                remainingBalanceAfterAdvance: Math.max(0, (existing.totalPrice || 0) - advanceRequired)
+                            }
+                        });
+                    }
+                }
             }
 
             if (txError.code === 112 || txError.codeName === 'WriteConflict' || txError.hasErrorLabel?.('TransientTransactionError') || txError.message?.includes('WriteConflict')) {
@@ -335,12 +431,16 @@ exports.acceptQuote = async (req, res, next) => {
         }
 
         // 7. Post-commit side-effects: Vendor notification
-        await Notification.create({
-            vendorId: quote.vendorId,
-            message: `Quote accepted by ${booking.customerName}! New booking confirmed for ₹${(booking.totalPrice || 0).toLocaleString()}`,
-            type: 'Booking',
-            isRead: false
-        }).catch(() => {});
+        try {
+            await Notification.create({
+                vendorId: quote.vendorId,
+                message: `Quote accepted by ${booking.customerName}! Booking ${booking.status.toLowerCase()} for ₹${(booking.totalPrice || 0).toLocaleString()}`,
+                type: 'Booking',
+                isRead: false
+            });
+        } catch (notifErr) {
+            // Non-blocking
+        }
 
         // 8. Link Booking to Conversation and record System message
         try {
@@ -356,14 +456,43 @@ exports.acceptQuote = async (req, res, next) => {
                 senderId: req.user._id,
                 senderRole: 'System',
                 type: 'system',
-                text: `Quote accepted. Booking confirmed!`,
+                text: `Quote #${quote.quotationNumber || quote._id} accepted. Booking status: ${booking.status}.`,
                 metadata: { bookingId: booking._id, quoteId: quote._id }
             });
         } catch (chatErr) {
             console.warn('Booking conversation link notice:', chatErr.message);
         }
 
-        // 9. Create User Notification & Activity
+        // 9. Safeguard 2: Reconcile User Wedding Budget safely without corrupting allocation ceiling
+        try {
+            const Budget = require('./Budget');
+            const userBudget = await Budget.findOne({ userId: req.user._id });
+            if (userBudget && Array.isArray(userBudget.categories)) {
+                const leadCat = (lead.category || 'general').toLowerCase();
+                const matchedCat = userBudget.categories.find(c =>
+                    c.name.toLowerCase() === leadCat ||
+                    c.id.toLowerCase() === leadCat ||
+                    leadCat.includes(c.id.toLowerCase()) ||
+                    leadCat.includes(c.name.toLowerCase())
+                );
+                if (matchedCat) {
+                    matchedCat.status = 'Confirmed';
+                    const quoteRef = `[Quote #${quote.quotationNumber || quote._id}: ₹${quoteTotal.toLocaleString('en-IN')}]`;
+                    if (!matchedCat.notes.includes(quote.quotationNumber || quote._id.toString())) {
+                        matchedCat.notes = matchedCat.notes ? `${matchedCat.notes}; ${quoteRef}` : quoteRef;
+                    }
+                    // If category totalAmount is 0 and no ceiling set, keep intact per Safeguard 2
+                    if (matchedCat.spent > 0 && matchedCat.totalAmount > 0) {
+                        matchedCat.balanceAmount = Math.max(0, matchedCat.totalAmount - matchedCat.spent);
+                    }
+                    await userBudget.save();
+                }
+            }
+        } catch (bErr) {
+            console.warn('Budget reconciliation notice:', bErr.message);
+        }
+
+        // 10. Create User Notification & Activity
         try {
             const servicesList = (quote.items && quote.items.length > 0)
                 ? quote.items.map(item => item.service || 'Service')
@@ -371,12 +500,12 @@ exports.acceptQuote = async (req, res, next) => {
             const { notifyAndLogActivity } = require('../../services/notification.service');
             await notifyAndLogActivity({
                 userId: req.user._id,
-                notificationTitle: 'Quote Accepted & Booking Confirmed',
-                notificationMessage: `You accepted the quote for ${servicesList.join(', ')}. Booking confirmed for ₹${(booking.totalPrice || 0).toLocaleString()}.`,
+                notificationTitle: 'Quote Accepted',
+                notificationMessage: `You accepted the quote for ${servicesList.join(', ')}. Booking created (${booking.status}) for ₹${(booking.totalPrice || 0).toLocaleString()}.`,
                 notificationType: 'booking',
                 activityType: 'quote_accepted',
                 activityTitle: 'Accepted Quote',
-                activityMessage: `Confirmed booking for ₹${(booking.totalPrice || 0).toLocaleString()} (${servicesList.join(', ')}).`,
+                activityMessage: `Confirmed quote for ₹${(booking.totalPrice || 0).toLocaleString()} (${servicesList.join(', ')}).`,
                 entityType: 'Booking',
                 entityId: booking._id,
                 eventKey: `quote_accept_${quote._id}`
@@ -385,12 +514,24 @@ exports.acceptQuote = async (req, res, next) => {
             // Non-blocking side effect
         }
 
+        const advanceReqAmount = booking.advancePaymentRequired || 0;
+        const totalValue = booking.totalPrice || 0;
+        const remainingAfterAdvance = Math.max(0, totalValue - advanceReqAmount);
+
         res.status(200).json({
             success: true,
-            message: 'Quote accepted successfully and booking confirmed',
+            message: advanceReqAmount > 0
+                ? 'Quote accepted successfully. Please complete advance payment to confirm your booking.'
+                : 'Quote accepted successfully. Awaiting vendor schedule confirmation.',
             data: {
                 booking,
-                quote
+                quote,
+                requiresAdvancePayment: advanceReqAmount > 0,
+                advancePaymentAmount: advanceReqAmount,
+                totalContractValue: totalValue,
+                paidAmount: 0,
+                outstandingBalance: totalValue,
+                remainingBalanceAfterAdvance: remainingAfterAdvance
             }
         });
     } catch (err) {
@@ -455,6 +596,47 @@ exports.rejectQuote = async (req, res, next) => {
             success: true,
             message: 'Quote rejected',
             data: quote
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Download Quote PDF (Customer)
+// @route   GET /api/user/quotes/:id/pdf
+// @access  Private (User)
+exports.getUserQuotePdf = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid quote ID format' });
+        }
+
+        const quote = await Quote.findOne({
+            _id: id,
+            userId: req.user._id
+        })
+            .populate('vendorId')
+            .populate('leadId');
+
+        if (!quote) {
+            return res.status(404).json({ success: false, message: 'Quote not found or unauthorized' });
+        }
+
+        const { generateQuotePdf } = require('../../services/quotePdf.service');
+        const filename = `Quotation_${quote.quotationNumber || quote._id}.pdf`;
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+
+        await generateQuotePdf({
+            quote,
+            lead: quote.leadId,
+            vendor: quote.vendorId,
+            customer: req.user,
+            writeStream: res
         });
     } catch (err) {
         next(err);

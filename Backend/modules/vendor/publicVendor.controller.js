@@ -485,11 +485,12 @@ exports.getVendorAvailability = async (req, res, next) => {
             });
         }
 
+        const { getWeatherForDate, getWeatherForMonth } = require('../../services/weather.service');
         const vendor = await Vendor.findOne({
             _id: id,
             status: 'Approved',
             isActive: { $ne: false }
-        }).select('_id businessName blockedDates').lean();
+        }).select('_id businessName city blockedDates').lean();
 
         if (!vendor) {
             return res.status(404).json({
@@ -497,6 +498,8 @@ exports.getVendorAvailability = async (req, res, next) => {
                 message: 'Vendor not found'
             });
         }
+
+        const vendorCity = vendor.city || 'Indore';
 
         // If specific date requested
         if (date) {
@@ -527,14 +530,17 @@ exports.getVendorAvailability = async (req, res, next) => {
             });
 
             const isAvailable = !conflictingBooking && !isManuallyBlocked;
+            const weather = await getWeatherForDate(vendorCity, targetDate.toISOString().split('T')[0]);
 
             return res.status(200).json({
                 success: true,
                 vendorId: id,
+                vendorCity,
                 date: targetDate.toISOString().split('T')[0],
                 isAvailable,
                 status: isAvailable ? 'Available' : 'Unavailable',
-                reason: conflictingBooking ? 'Confirmed Booking Conflict' : (isManuallyBlocked ? 'Blocked by Vendor' : null)
+                reason: conflictingBooking ? 'Confirmed Booking Conflict' : (isManuallyBlocked ? 'Blocked by Vendor' : null),
+                weather
             });
         }
 
@@ -552,12 +558,15 @@ exports.getVendorAvailability = async (req, res, next) => {
         const confirmedBookings = await Booking.find(dateQuery).select('eventDate').lean();
         const bookedDates = confirmedBookings.map(b => b.eventDate.toISOString().split('T')[0]);
         const blockedDates = (vendor.blockedDates || []).map(d => new Date(d).toISOString().split('T')[0]);
+        const weatherForecasts = await getWeatherForMonth(vendorCity, month);
 
         res.status(200).json({
             success: true,
             vendorId: id,
+            vendorCity,
             bookedDates: Array.from(new Set(bookedDates)),
-            blockedDates: Array.from(new Set(blockedDates))
+            blockedDates: Array.from(new Set(blockedDates)),
+            weatherForecasts
         });
     } catch (err) {
         next(err);

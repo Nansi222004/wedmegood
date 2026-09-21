@@ -44,6 +44,11 @@ const paymentSchema = new mongoose.Schema({
         type: String,
         default: 'INR'
     },
+    paymentType: {
+        type: String,
+        enum: ['ADVANCE', 'BALANCE', 'FULL'],
+        default: 'FULL'
+    },
     commissionRate: {
         type: Number,
         default: null

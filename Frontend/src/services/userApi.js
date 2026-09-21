@@ -173,10 +173,55 @@ export const userApi = {
     });
   },
 
-  rejectQuote: async (quoteId) => {
+  rejectQuote: async (quoteId, reason = '') => {
     return request(`/user/quotes/${quoteId}/reject`, {
-      method: 'PUT'
+      method: 'PUT',
+      body: JSON.stringify({ reason })
     });
+  },
+
+  downloadQuotePdf: async (quoteId) => {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('Please log in to download quotation PDF');
+    }
+    const res = await fetch(`${API_BASE_URL}/user/quotes/${quoteId}/pdf`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.message || `Failed to download PDF quotation (HTTP ${res.status})`);
+    }
+    const blob = await res.blob();
+    const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(pdfBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    
+    // Extract filename from Content-Disposition header if available
+    const disposition = res.headers.get('content-disposition');
+    let filename = `Quotation_${quoteId}.pdf`;
+    if (disposition && disposition.includes('filename=')) {
+      const match = disposition.match(/filename="?([^";]+)"?/);
+      if (match && match[1]) {
+        filename = match[1].trim();
+      }
+    }
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  },
+
+  getWeatherForecast: async ({ location, date, venueType = 'Not Specified' }) => {
+    const params = new URLSearchParams();
+    if (location) params.append('location', location);
+    if (date) params.append('date', date);
+    if (venueType) params.append('venueType', venueType);
+    return request(`/user/weather-forecast?${params.toString()}`, { method: 'GET' });
   },
 
   // Bookings

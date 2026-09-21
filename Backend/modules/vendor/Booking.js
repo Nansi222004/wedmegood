@@ -36,6 +36,11 @@ const bookingSchema = new mongoose.Schema({
         enum: ['Wedding', 'Reception', 'Haldi', 'Engagement', 'Corporate', 'Other'],
         default: 'Wedding'
     },
+    venueType: {
+        type: String,
+        enum: ['Outdoor', 'Indoor', 'Both', 'Not Specified'],
+        default: 'Not Specified'
+    },
     services: [{
         type: String
     }],
@@ -53,13 +58,29 @@ const bookingSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['Confirmed', 'In Progress', 'Completed', 'Cancelled'],
-        default: 'Confirmed'
+        enum: ['Pending', 'Confirmed', 'In Progress', 'Completed', 'Cancelled'],
+        default: 'Pending'
     },
     paymentStatus: {
         type: String,
         enum: ['Pending', 'Partial', 'Paid', 'Refunded'],
         default: 'Pending'
+    },
+    quoteSnapshot: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null
+    },
+    advancePaymentRequired: {
+        type: Number,
+        default: 0
+    },
+    paidAmount: {
+        type: Number,
+        default: 0
+    },
+    outstandingBalance: {
+        type: Number,
+        default: 0
     },
     commission: {
         type: Number,

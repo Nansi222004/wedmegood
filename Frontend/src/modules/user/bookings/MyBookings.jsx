@@ -9,6 +9,8 @@ import Button from '../../../components/ui/Button';
 import userApi from '../../../services/userApi';
 import { toast } from '../../../components/ui/Toast';
 import ConfirmModal from '../../../components/ui/ConfirmModal';
+import QuotationModal from '../../common/QuotationModal';
+import WeatherForecastCard from '../../common/WeatherForecastCard';
 import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
 
 const MyBookings = ({ initialTab = 'quotes' }) => {
@@ -36,6 +38,7 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
   const [selectedBookingDetail, setSelectedBookingDetail] = useState(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [eligibleReviewIds, setEligibleReviewIds] = useState(new Set());
+  const [selectedQuoteForModal, setSelectedQuoteForModal] = useState(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -91,14 +94,37 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
   const confirmAcceptQuote = async () => {
     if (!quoteToAccept?._id) return;
     const quoteId = quoteToAccept._id;
+    const quoteSnapshot = quoteToAccept;
     setActionLoading(quoteId);
     try {
       const res = await userApi.acceptQuote(quoteId);
       if (res.success) {
-        toast.success('Congratulations! Your quote was accepted and your booking has been confirmed.');
+        const booking = res.data?.booking;
+        const advanceRequired = res.data?.advancePaymentAmount ?? booking?.advancePaymentRequired ?? (Number(quoteSnapshot.advancePaymentAmount) || 0);
         setQuoteToAccept(null);
         await loadData();
-        setActiveTab('bookings');
+
+        if (advanceRequired > 0 && booking?._id) {
+          toast.info(`Quote accepted! Redirecting to complete advance payment of ₹${advanceRequired.toLocaleString('en-IN')}.`);
+          navigate('/user/checkout', {
+            state: {
+              bookingId: booking._id,
+              booking: booking,
+              payableAmount: advanceRequired,
+              items: [{
+                id: `${booking._id}-advance`,
+                name: `Advance Payment for ${quoteSnapshot.vendorId?.businessName || 'Wedding Vendor'}`,
+                category: 'Booking Advance',
+                price: `₹${advanceRequired.toLocaleString('en-IN')}`,
+                quantity: 1,
+                whatsappNumber: quoteSnapshot.vendorId?.phone || ''
+              }]
+            }
+          });
+        } else {
+          toast.success('Congratulations! Your quote was accepted. Awaiting vendor schedule confirmation.');
+          setActiveTab('bookings');
+        }
       } else {
         throw new Error(res.message || 'Failed to accept quote');
       }
@@ -426,6 +452,27 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
       {/* TAB 1: QUOTES & INQUIRIES */}
       {activeTab === 'quotes' && (
         <>
+          {quotes.length > 1 && (
+            <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-100 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white shadow-xs border border-rose-200 flex items-center justify-center text-[#E91E63] shrink-0">
+                  <Icon name="columns" size="sm" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Multi-Vendor Quotation Matrix</h4>
+                  <p className="text-[11px] text-slate-500">You have {quotes.length} official quotations. Compare pricing, services, terms, and date availability side-by-side.</p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => navigate('/user/quotes/compare')}
+                className="w-full sm:w-auto text-xs font-bold bg-[#E91E63] hover:bg-[#D81B60] shrink-0 flex items-center gap-1.5"
+              >
+                <Icon name="columns" size="xs" />
+                Compare Quotes Matrix
+              </Button>
+            </div>
+          )}
           {inquiries.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-200 px-6">
               <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg mb-4">
@@ -497,6 +544,15 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                         )}
                       </div>
 
+                      {/* Event Weather Forecast (Open-Meteo, Informational Advisory) */}
+                      {inquiry.eventDate && (
+                        <WeatherForecastCard
+                          eventDate={inquiry.eventDate}
+                          location={inquiry.eventLocation || inquiry.vendorId?.city}
+                          venueType={inquiry.venueType || 'Not Specified'}
+                        />
+                      )}
+
                       {/* Official Vendor Quotation */}
                       {quote && (
                         <div className="border-t border-slate-100 pt-6 mt-6">
@@ -514,6 +570,36 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                                 ₹{(quote.totalAmount || 0).toLocaleString()}
                               </span>
                             </div>
+                          </div>
+
+                          {/* Quick Actions & Official Quotation Triggers */}
+                          <div className="flex flex-wrap items-center gap-2 mb-4">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedQuoteForModal(quote)}
+                              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <Icon name="fileText" size="xs" /> View Official Quotation
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await userApi.downloadQuotePdf(quote._id);
+                                  toast.success('Official quotation PDF downloaded successfully!');
+                                } catch (err) {
+                                  toast.error('Failed to download PDF quotation');
+                                }
+                              }}
+                              className="px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50 text-[#E91E63] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <Icon name="download" size="xs" /> Download PDF
+                            </button>
+                            {(Number(quote.advancePaymentAmount) || 0) > 0 && (
+                              <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                                Advance Required: ₹{Number(quote.advancePaymentAmount).toLocaleString('en-IN')}
+                              </span>
+                            )}
                           </div>
 
                           {quote.items && quote.items.length > 0 && (
@@ -534,15 +620,17 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <button
                                 disabled={actionLoading === quote._id}
-                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl py-3.5 font-bold text-sm shadow-lg shadow-emerald-200 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl py-3.5 font-bold text-sm shadow-lg shadow-emerald-200 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
                                 onClick={() => handleAcceptQuote(quote)}
                               >
                                 {actionLoading === quote._id ? (
                                   <div className="w-5 h-5 border-2 border-white border-t-transparent animate-spin rounded-full" />
                                 ) : (
                                   <>
-                                    <Icon name="checkCircle" size="xs" color="white" />
-                                    Accept & Confirm Booking
+                                    <Icon name="check" size="xs" color="white" />
+                                    {(Number(quote.advancePaymentAmount) || 0) > 0
+                                      ? `Accept & Pay Advance (₹${Number(quote.advancePaymentAmount).toLocaleString('en-IN')})`
+                                      : 'Accept Quote'}
                                   </>
                                 )}
                               </button>
@@ -685,6 +773,15 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                         </div>
                       </div>
 
+                      {/* Event Weather Forecast (Open-Meteo, Informational Advisory) */}
+                      {booking.eventDate && (
+                        <WeatherForecastCard
+                          eventDate={booking.eventDate}
+                          location={booking.location || booking.vendorId?.city}
+                          venueType={booking.venueType || 'Not Specified'}
+                        />
+                      )}
+
                       {/* Services booked */}
                       <div className="bg-slate-50/60 rounded-2xl p-4 mb-5 border border-slate-100">
                         <div className="flex items-center justify-between mb-1.5">
@@ -731,10 +828,14 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                         {!isPaid && !isCancelled && outstanding > 0 && (
                           <button
                             onClick={() => handlePayNow(booking)}
-                            className="px-5 py-2.5 bg-[#E91E63] hover:bg-[#D81B60] text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-pink-200 active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                            className="px-5 py-2.5 bg-[#E91E63] hover:bg-[#D81B60] text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-pink-200 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                           >
                             <Icon name="creditCard" size="xs" color="white" />
-                            Pay ₹{outstanding.toLocaleString('en-IN')}
+                            {booking.status === 'Pending' && paidAmount === 0 && (booking.advancePaymentRequired || 0) > 0
+                              ? `Pay Advance (₹${Number(booking.advancePaymentRequired).toLocaleString('en-IN')})`
+                              : paidAmount > 0
+                              ? `Pay Balance (₹${outstanding.toLocaleString('en-IN')})`
+                              : `Pay ₹${outstanding.toLocaleString('en-IN')}`}
                           </button>
                         )}
 
@@ -772,17 +873,134 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
           )}
         </>
       )}
-      {/* Accept Quote Modal */}
-      <ConfirmModal
-        isOpen={!!quoteToAccept}
-        title="Accept Quote & Confirm Booking"
-        message="Are you sure you want to accept this quote? This will confirm your booking with the vendor."
-        confirmText={actionLoading ? 'Confirming...' : 'Accept Quote'}
-        cancelText="Cancel"
-        isDestructive={false}
-        onConfirm={confirmAcceptQuote}
-        onCancel={() => setQuoteToAccept(null)}
-      />
+      {/* Dedicated Authoritative Quote Acceptance Breakdown Modal */}
+      {quoteToAccept && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2rem] max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 mb-5 border-b border-slate-100 pb-4">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-[#E91E63] bg-pink-50 px-2.5 py-1 rounded-full">
+                  Official Quotation
+                </span>
+                <h3 className="text-xl font-black text-slate-900 mt-2">
+                  Review & Accept Quotation
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  Vendor: <span className="font-bold text-slate-800">{quoteToAccept.vendorId?.businessName || 'Wedding Vendor'}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuoteToAccept(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Authoritative Financial Reconciliation Breakdown */}
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 mb-5">
+              <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                Financial Schedule & Terms
+              </h4>
+              <div className="space-y-2.5 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 font-medium">Total Contract Value:</span>
+                  <span className="text-base font-black text-slate-900">
+                    ₹{(quoteToAccept.totalAmount || 0).toLocaleString('en-IN')}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center py-2.5 border-y border-slate-200/60">
+                  <div>
+                    <span className="text-slate-800 font-bold block">
+                      Amount Due Now (Advance):
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      {(Number(quoteToAccept.advancePaymentAmount) || 0) > 0
+                        ? `Required to lock date (${quoteToAccept.advancePaymentPercent ? `${quoteToAccept.advancePaymentPercent}%` : 'Advance'})`
+                        : 'No upfront advance required'}
+                    </span>
+                  </div>
+                  <span className={`text-base font-black ${(Number(quoteToAccept.advancePaymentAmount) || 0) > 0 ? 'text-amber-700' : 'text-slate-700'}`}>
+                    ₹{(Number(quoteToAccept.advancePaymentAmount) || 0).toLocaleString('en-IN')}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center pt-1">
+                  <div>
+                    <span className="text-slate-600 font-medium block">
+                      Remaining Balance (Due Later):
+                    </span>
+                    <span className="text-[10px] text-slate-400">Payable as per event milestones</span>
+                  </div>
+                  <span className="text-base font-black text-slate-900">
+                    ₹{Math.max(0, (quoteToAccept.totalAmount || 0) - (Number(quoteToAccept.advancePaymentAmount) || 0)).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Milestone Payment Schedule if defined */}
+            {quoteToAccept.milestonePaymentTerms && quoteToAccept.milestonePaymentTerms.length > 0 && (
+              <div className="mb-4">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Payment Milestones</p>
+                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden text-xs">
+                  {quoteToAccept.milestonePaymentTerms.map((m, idx) => (
+                    <div key={idx} className="flex justify-between items-center px-3 py-2 border-b border-slate-100 last:border-b-0">
+                      <span className="font-semibold text-slate-700">{m.stage || `Stage ${idx + 1}`} ({m.percentage}%)</span>
+                      <span className="font-bold text-slate-900">₹{Number(m.amount || 0).toLocaleString('en-IN')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Terms and Cancellation Notice */}
+            <div className="bg-amber-50/70 border border-amber-200/60 rounded-xl p-3 mb-6 text-xs text-amber-900">
+              <div className="font-bold flex items-center gap-1.5 mb-1">
+                <span>🛡️</span>
+                <span>Booking & Payment Policy</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-amber-800">
+                {quoteToAccept.cancellationTerms || 'Accepting this quotation creates a Pending booking record. If an advance is required, your booking is officially confirmed upon verified payment receipt.'}
+              </p>
+              {quoteToAccept.validUntil && (
+                <p className="text-[10px] font-bold text-amber-700 mt-1">
+                  ⏳ Quote valid until: {new Date(quoteToAccept.validUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setQuoteToAccept(null)}
+                className="px-5 py-2.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold transition-all cursor-pointer"
+              >
+                Go Back
+              </button>
+              <button
+                type="button"
+                disabled={!!actionLoading}
+                onClick={confirmAcceptQuote}
+                className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-lg shadow-emerald-200 active:scale-95 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {actionLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent animate-spin rounded-full" />
+                ) : (
+                  <Icon name="check" size="xs" color="white" />
+                )}
+                {(Number(quoteToAccept.advancePaymentAmount) || 0) > 0
+                  ? `Accept & Pay Advance (₹${Number(quoteToAccept.advancePaymentAmount).toLocaleString('en-IN')})`
+                  : 'Accept Quote & Submit Booking'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Reject Quote Modal */}
       <ConfirmModal
@@ -1093,6 +1311,18 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
           </div>
         </div>,
         document.body
+      )}
+
+      {/* Official Quotation Modal */}
+      {selectedQuoteForModal && (
+        <QuotationModal
+          isOpen={Boolean(selectedQuoteForModal)}
+          onClose={() => setSelectedQuoteForModal(null)}
+          quote={selectedQuoteForModal}
+          isVendor={false}
+          onAccept={(q) => handleAcceptQuote(q)}
+          onReject={(q) => handleRejectQuote(q)}
+        />
       )}
     </div>
   );
