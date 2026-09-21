@@ -16,7 +16,7 @@ const UserRoutes = () => {
   return (
     <div className="min-h-screen bg-theme-card">
       <Header />
-      <main className="pb-16 md:pb-0">
+      <main className="pb-24 md:pb-0">
         <Routes>
           <Route path="/" element={<UserHome />} />
           <Route path="/login" element={<Login />} />

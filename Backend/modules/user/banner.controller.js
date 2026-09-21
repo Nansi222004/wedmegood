@@ -41,7 +41,7 @@ exports.getPublicBanners = async (req, res, next) => {
         }
 
         const banners = await Banner.find(filter)
-            .select('_id title description imageUrl linkUrl placement platform category')
+            .select('_id title description imageUrl linkUrl placement platform category buttonText buttonUrl features')
             .sort('-createdAt')
             .lean();
 

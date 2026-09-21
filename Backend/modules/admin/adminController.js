@@ -707,6 +707,10 @@ exports.createBanner = async (req, res, next) => {
         if (req.file) {
             bannerData.imageUrl = req.file.path; // Cloudinary URL
         }
+        // Parse features JSON string from FormData
+        if (bannerData.features && typeof bannerData.features === 'string') {
+            try { bannerData.features = JSON.parse(bannerData.features); } catch(e) { bannerData.features = []; }
+        }
         const banner = await Banner.create(bannerData);
 
         // Log action
@@ -733,6 +737,10 @@ exports.updateBanner = async (req, res, next) => {
         const bannerData = { ...req.body };
         if (req.file) {
             bannerData.imageUrl = req.file.path;
+        }
+        // Parse features JSON string from FormData
+        if (bannerData.features && typeof bannerData.features === 'string') {
+            try { bannerData.features = JSON.parse(bannerData.features); } catch(e) { bannerData.features = []; }
         }
         const banner = await Banner.findByIdAndUpdate(req.params.id, bannerData, {
             new: true,
