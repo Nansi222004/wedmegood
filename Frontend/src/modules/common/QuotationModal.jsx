@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '../../components/ui/Icon';
 import Button from '../../components/ui/Button';
 import { userApi } from '../../services/userApi';
@@ -17,9 +18,26 @@ const QuotationModal = ({
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
 
+  // Lock background scroll and listen for Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen || !quote) return null;
 
-  const quoteNum = quote.quotationNumber || `QT-${quote._id.slice(-6).toUpperCase()}`;
+  const quoteNum = quote.quotationNumber || `QT-${(quote._id || '').slice(-6).toUpperCase()}`;
   const vendor = quote.vendorId || {};
   const lead = quote.leadId || {};
   const customer = quote.userId || {};
@@ -58,18 +76,37 @@ const QuotationModal = ({
     { service: 'Wedding Service Package', description: quote.notes || '', price: quote.totalAmount, quantity: 1, amount: quote.totalAmount }
   ];
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 print:p-0 print:bg-white">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden print:border-none print:shadow-none print:max-w-none">
+  const totalAmount = Number(quote.totalAmount || 0);
+  const advanceAmount = Number(quote.advancePaymentAmount || 0);
+  const remainingBalance = Math.max(0, totalAmount - advanceAmount);
+
+  return createPortal(
+    <div 
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-6 overflow-y-auto print:p-0 print:bg-white animate-in fade-in duration-200"
+      role="dialog"
+      aria-modal="true"
+    >
+      {/* Clickable Backdrop overlay covering entire window */}
+      <div 
+        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity print:hidden"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Modal Dialog Box Centered in Viewport */}
+      <div 
+        className="relative z-10 bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[90vh] my-auto flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 print:border-none print:shadow-none print:max-w-none print:max-h-none print:overflow-visible"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Topbar Actions (hidden on print) */}
-        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-slate-50/70 print:hidden">
-          <div className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded-xl bg-rose-100 flex items-center justify-center text-[#E91E63]">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-slate-50/90 shrink-0 print:hidden">
+          <div className="flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-xl bg-rose-100 flex items-center justify-center text-[#E91E63] shrink-0">
               <Icon name="fileText" size="sm" />
             </span>
             <div>
               <h2 className="text-sm sm:text-base font-bold text-slate-900">Official Quotation View</h2>
-              <p className="text-[11px] text-slate-500">{quoteNum}</p>
+              <p className="text-[11px] text-slate-500 font-mono">{quoteNum}</p>
             </div>
           </div>
 
@@ -78,7 +115,7 @@ const QuotationModal = ({
               size="sm"
               variant="outline"
               onClick={handlePrint}
-              className="text-xs flex items-center gap-1.5 rounded-xl"
+              className="text-xs flex items-center gap-1.5 rounded-xl cursor-pointer"
             >
               <Icon name="printer" size="xs" />
               <span className="hidden sm:inline">Print</span>
@@ -88,14 +125,15 @@ const QuotationModal = ({
               variant="outline"
               disabled={downloadingPdf}
               onClick={handleDownloadPdf}
-              className="text-xs flex items-center gap-1.5 rounded-xl border-[#E91E63] text-[#E91E63] hover:bg-rose-50"
+              className="text-xs flex items-center gap-1.5 rounded-xl border-[#E91E63] text-[#E91E63] hover:bg-rose-50 cursor-pointer"
             >
               <Icon name="download" size="xs" />
               <span>{downloadingPdf ? 'Exporting...' : 'PDF'}</span>
             </Button>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500"
+              className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer transition-colors"
+              title="Close quotation"
             >
               ✕
             </button>
@@ -103,7 +141,7 @@ const QuotationModal = ({
         </div>
 
         {/* Printable Quotation Document Container */}
-        <div className="p-6 sm:p-8 space-y-6 max-h-[80vh] overflow-y-auto print:max-h-none print:p-0">
+        <div className="flex-1 p-6 sm:p-8 space-y-6 overflow-y-auto print:overflow-visible print:p-0">
           {/* Document Header */}
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-slate-200">
             <div>
@@ -120,7 +158,7 @@ const QuotationModal = ({
               <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusColors[quote.status] || 'bg-slate-100 text-slate-700'}`}>
                 {quote.status}
               </span>
-              <p className="text-sm font-bold text-slate-800">{quoteNum}</p>
+              <p className="text-sm font-bold text-slate-800 font-mono">{quoteNum}</p>
               <p className="text-xs text-slate-500">
                 Date: {quote.createdAt ? new Date(quote.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
               </p>
@@ -184,22 +222,41 @@ const QuotationModal = ({
           {/* Totals Breakdown */}
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 pt-4 border-t border-slate-200">
             {/* Terms & Payment Conditions */}
-            <div className="sm:max-w-xs space-y-2 text-xs text-slate-600">
-              <span className="font-bold uppercase tracking-wider text-slate-400 text-[10px]">Payment & Cancellation Terms</span>
-              <p>{quote.terms || 'Advance booking deposit required to lock dates. Balance payable upon milestone completion.'}</p>
+            <div className="sm:max-w-xs space-y-3 text-xs text-slate-600">
+              <div>
+                <span className="font-bold uppercase tracking-wider text-slate-400 text-[10px] block mb-1">Payment & Cancellation Terms</span>
+                <p className="text-slate-700 leading-relaxed">{quote.terms || 'Advance booking deposit required to lock dates. Balance payable upon milestone completion.'}</p>
+              </div>
+
               {quote.cancellationTerms && (
-                <p className="text-slate-500 pt-1 border-t border-slate-100">
-                  <strong>Cancellation Policy:</strong> {quote.cancellationTerms}
-                </p>
+                <div className="pt-2 border-t border-slate-100">
+                  <span className="font-bold uppercase tracking-wider text-slate-400 text-[10px] block mb-1">Cancellation Policy</span>
+                  <p className="text-slate-600 text-[11px] leading-relaxed">{quote.cancellationTerms}</p>
+                </div>
+              )}
+
+              {/* Milestone Terms */}
+              {Array.isArray(quote.milestonePaymentTerms) && quote.milestonePaymentTerms.length > 0 && (
+                <div className="pt-2 border-t border-slate-100">
+                  <span className="font-bold uppercase tracking-wider text-slate-400 text-[10px] block mb-1.5">Milestone Schedule</span>
+                  <div className="space-y-1">
+                    {quote.milestonePaymentTerms.map((m, mIdx) => (
+                      <div key={mIdx} className="flex justify-between text-[11px] bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                        <span className="font-semibold text-slate-700">{m.stage || `Stage ${mIdx + 1}`} ({m.percentage}%)</span>
+                        <span className="font-bold text-slate-900">₹{Number(m.amount || 0).toLocaleString('en-IN')}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
 
             {/* Financial Summary Card */}
-            <div className="sm:w-72 bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2 text-xs">
+            <div className="sm:w-72 bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5 text-xs">
               <div className="flex justify-between text-slate-600">
                 <span>Subtotal:</span>
                 <span className="font-medium text-slate-800">
-                  ₹{(Number(quote.subtotal) || Number(quote.totalAmount) || 0).toLocaleString('en-IN')}
+                  ₹{(Number(quote.subtotal) || totalAmount).toLocaleString('en-IN')}
                 </span>
               </div>
 
@@ -218,14 +275,20 @@ const QuotationModal = ({
               )}
 
               <div className="flex justify-between pt-2 border-t border-slate-200 text-sm font-black text-slate-900">
-                <span>Total Amount:</span>
-                <span className="text-[#E91E63]">₹{(Number(quote.totalAmount) || 0).toLocaleString('en-IN')}</span>
+                <span>Total Contract Value:</span>
+                <span className="text-[#E91E63]">₹{totalAmount.toLocaleString('en-IN')}</span>
               </div>
 
-              {(Number(quote.advancePaymentAmount) || 0) > 0 && (
-                <div className="flex justify-between pt-2 text-amber-700 font-bold">
-                  <span>Advance Required:</span>
-                  <span>₹{(Number(quote.advancePaymentAmount) || 0).toLocaleString('en-IN')}</span>
+              {advanceAmount > 0 && (
+                <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                  <div className="flex justify-between text-amber-700 font-bold">
+                    <span>Advance Required:</span>
+                    <span>₹{advanceAmount.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600 font-bold">
+                    <span>Remaining Balance:</span>
+                    <span className="text-slate-900">₹{remainingBalance.toLocaleString('en-IN')}</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -245,7 +308,7 @@ const QuotationModal = ({
                     onClose();
                   }
                 }}
-                className="w-full sm:w-auto text-xs text-rose-600 border-rose-200 hover:bg-rose-50"
+                className="w-full sm:w-auto text-xs text-rose-600 border-rose-200 hover:bg-rose-50 cursor-pointer"
               >
                 Decline Quote
               </Button>
@@ -259,7 +322,7 @@ const QuotationModal = ({
                     onClose();
                   }
                 }}
-                className="w-full sm:w-auto text-xs font-bold bg-[#E91E63] hover:bg-[#D81B60]"
+                className="w-full sm:w-auto text-xs font-bold bg-[#E91E63] hover:bg-[#D81B60] cursor-pointer"
               >
                 Accept & Proceed to Booking
               </Button>
@@ -267,7 +330,8 @@ const QuotationModal = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
