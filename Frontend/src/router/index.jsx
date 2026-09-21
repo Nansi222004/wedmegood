@@ -123,9 +123,19 @@ const AppRouter = () => {
 
             {/* All other routes with Header/BottomNav */}
             <Route path="*" element={
-              <div className="min-h-screen bg-theme-card">
+              <div className="min-h-screen relative">
+                <div 
+                  className="fixed inset-0 z-[-1]" 
+                  style={{ 
+                    backgroundImage: "url('/background.png')", 
+                    backgroundSize: '100% 100%', 
+                    backgroundPosition: 'center', 
+                    backgroundColor: '#EAE1D8',
+                    backgroundRepeat: 'no-repeat'
+                  }} 
+                />
                 <Header />
-                <main className="pb-16 md:pb-0">
+                <main className="pb-16 md:pb-0 relative z-0">
                   <Routes>
                     <Route path="dashboard" element={<Dashboard />} />
                     <Route path="home" element={<UserHome />} />

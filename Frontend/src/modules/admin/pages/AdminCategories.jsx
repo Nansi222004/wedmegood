@@ -17,6 +17,22 @@ const AdminCategories = () => {
     const [mainForm, setMainForm] = useState({ name: '', description: '', image: '', order: 0 });
     const [subForm, setSubForm] = useState(null); // { _id?, name: '', description: '', isActive: true }
     
+    // Image Upload State
+    const [imageFile, setImageFile] = useState(null);
+    const [imagePreview, setImagePreview] = useState(null);
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setImageFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setImagePreview(reader.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+    
     // Deletion Confirmation States
     const [categoryToDelete, setCategoryToDelete] = useState(null);
     const [subToDelete, setSubToDelete] = useState(null);
@@ -62,6 +78,8 @@ const AdminCategories = () => {
         setSelectedCategory(null);
         setIsCreatingMain(true);
         setMainForm({ name: '', description: '', image: '', order: categories.length });
+        setImageFile(null);
+        setImagePreview(null);
     };
 
     const handleEditMainClick = () => {
@@ -72,6 +90,8 @@ const AdminCategories = () => {
             image: selectedCategory.image || '', 
             order: selectedCategory.order || 0 
         });
+        setImageFile(null);
+        setImagePreview(selectedCategory.image || null);
     };
 
     const handleMainSubmit = async (e) => {
@@ -84,11 +104,31 @@ const AdminCategories = () => {
         try {
             setActionLoading(true);
             let res;
+            let finalImageUrl = mainForm.image;
+            
+            if (imageFile) {
+                const formData = new FormData();
+                formData.append('image', imageFile);
+                const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
+                const uploadRes = await fetch(`${API_BASE_URL}/upload/single`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const uploadData = await uploadRes.json();
+                if (uploadData.success) {
+                    finalImageUrl = uploadData.data.url;
+                } else {
+                    toast.error(getFriendlyErrorMessage(uploadData, 'Failed to upload image.'));
+                    setActionLoading(false);
+                    return;
+                }
+            }
             
             // If editing, preserve subCategories. If new, subCategories is empty.
             const payload = {
                 ...mainForm,
                 name: mainForm.name.trim(),
+                image: finalImageUrl,
                 subCategories: selectedCategory ? selectedCategory.subCategories : []
             };
 
@@ -151,26 +191,23 @@ const AdminCategories = () => {
 
         try {
             setActionLoading(true);
-            let updatedSubs = [...(selectedCategory.subCategories || [])];
             
-            if (subForm._id) {
-                // Edit existing
-                const index = updatedSubs.findIndex(s => s._id === subForm._id);
-                if (index !== -1) updatedSubs[index] = { ...updatedSubs[index], ...subForm, name: subForm.name.trim() };
-            } else {
-                // Add new
-                updatedSubs.push({ name: subForm.name.trim(), description: subForm.description, isActive: subForm.isActive });
-            }
-
             const payload = {
-                name: selectedCategory.name,
-                description: selectedCategory.description,
-                image: selectedCategory.image,
-                order: selectedCategory.order,
-                subCategories: updatedSubs
+                categoryId: selectedCategory._id,
+                name: subForm.name.trim(),
+                description: subForm.description,
+                status: subForm.isActive
             };
 
-            const res = await adminApi.updateCategory(selectedCategory._id, payload, token);
+            let res;
+            if (subForm._id) {
+                // Edit existing
+                res = await adminApi.updateSubCategory(subForm._id, payload, token);
+            } else {
+                // Add new
+                res = await adminApi.createSubCategory(payload, token);
+            }
+
             if (res.success) {
                 toast.success(subForm._id ? 'Subcategory updated successfully.' : 'Subcategory added successfully.');
                 await fetchCategories(selectedCategory._id);
@@ -194,12 +231,7 @@ const AdminCategories = () => {
         if (!subToDelete || !selectedCategory) return;
         try {
             setIsDeleting(true);
-            const updatedSubs = selectedCategory.subCategories.filter(s => s._id !== subToDelete);
-            const payload = {
-                name: selectedCategory.name,
-                subCategories: updatedSubs
-            };
-            const res = await adminApi.updateCategory(selectedCategory._id, payload, token);
+            const res = await adminApi.deleteSubCategory(subToDelete, token);
             if (res.success) {
                 toast.success('Subcategory deleted successfully.');
                 fetchCategories(selectedCategory._id);
@@ -229,14 +261,7 @@ const AdminCategories = () => {
 
     const handleToggleSubActive = async (subId, currentStatus) => {
         try {
-            const updatedSubs = selectedCategory.subCategories.map(s => 
-                s._id === subId ? { ...s, isActive: !currentStatus } : s
-            );
-            const payload = {
-                name: selectedCategory.name,
-                subCategories: updatedSubs
-            };
-            const res = await adminApi.updateCategory(selectedCategory._id, payload, token);
+            const res = await adminApi.updateSubCategory(subId, { status: !currentStatus }, token);
             if (res.success) {
                 fetchCategories(selectedCategory._id);
             }
@@ -364,11 +389,41 @@ const AdminCategories = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Image URL</label>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Upload Cover Image</label>
+                                    <div className="relative group">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleFileChange}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                        />
+                                        <div className="w-full h-32 bg-[#F9F8FF] border-2 border-dashed border-[#EAE6FF] rounded-xl flex flex-col items-center justify-center gap-2 group-hover:border-[#4F35C3]/30 transition-all overflow-hidden">
+                                            {imagePreview ? (
+                                                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                            ) : mainForm.image ? (
+                                                <img src={mainForm.image} alt="Preview" className="w-full h-full object-cover opacity-50" />
+                                            ) : (
+                                                <>
+                                                    <Icon name="camera" size="sm" color="#cbd5e1" />
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Click to upload image</p>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-3 mt-4 mb-2">
+                                        <div className="h-[1px] flex-1 bg-[#EAE6FF]"></div>
+                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">OR PASTE URL</span>
+                                        <div className="h-[1px] flex-1 bg-[#EAE6FF]"></div>
+                                    </div>
+                                    
                                     <input
                                         type="text"
                                         value={mainForm.image}
-                                        onChange={(e) => setMainForm({...mainForm, image: e.target.value})}
+                                        onChange={(e) => {
+                                            setMainForm({...mainForm, image: e.target.value});
+                                            if (!imageFile) setImagePreview(e.target.value);
+                                        }}
                                         className="w-full bg-[#F9F8FF] border border-[#EAE6FF] rounded-xl px-4 py-3 text-[12px] font-medium text-slate-600 focus:ring-4 focus:ring-[#4F35C3]/10 focus:border-[#4F35C3]/30 outline-none transition-all"
                                         placeholder="https://images.unsplash.com/..."
                                     />
@@ -440,15 +495,15 @@ const AdminCategories = () => {
                                     <div key={sub._id} className="bg-white p-5 rounded-2xl border border-[#EAE6FF] shadow-[0_4px_20px_rgb(0,0,0,0.02)] group hover:border-[#4F35C3]/40 transition-all flex flex-col justify-between">
                                         <div>
                                             <div className="flex items-center justify-between mb-3">
-                                                <div className={`h-2 w-2 rounded-full ${sub.isActive ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-slate-300'}`} />
+                                                <div className={`h-2 w-2 rounded-full ${((sub.status !== undefined && sub.status) || (sub.status === undefined && sub.isActive)) ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-slate-300'}`} />
                                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <button 
-                                                        onClick={() => handleToggleSubActive(sub._id, sub.isActive)} 
-                                                        className={`h-6 px-2 text-[8px] font-black uppercase tracking-widest rounded-md transition-colors flex items-center gap-1 border ${sub.isActive ? 'border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100' : 'border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
+                                                        onClick={() => handleToggleSubActive(sub._id, sub.status !== undefined ? sub.status : sub.isActive)} 
+                                                        className={`h-6 px-2 text-[8px] font-black uppercase tracking-widest rounded-md transition-colors flex items-center gap-1 border ${((sub.status !== undefined && sub.status) || (sub.status === undefined && sub.isActive)) ? 'border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100' : 'border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100'}`}
                                                     >
-                                                        {sub.isActive ? 'Deactive' : 'Active'}
+                                                        {((sub.status !== undefined && sub.status) || (sub.status === undefined && sub.isActive)) ? 'Active' : 'Deactive'}
                                                     </button>
-                                                    <button onClick={() => setSubForm(sub)} className="h-6 w-6 flex items-center justify-center text-slate-400 hover:text-[#4F35C3] hover:bg-[#F9F8FF] rounded-md transition-colors">
+                                                    <button onClick={() => setSubForm({...sub, isActive: sub.status !== undefined ? sub.status : true})} className="h-6 w-6 flex items-center justify-center text-slate-400 hover:text-[#4F35C3] hover:bg-[#F9F8FF] rounded-md transition-colors">
                                                         <Icon name="edit" size="xs" color="currentColor" />
                                                     </button>
                                                     <button onClick={() => handleDeleteSub(sub._id)} className="h-6 w-6 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-colors">

@@ -296,24 +296,24 @@ const AdminBanners = () => {
                             <form onSubmit={handleSubmit} className="space-y-5 pb-4">
                                 <div className="space-y-1.5">
                                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Asset Title</label>
-                                    <input
-                                        type="text"
+                                    <textarea
                                         required
                                         value={formData.title}
                                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                        className="w-full h-11 px-4 bg-slate-50 border border-slate-100 rounded-xl text-[12px] font-bold text-slate-900 outline-none focus:border-primary-400/50 transition-all"
-                                        placeholder="e.g. Summer Wedding Bonanza"
+                                        className="w-full min-h-[44px] px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-[12px] font-bold text-slate-900 outline-none focus:border-primary-400/50 transition-all resize-y"
+                                        placeholder="e.g. Beautiful&#10;Celebrations&#10;Brighter Lives"
+                                        rows={3}
                                     />
                                 </div>
 
                                 <div className="space-y-1.5">
                                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Description</label>
-                                    <input
-                                        type="text"
+                                    <textarea
                                         value={formData.description}
                                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                        className="w-full h-11 px-4 bg-slate-50 border border-slate-100 rounded-xl text-[12px] font-bold text-slate-900 outline-none focus:border-primary-400/50 transition-all"
-                                        placeholder="e.g. Reach more couples"
+                                        className="w-full min-h-[44px] px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-[12px] font-bold text-slate-900 outline-none focus:border-primary-400/50 transition-all resize-y"
+                                        placeholder="e.g. Find trusted vendors&#10;for your special moments"
+                                        rows={2}
                                     />
                                 </div>
 
