@@ -1,10 +1,20 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../../hooks/useTheme';
 import Icon from '../ui/Icon';
 
 const BottomNav = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Hide BottomNav on family planning, group creation, and chat routes to prevent button overlap
+  if (
+    location.pathname.startsWith('/user/family') ||
+    location.pathname.startsWith('/family') ||
+    location.pathname.includes('/chats/')
+  ) {
+    return null;
+  }
 
   const getHasRequirements = () => {
     try {

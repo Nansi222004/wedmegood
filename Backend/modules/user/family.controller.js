@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 const FamilyGroup = require('./FamilyGroup');
 const FamilyGroupMessage = require('./FamilyGroupMessage');
 const User = require('./user.model');
@@ -8,6 +9,54 @@ const Budget = require('./Budget');
 const Guest = require('./Guest');
 const Inspiration = require('./Inspiration');
 
+// Country-code-aware phone normalization (E.164 compatible)
+const normalizePhone = (phone) => {
+  if (!phone) return '';
+  let cleaned = String(phone).trim().replace(/[\s\-\(\)\.]/g, '');
+  if (!cleaned) return '';
+  if (cleaned.startsWith('00')) {
+    cleaned = '+' + cleaned.slice(2);
+  }
+  if (cleaned.startsWith('+')) {
+    return cleaned;
+  }
+  // Indian 10-digit number without country code (default marketplace locale)
+  if (/^\d{10}$/.test(cleaned)) {
+    return '+91' + cleaned;
+  }
+  // 11 digits starting with trunk '0'
+  if (/^0\d{10}$/.test(cleaned)) {
+    return '+91' + cleaned.slice(1);
+  }
+  // 12 digits starting with '91'
+  if (/^91\d{10}$/.test(cleaned)) {
+    return '+' + cleaned;
+  }
+  return cleaned;
+};
+
+const generateInviteToken = () => {
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  return { rawToken, tokenHash };
+};
+
+const hashInviteToken = (rawToken) => {
+  if (!rawToken) return '';
+  return crypto.createHash('sha256').update(String(rawToken).trim()).digest('hex');
+};
+
+// In-memory idempotency cache (short-lived 10-second deduplication)
+const recentCreations = new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, item] of recentCreations.entries()) {
+    if (now - item.timestamp > 10000) {
+      recentCreations.delete(key);
+    }
+  }
+}, 30000).unref();
+
 // @desc    Get user's family groups (owned or joined)
 // @route   GET /api/user/family-groups
 // @access  Private (User)
@@ -15,12 +64,14 @@ exports.getFamilyGroups = async (req, res) => {
   try {
     const userId = req.user._id;
     const userEmail = req.user.email ? req.user.email.toLowerCase() : '';
+    const userPhone = normalizePhone(req.user.phone);
 
     const allGroups = await FamilyGroup.find({
       $or: [
         { userId },
         { 'members.userId': userId },
-        ...(userEmail ? [{ 'members.email': userEmail }] : [])
+        ...(userEmail ? [{ 'members.email': userEmail }] : []),
+        ...(userPhone ? [{ 'members.phone': userPhone }] : [])
       ]
     }).sort({ createdAt: -1 });
 
@@ -28,15 +79,16 @@ exports.getFamilyGroups = async (req, res) => {
     const pendingInvitations = [];
 
     for (const group of allGroups) {
-      const isOwner = group.userId && group.userId.equals(userId);
+      const isOwner = group.userId && (group.userId.equals ? group.userId.equals(userId) : String(group.userId._id || group.userId) === String(userId));
       if (isOwner) {
         activeGroups.push(group);
         continue;
       }
 
       const myMembership = group.members.find(m =>
-        (m.userId && m.userId.equals(userId)) ||
-        (userEmail && m.email && m.email.toLowerCase() === userEmail)
+        (m.userId && (m.userId.equals ? m.userId.equals(userId) : String(m.userId._id || m.userId) === String(userId))) ||
+        (userEmail && m.email && m.email.toLowerCase() === userEmail) ||
+        (userPhone && m.phone && normalizePhone(m.phone) === userPhone)
       );
 
       if (myMembership) {
@@ -85,6 +137,7 @@ exports.getPendingInvitations = async (req, res) => {
   try {
     const userId = req.user._id;
     const userEmail = req.user.email ? req.user.email.toLowerCase() : '';
+    const userPhone = normalizePhone(req.user.phone);
 
     const groups = await FamilyGroup.find({
       userId: { $ne: userId },
@@ -92,7 +145,8 @@ exports.getPendingInvitations = async (req, res) => {
         $elemMatch: {
           $or: [
             { userId: userId, status: 'pending' },
-            ...(userEmail ? [{ email: userEmail, status: 'pending' }] : [])
+            ...(userEmail ? [{ email: userEmail, status: 'pending' }] : []),
+            ...(userPhone ? [{ phone: userPhone, status: 'pending' }] : [])
           ]
         }
       }
@@ -100,8 +154,11 @@ exports.getPendingInvitations = async (req, res) => {
 
     const invitations = groups.map(group => {
       const myMembership = group.members.find(m =>
-        (m.userId && m.userId.equals(userId) && m.status === 'pending') ||
-        (userEmail && m.email && m.email.toLowerCase() === userEmail && m.status === 'pending')
+        m.status === 'pending' && (
+          (m.userId && (m.userId.equals ? m.userId.equals(userId) : String(m.userId._id || m.userId) === String(userId))) ||
+          (userEmail && m.email && m.email.toLowerCase() === userEmail) ||
+          (userPhone && m.phone && normalizePhone(m.phone) === userPhone)
+        )
       );
       return {
         _id: group._id,
@@ -133,6 +190,7 @@ exports.getPendingInvitations = async (req, res) => {
     });
   }
 };
+
 
 // @desc    Get single family group by ID
 // @route   GET /api/user/family-groups/:id
@@ -197,21 +255,100 @@ exports.createFamilyGroup = async (req, res) => {
       });
     }
 
-    const sanitizedMembers = Array.isArray(members)
-      ? members.map(m => ({
-          userId: m.userId || null,
+    // 5-second idempotency check to prevent rapid duplicate group creations
+    const memberCount = Array.isArray(members) ? members.length : 0;
+    const idempotencyKey = `${userId}_${name.trim().toLowerCase()}_${memberCount}`;
+    const now = Date.now();
+    if (recentCreations.has(idempotencyKey)) {
+      const cached = recentCreations.get(idempotencyKey);
+      if (now - cached.timestamp < 5000) {
+        return res.status(200).json({
+          success: true,
+          message: 'Family group already created',
+          data: { group: cached.group }
+        });
+      }
+    }
+
+    const creatorPhone = normalizePhone(req.user.phone);
+    const creatorEmail = req.user.email ? req.user.email.toLowerCase() : '';
+
+    // Creator is always added as the accepted admin member
+    const creatorMember = {
+      userId: req.user._id,
+      name: req.user.name || 'Organizer',
+      phone: creatorPhone,
+      email: creatorEmail,
+      relation: 'Creator',
+      role: 'admin',
+      status: 'accepted',
+      permissions: ['all'],
+      avatar: req.user.profileImage || '',
+      invitedAt: new Date(),
+      respondedAt: new Date(),
+      inviteTokenHash: null,
+      inviteTokenExpiresAt: null
+    };
+
+    const sanitizedMembers = [creatorMember];
+    const rawTokensMap = {}; // mapping member index -> rawToken for response
+    const seenPhones = new Set();
+    if (creatorPhone) seenPhones.add(creatorPhone);
+    const seenEmails = new Set();
+    if (creatorEmail) seenEmails.add(creatorEmail);
+    const seenUserIds = new Set([String(userId)]);
+
+    if (Array.isArray(members)) {
+      for (const m of members) {
+        if (!m || !m.name) continue;
+        const normPhone = normalizePhone(m.phone);
+        const normEmail = String(m.email || '').trim().toLowerCase();
+
+        // Prevent duplicate against creator or already added member
+        if (m.userId && seenUserIds.has(String(m.userId))) continue;
+        if (normPhone && seenPhones.has(normPhone)) continue;
+        if (normEmail && seenEmails.has(normEmail)) continue;
+
+        if (normPhone) seenPhones.add(normPhone);
+        if (normEmail) seenEmails.add(normEmail);
+
+        // Lookup if registered user exists
+        let targetUserId = m.userId || null;
+        if (!targetUserId && (normEmail || normPhone)) {
+          const conditions = [];
+          if (normEmail) conditions.push({ email: normEmail });
+          if (normPhone) conditions.push({ phone: normPhone });
+          const existingUser = await User.findOne({ $or: conditions });
+          if (existingUser) {
+            targetUserId = existingUser._id;
+            seenUserIds.add(String(targetUserId));
+          }
+        }
+
+        const { rawToken, tokenHash } = generateInviteToken();
+        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+        const memberDoc = {
+          userId: targetUserId,
           name: String(m.name || 'Member').trim(),
-          phone: String(m.phone || '').trim(),
-          email: String(m.email || '').trim().toLowerCase(),
+          phone: normPhone,
+          email: normEmail,
           relation: String(m.relation || 'Family').trim(),
           role: m.role === 'admin' ? 'admin' : 'member',
-          status: m.status || 'accepted',
+          status: 'pending', // REQUIRED: contacts start as pending invitations
           permissions: Array.isArray(m.permissions) ? m.permissions : ['view_planning'],
           avatar: m.avatar || '',
+          inviteTokenHash: tokenHash,
+          inviteTokenExpiresAt: expiresAt,
           invitedAt: new Date(),
-          respondedAt: m.status === 'accepted' ? new Date() : null
-        }))
-      : [];
+          respondedAt: null
+        };
+
+        const idx = sanitizedMembers.length;
+        sanitizedMembers.push(memberDoc);
+        rawTokensMap[idx] = rawToken;
+      }
+    }
 
     const group = await FamilyGroup.create({
       userId,
@@ -228,10 +365,27 @@ exports.createFamilyGroup = async (req, res) => {
       members: sanitizedMembers
     });
 
+    const groupObj = group.toObject();
+    // Expose rawTokens in the immediate response for share link generation
+    if (groupObj.members && Array.isArray(groupObj.members)) {
+      groupObj.members = groupObj.members.map((m, idx) => {
+        if (rawTokensMap[idx]) {
+          return {
+            ...m,
+            inviteToken: rawTokensMap[idx],
+            inviteLink: `/family/join/${rawTokensMap[idx]}`
+          };
+        }
+        return m;
+      });
+    }
+
+    recentCreations.set(idempotencyKey, { timestamp: now, group: groupObj });
+
     res.status(201).json({
       success: true,
       message: 'Family group created successfully',
-      data: { group }
+      data: { group: groupObj }
     });
   } catch (error) {
     console.error('createFamilyGroup error:', error);
@@ -261,7 +415,8 @@ exports.updateFamilyGroup = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Family group not found' });
     }
 
-    if (!group.userId.equals(userId)) {
+    const isOwner = group.userId && (group.userId.equals ? group.userId.equals(userId) : String(group.userId._id || group.userId) === String(userId));
+    if (!isOwner) {
       return res.status(403).json({ success: false, message: 'Only the group owner can update group settings' });
     }
 
@@ -311,8 +466,8 @@ exports.inviteMember = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Family group not found' });
     }
 
-    const isOwner = group.userId.equals(userId);
-    const actingMember = group.members.find(m => m.userId && m.userId.equals(userId));
+    const isOwner = group.userId && (group.userId.equals ? group.userId.equals(userId) : String(group.userId._id || group.userId) === String(userId));
+    const actingMember = group.members.find(m => m.userId && (m.userId.equals ? m.userId.equals(userId) : String(m.userId._id || m.userId) === String(userId)));
     const isAdmin = actingMember && actingMember.role === 'admin' && actingMember.status === 'accepted';
 
     if (!isOwner && !isAdmin) {
@@ -320,37 +475,55 @@ exports.inviteMember = async (req, res) => {
     }
 
     const cleanEmail = email ? email.trim().toLowerCase() : '';
-    let targetUserId = null;
+    const normPhone = normalizePhone(phone);
 
-    if (cleanEmail) {
-      const existingUser = await User.findOne({ email: cleanEmail });
+    // Duplicate check
+    let targetUserId = null;
+    if (cleanEmail || normPhone) {
+      const conditions = [];
+      if (cleanEmail) conditions.push({ email: cleanEmail });
+      if (normPhone) conditions.push({ phone: normPhone });
+      const existingUser = await User.findOne({ $or: conditions });
       if (existingUser) {
         targetUserId = existingUser._id;
       }
-      // Check if already in group
+
       const alreadyInGroup = group.members.some(m =>
-        (m.email && m.email.toLowerCase() === cleanEmail) ||
-        (m.userId && targetUserId && m.userId.equals(targetUserId))
+        (m.status !== 'declined' && m.status !== 'revoked') && (
+          (cleanEmail && m.email && m.email.toLowerCase() === cleanEmail) ||
+          (normPhone && m.phone && normalizePhone(m.phone) === normPhone) ||
+          (targetUserId && m.userId && m.userId.equals(targetUserId))
+        )
       );
       if (alreadyInGroup) {
         return res.status(400).json({ success: false, message: 'This member has already been added or invited to this group' });
       }
     }
 
+    const { rawToken, tokenHash } = generateInviteToken();
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
     const newMember = {
       userId: targetUserId,
       name: name.trim(),
       email: cleanEmail,
-      phone: phone ? phone.trim() : '',
+      phone: normPhone,
       relation: relation ? relation.trim() : 'Family',
       role: isOwner && role === 'admin' ? 'admin' : 'member',
       status: 'pending',
       permissions: Array.isArray(permissions) ? permissions : ['view_planning'],
-      invitedAt: new Date()
+      inviteTokenHash: tokenHash,
+      inviteTokenExpiresAt: expiresAt,
+      invitedAt: new Date(),
+      respondedAt: null
     };
 
     group.members.push(newMember);
     await group.save();
+
+    const createdMember = group.members[group.members.length - 1].toObject();
+    createdMember.inviteToken = rawToken;
+    createdMember.inviteLink = `/family/join/${rawToken}`;
 
     // Send in-app notification to invited user if registered
     if (targetUserId) {
@@ -374,7 +547,11 @@ exports.inviteMember = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Member invitation sent successfully',
-      data: { member: group.members[group.members.length - 1] }
+      data: {
+        member: createdMember,
+        inviteToken: rawToken,
+        inviteLink: `/family/join/${rawToken}`
+      }
     });
   } catch (error) {
     console.error('inviteMember error:', error);
@@ -393,6 +570,7 @@ exports.respondInvitation = async (req, res) => {
   try {
     const userId = req.user._id;
     const userEmail = req.user.email ? req.user.email.toLowerCase() : '';
+    const userPhone = normalizePhone(req.user.phone);
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -405,8 +583,9 @@ exports.respondInvitation = async (req, res) => {
     }
 
     const member = group.members.find(m =>
-      (m.userId && m.userId.equals(userId)) ||
-      (userEmail && m.email && m.email.toLowerCase() === userEmail)
+      (m.userId && (m.userId.equals ? m.userId.equals(userId) : String(m.userId._id || m.userId) === String(userId))) ||
+      (userEmail && m.email && m.email.toLowerCase() === userEmail) ||
+      (userPhone && m.phone && normalizePhone(m.phone) === userPhone)
     );
 
     if (!member) {
@@ -415,11 +594,17 @@ exports.respondInvitation = async (req, res) => {
 
     const isAccepted = req.body.accept === true || req.body.action === 'accept' || req.body.status === 'accepted';
 
-    // Requirement: Ensure a declined or already accepted invitation cannot be accepted again improperly
     if (member.status === 'declined') {
       return res.status(400).json({
         success: false,
         message: 'This invitation was declined and cannot be re-accepted'
+      });
+    }
+
+    if (member.status === 'revoked') {
+      return res.status(400).json({
+        success: false,
+        message: 'This invitation has been revoked'
       });
     }
 
@@ -454,7 +639,9 @@ exports.respondInvitation = async (req, res) => {
         $set: {
           'members.$.status': newStatus,
           'members.$.userId': userId,
-          'members.$.respondedAt': new Date()
+          'members.$.respondedAt': new Date(),
+          'members.$.inviteTokenHash': null,
+          'members.$.inviteTokenExpiresAt': null
         }
       },
       { new: true }
@@ -709,3 +896,333 @@ exports.sendMessage = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to send message' });
   }
 };
+
+// @desc    Get public invitation preview by token (minimized, safe data)
+// @route   GET /api/public/family-invitations/:token
+// @access  Public
+exports.getPublicInvitationByToken = async (req, res) => {
+  try {
+    const { token } = req.params;
+    if (!token || !token.trim()) {
+      return res.status(400).json({ success: false, message: 'Invitation token is required' });
+    }
+
+    const tokenHash = hashInviteToken(token);
+    const group = await FamilyGroup.findOne({ 'members.inviteTokenHash': tokenHash });
+    if (!group) {
+      return res.status(404).json({ success: false, message: 'Invalid or non-existent invitation link' });
+    }
+
+    const member = group.members.find(m => m.inviteTokenHash === tokenHash);
+    if (!member) {
+      return res.status(404).json({ success: false, message: 'Invitation record not found' });
+    }
+
+    if (member.status === 'revoked') {
+      return res.status(400).json({ success: false, message: 'This invitation has been revoked by the group organizer' });
+    }
+
+    const isExpired = member.inviteTokenExpiresAt && new Date(member.inviteTokenExpiresAt) < new Date();
+    if (isExpired) {
+      return res.status(400).json({ success: false, message: 'This invitation link has expired' });
+    }
+
+    if (member.status === 'accepted') {
+      return res.status(400).json({ success: false, message: 'This invitation has already been accepted' });
+    }
+
+    const inviter = await User.findById(group.userId).select('name profileImage');
+
+    res.status(200).json({
+      success: true,
+      data: {
+        groupId: group._id,
+        groupName: group.name,
+        groupDescription: group.description,
+        groupAvatar: group.avatar,
+        inviterName: inviter?.name || 'Wedding Host',
+        inviteeName: member.name,
+        relation: member.relation,
+        role: member.role,
+        status: member.status,
+        isExpired: false
+      }
+    });
+  } catch (error) {
+    console.error('getPublicInvitationByToken error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve invitation details',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Accept invitation using token (Authenticated user)
+// @route   POST /api/user/family-groups/join/:token
+// @access  Private (User)
+exports.joinGroupWithToken = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { token } = req.params;
+
+    if (!token || !token.trim()) {
+      return res.status(400).json({ success: false, message: 'Invitation token is required' });
+    }
+
+    const tokenHash = hashInviteToken(token);
+    const group = await FamilyGroup.findOne({ 'members.inviteTokenHash': tokenHash });
+    if (!group) {
+      return res.status(404).json({ success: false, message: 'Invalid or non-existent invitation link' });
+    }
+
+    const member = group.members.find(m => m.inviteTokenHash === tokenHash);
+    if (!member) {
+      return res.status(404).json({ success: false, message: 'Invitation not found in group' });
+    }
+
+    if (member.status === 'revoked') {
+      return res.status(400).json({ success: false, message: 'This invitation has been revoked' });
+    }
+
+    if (member.inviteTokenExpiresAt && new Date(member.inviteTokenExpiresAt) < new Date()) {
+      return res.status(400).json({ success: false, message: 'This invitation has expired' });
+    }
+
+    if (member.status === 'accepted') {
+      return res.status(400).json({ success: false, message: 'This invitation has already been accepted' });
+    }
+
+    // Contact ownership verification (Safeguards 1 & 3):
+    // If the invitation was addressed to a specific email or phone, authenticated user must match
+    const userEmail = req.user.email ? req.user.email.toLowerCase() : '';
+    const userPhone = normalizePhone(req.user.phone);
+
+    if (member.email && userEmail && member.email.toLowerCase() !== userEmail) {
+      return res.status(403).json({
+        success: false,
+        message: 'This invitation was addressed to a different email address. Please log in with the correct account.'
+      });
+    }
+
+    if (member.phone && userPhone && normalizePhone(member.phone) !== userPhone) {
+      return res.status(403).json({
+        success: false,
+        message: 'This invitation was addressed to a different phone number. Please log in with the correct account.'
+      });
+    }
+
+    // Check if user is already an accepted member under another entry in this group
+    const alreadyAccepted = group.members.some(m =>
+      !m._id.equals(member._id) &&
+      m.userId && m.userId.equals(userId) &&
+      m.status === 'accepted'
+    );
+    if (alreadyAccepted) {
+      return res.status(400).json({
+        success: false,
+        message: 'You are already an accepted member of this group'
+      });
+    }
+
+    // Atomic single-use update: only update if still pending and token hash matches
+    const updatedGroup = await FamilyGroup.findOneAndUpdate(
+      {
+        _id: group._id,
+        members: {
+          $elemMatch: {
+            _id: member._id,
+            inviteTokenHash: tokenHash,
+            status: 'pending'
+          }
+        }
+      },
+      {
+        $set: {
+          'members.$.userId': userId,
+          'members.$.status': 'accepted',
+          'members.$.respondedAt': new Date(),
+          'members.$.inviteTokenHash': null, // Invalidate token (single-use)
+          'members.$.inviteTokenExpiresAt': null
+        }
+      },
+      { new: true }
+    );
+
+    if (!updatedGroup) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invitation is no longer valid or has already been accepted'
+      });
+    }
+
+    const acceptedMember = updatedGroup.members.id(member._id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Successfully joined the family group',
+      data: {
+        group: updatedGroup,
+        member: acceptedMember
+      }
+    });
+  } catch (error) {
+    console.error('joinGroupWithToken error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to accept invitation',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Revoke a pending invitation (Owner or Admin only)
+// @route   DELETE /api/user/family-groups/:id/invitations/:memberId/revoke
+// @access  Private (User - Owner/Admin)
+exports.revokeInvitation = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { id, memberId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(memberId)) {
+      return res.status(400).json({ success: false, message: 'Invalid ID format' });
+    }
+
+    const group = await FamilyGroup.findById(id);
+    if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
+
+    const isOwner = group.userId && (group.userId.equals ? group.userId.equals(userId) : String(group.userId._id || group.userId) === String(userId));
+    const actingMember = group.members.find(m => m.userId && (m.userId.equals ? m.userId.equals(userId) : String(m.userId._id || m.userId) === String(userId)));
+    const isAdmin = actingMember && actingMember.role === 'admin' && actingMember.status === 'accepted';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Only owner or admin can revoke invitations' });
+    }
+
+    const member = group.members.id(memberId);
+    if (!member) {
+      return res.status(404).json({ success: false, message: 'Invitation not found' });
+    }
+
+    if (member.status === 'accepted') {
+      return res.status(400).json({ success: false, message: 'Cannot revoke an accepted membership. Use remove member instead.' });
+    }
+
+    member.status = 'revoked';
+    member.inviteTokenHash = null;
+    member.inviteTokenExpiresAt = null;
+    await group.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Invitation revoked successfully'
+    });
+  } catch (error) {
+    console.error('revokeInvitation error:', error);
+    res.status(500).json({ success: false, message: 'Failed to revoke invitation' });
+  }
+};
+
+// @desc    Get or generate fresh shareable invitation link for a pending member (Owner/Admin)
+// @route   POST /api/user/family-groups/:id/members/:memberId/share-link
+// @access  Private (User - Owner/Admin)
+exports.getOrRefreshMemberInviteLink = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { id, memberId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(memberId)) {
+      return res.status(400).json({ success: false, message: 'Invalid ID format' });
+    }
+
+    const group = await FamilyGroup.findById(id);
+    if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
+
+    const isOwner = group.userId && (group.userId.equals ? group.userId.equals(userId) : String(group.userId._id || group.userId) === String(userId));
+    const actingMember = group.members.find(m => m.userId && (m.userId.equals ? m.userId.equals(userId) : String(m.userId._id || m.userId) === String(userId)));
+    const isAdmin = actingMember && actingMember.role === 'admin' && actingMember.status === 'accepted';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Only owner or admin can generate share links' });
+    }
+
+    const member = group.members.id(memberId);
+    if (!member) {
+      return res.status(404).json({ success: false, message: 'Member not found in this group' });
+    }
+
+    if (member.status === 'accepted') {
+      return res.status(400).json({ success: false, message: 'This member has already accepted and joined the group' });
+    }
+
+    if (member.status === 'revoked') {
+      return res.status(400).json({ success: false, message: 'This invitation was revoked. Please reinvite the contact.' });
+    }
+
+    // Generate fresh cryptographic token & update hash
+    const { rawToken, tokenHash } = generateInviteToken();
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    member.inviteTokenHash = tokenHash;
+    member.inviteTokenExpiresAt = expiresAt;
+    member.status = 'pending';
+    await group.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Share link generated successfully',
+      data: {
+        memberId: member._id,
+        memberName: member.name,
+        memberPhone: member.phone,
+        memberEmail: member.email,
+        inviteToken: rawToken,
+        inviteLink: `/family/join/${rawToken}`
+      }
+    });
+  } catch (error) {
+    console.error('getOrRefreshMemberInviteLink error:', error);
+    res.status(500).json({ success: false, message: 'Failed to generate share link' });
+  }
+};
+
+// @desc    Delete family group (Owner only)
+// @route   DELETE /api/user/family-groups/:id
+// @access  Private (User - Owner Only)
+exports.deleteFamilyGroup = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid group ID format' });
+    }
+
+    const group = await FamilyGroup.findById(id);
+    if (!group) {
+      return res.status(404).json({ success: false, message: 'Family group not found' });
+    }
+
+    const isOwner = group.userId && (group.userId.equals ? group.userId.equals(userId) : String(group.userId._id || group.userId) === String(userId));
+    if (!isOwner) {
+      return res.status(403).json({ success: false, message: 'Only the group owner can delete this group' });
+    }
+
+    await FamilyGroupMessage.deleteMany({ groupId: id });
+    await FamilyGroup.findByIdAndDelete(id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Family group deleted successfully'
+    });
+  } catch (error) {
+    console.error('deleteFamilyGroup error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete family group',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+

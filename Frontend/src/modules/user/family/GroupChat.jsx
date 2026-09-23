@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
-import userApi from '../../../services/userApi';
+import userApi, { getAuthToken } from '../../../services/userApi';
 import { socketService } from '../../../services/socket';
 import { useAuth } from '../../../contexts/AuthContext';
 import { toast } from '../../../components/ui/Toast';
@@ -15,7 +15,7 @@ const GroupChat = () => {
   const messagesEndRef = useRef(null);
   
   const { user } = useAuth();
-  const token = localStorage.getItem('token');
+  const token = getAuthToken();
   
   const [group, setGroup] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -29,6 +29,24 @@ const GroupChat = () => {
   const [showAddMembers, setShowAddMembers] = useState(false);
   const [availableContacts, setAvailableContacts] = useState([]);
   const [selectedNewMembers, setSelectedNewMembers] = useState([]);
+  const [copiedMemberId, setCopiedMemberId] = useState(null);
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [quickInviteName, setQuickInviteName] = useState('');
+  const [quickInvitePhone, setQuickInvitePhone] = useState('');
+  const [isInvitingQuick, setIsInvitingQuick] = useState(false);
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [settingsName, setSettingsName] = useState('');
+  const [settingsDesc, setSettingsDesc] = useState('');
+  const [settingsAvatar, setSettingsAvatar] = useState('');
+  const [settingsShared, setSettingsShared] = useState({
+    checklist: true,
+    timeline: true,
+    budget: false,
+    guestList: false,
+    inspiration: true
+  });
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isDeletingGroup, setIsDeletingGroup] = useState(false);
 
   // Check if current user is admin
   const isCurrentUserAdmin = () => {
@@ -183,21 +201,169 @@ const GroupChat = () => {
     }
   };
 
+  // Open Settings Modal
+  const handleOpenSettings = () => {
+    if (!group) return;
+    setSettingsName(group.name || '');
+    setSettingsDesc(group.description || '');
+    setSettingsAvatar(group.avatar || 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=150&h=150&fit=crop');
+    setSettingsShared(group.sharedResources || {
+      checklist: true,
+      timeline: true,
+      budget: false,
+      guestList: false,
+      inspiration: true
+    });
+    setShowGroupInfo(false);
+    setShowGroupSettings(true);
+  };
+
+  // Save Settings
+  const handleSaveSettings = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!settingsName.trim()) {
+      toast.warning('Group name cannot be empty');
+      return;
+    }
+    try {
+      setIsSavingSettings(true);
+      const gId = group._id || group.id;
+      const res = await userApi.updateFamilyGroup(gId, {
+        name: settingsName.trim(),
+        description: settingsDesc.trim(),
+        avatar: settingsAvatar.trim(),
+        sharedResources: settingsShared
+      });
+      if (res.success && res.data) {
+        toast.success('Group settings updated successfully!');
+        const updated = res.data.group || res.data;
+        setGroup(prev => ({
+          ...prev,
+          name: updated.name || settingsName.trim(),
+          description: updated.description !== undefined ? updated.description : settingsDesc.trim(),
+          avatar: updated.avatar || settingsAvatar.trim(),
+          sharedResources: updated.sharedResources || settingsShared
+        }));
+        setShowGroupSettings(false);
+      } else {
+        toast.error(res.message || 'Failed to update group settings');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update group settings');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
   // Delete group function
-  const handleDeleteGroup = () => {
-    toast.info('Group deletion is currently managed via support / settings.');
-    setShowDeleteConfirm(false);
+  const handleDeleteGroup = async () => {
+    try {
+      setIsDeletingGroup(true);
+      const gId = group._id || group.id;
+      const res = await userApi.deleteFamilyGroup(gId);
+      if (res.success) {
+        toast.success('Family group deleted successfully');
+        setShowDeleteConfirm(false);
+        navigate('/user/family/groups');
+      } else {
+        toast.error(res.message || 'Failed to delete group');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete group');
+    } finally {
+      setIsDeletingGroup(false);
+    }
   };
 
-  // Add members function
-  const handleAddMembers = () => {
-    toast.info('Member management is synced with your family settings.');
-    setShowAddMembers(false);
+  const handleWhatsAppMember = async (member) => {
+    try {
+      setIsGeneratingLink(true);
+      const mId = member._id || member.id;
+      const gId = group._id || group.id;
+      const res = await userApi.getFamilyMemberShareLink(gId, mId);
+      if (res.success && res.data?.inviteLink) {
+        const inviteUrl = res.data.inviteLink;
+        const cleanPhone = (member.phone || '').replace(/\D/g, '');
+        const text = encodeURIComponent(
+          `Hi ${member.name}! You've been invited to join our wedding planning group "${group.name}" on Utsavo.\n\nClick this link to join and start planning with us:\n${inviteUrl}`
+        );
+        const waUrl = cleanPhone
+          ? `https://api.whatsapp.com/send?phone=${cleanPhone.length === 10 ? '91' + cleanPhone : cleanPhone}&text=${text}`
+          : `https://api.whatsapp.com/send?text=${text}`;
+        window.open(waUrl, '_blank');
+      } else {
+        toast.error(res.message || 'Failed to generate invitation link');
+      }
+    } catch (err) {
+      toast.error('Failed to get invite link');
+    } finally {
+      setIsGeneratingLink(false);
+    }
   };
 
-  // Remove member function (admin only)
-  const handleRemoveMember = (memberId) => {
-    toast.info('Member management is synced with your family settings.');
+  const handleCopyMemberLink = async (member) => {
+    try {
+      const mId = member._id || member.id;
+      const gId = group._id || group.id;
+      setIsGeneratingLink(true);
+      const res = await userApi.getFamilyMemberShareLink(gId, mId);
+      if (res.success && res.data?.inviteLink) {
+        await navigator.clipboard.writeText(res.data.inviteLink);
+        setCopiedMemberId(mId);
+        toast.success(`Copied invite link for ${member.name}!`);
+        setTimeout(() => setCopiedMemberId(null), 2500);
+      } else {
+        toast.error(res.message || 'Failed to copy invite link');
+      }
+    } catch (err) {
+      toast.error('Failed to copy link');
+    } finally {
+      setIsGeneratingLink(false);
+    }
+  };
+
+  const handleQuickInviteMember = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!quickInviteName.trim()) {
+      toast.warning('Please enter contact name');
+      return;
+    }
+    const cleanPhone = quickInvitePhone.trim().replace(/\D/g, '');
+    if (!cleanPhone || cleanPhone.length < 10) {
+      toast.warning('Please enter a valid 10-digit phone number');
+      return;
+    }
+    try {
+      setIsInvitingQuick(true);
+      const gId = group._id || group.id;
+      const res = await userApi.inviteFamilyGroupMember(gId, {
+        name: quickInviteName.trim(),
+        phone: cleanPhone,
+        relation: 'Family'
+      });
+      if (res.success && res.data) {
+        toast.success(`${quickInviteName.trim()} invited!`);
+        const updatedMembers = res.data.members || [...(group.members || []), res.data.member];
+        setGroup(prev => ({ ...prev, members: updatedMembers }));
+
+        const inviteUrl = res.data.inviteLink || res.data.member?.inviteLink;
+        if (inviteUrl) {
+          const text = encodeURIComponent(
+            `Hi ${quickInviteName.trim()}! You've been invited to join our wedding planning group "${group.name}" on Utsavo.\n\nClick this link to join and start planning with us:\n${inviteUrl}`
+          );
+          window.open(`https://api.whatsapp.com/send?phone=91${cleanPhone.slice(-10)}&text=${text}`, '_blank');
+        }
+        setQuickInviteName('');
+        setQuickInvitePhone('');
+        setShowAddMembers(false);
+      } else {
+        toast.error(res.message || 'Failed to invite member');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to invite member');
+    } finally {
+      setIsInvitingQuick(false);
+    }
   };
 
   const groupedMessages = messages.reduce((groups, message) => {
@@ -221,83 +387,77 @@ const GroupChat = () => {
 
   return (
     <div 
-      className={`min-h-screen flex flex-col ${isKeyboardOpen ? 'keyboard-open' : ''}`} 
+      className={`h-[100dvh] flex flex-col bg-white overflow-hidden ${isKeyboardOpen ? 'keyboard-open' : ''}`} 
       style={{ 
-        backgroundColor: theme.semantic.background.primary,
-        height: isKeyboardOpen ? '100vh' : 'auto',
-        maxHeight: isKeyboardOpen ? '100vh' : 'none'
+        backgroundColor: '#FFFFFF',
       }}
     >
       {/* Header */}
       <div 
-        className="sticky top-0 z-10 px-4 py-4 border-b backdrop-blur-sm flex-shrink-0"
+        className="h-16 px-4 border-b flex items-center justify-between bg-white z-20 flex-shrink-0 shadow-sm"
         style={{ 
-          backgroundColor: `${theme.semantic.background.primary}95`,
-          borderBottomColor: theme.semantic.border.light 
+          borderColor: theme.semantic.border.light 
         }}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <button
-              onClick={() => navigate(-1)}
-              className="mr-3 p-2 rounded-full"
-              style={{ backgroundColor: theme.semantic.background.accent }}
-            >
-              <Icon name="chevronDown" size="sm" className="rotate-90" style={{ color: theme.semantic.text.primary }} />
-            </button>
-            
-            <div className="flex items-center space-x-3">
-              <div className="relative">
-                <img
-                  src={group.avatar}
-                  alt={group.name}
-                  className="w-10 h-10 rounded-full object-cover"
-                />
-                <div 
-                  className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white"
-                  style={{ backgroundColor: theme.colors.accent[500] }}
-                />
-              </div>
-              
-              <button
-                onClick={() => setShowGroupInfo(!showGroupInfo)}
-                className="text-left"
-              >
-                <h1 className="font-bold text-base" style={{ color: theme.semantic.text.primary }}>
-                  {group.name}
-                </h1>
-                <p className="text-xs" style={{ color: theme.semantic.text.secondary }}>
-                  {onlineMembers.length} online • {group.members?.length || 0} members
-                </p>
-              </button>
-            </div>
-          </div>
+        <div className="flex items-center">
+          <button
+            onClick={() => navigate('/user/family/groups')}
+            className="mr-3 p-2 rounded-full"
+            style={{ backgroundColor: theme.semantic.background.accent }}
+          >
+            <Icon name="chevronDown" size="sm" className="rotate-90" style={{ color: theme.semantic.text.primary }} />
+          </button>
           
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3">
+            <div className="relative">
+              <img
+                src={group.avatar}
+                alt={group.name}
+                className="w-10 h-10 rounded-full object-cover"
+              />
+              <div 
+                className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white"
+                style={{ backgroundColor: theme.colors.accent[500] }}
+              />
+            </div>
+            
             <button
-              className="p-2 rounded-full"
-              style={{ backgroundColor: theme.semantic.background.accent }}
+              onClick={() => setShowGroupInfo(!showGroupInfo)}
+              className="text-left"
             >
-              <Icon name="video" size="sm" style={{ color: theme.semantic.text.secondary }} />
-            </button>
-            <button
-              className="p-2 rounded-full"
-              style={{ backgroundColor: theme.semantic.background.accent }}
-            >
-              <Icon name="more" size="sm" style={{ color: theme.semantic.text.secondary }} />
+              <h1 className="font-bold text-base" style={{ color: theme.semantic.text.primary }}>
+                {group.name}
+              </h1>
+              <p className="text-xs" style={{ color: theme.semantic.text.secondary }}>
+                {onlineMembers.length} online • {group.members?.length || 0} members
+              </p>
             </button>
           </div>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setShowGroupInfo(true)}
+            className="px-2.5 py-1.5 rounded-full flex items-center gap-1 text-xs font-bold transition active:scale-95 shadow-sm text-white"
+            style={{ backgroundColor: '#25D366' }}
+            title="Share Group Invite"
+          >
+            <span>📱</span>
+            <span className="hidden sm:inline">Invite</span>
+          </button>
+          <button
+            onClick={() => setShowGroupInfo(!showGroupInfo)}
+            className="p-2 rounded-full"
+            style={{ backgroundColor: theme.semantic.background.accent }}
+          >
+            <Icon name="more" size="sm" style={{ color: theme.semantic.text.secondary }} />
+          </button>
         </div>
       </div>
 
       {/* Messages */}
       <div 
-        className={`flex-1 overflow-y-auto px-4 py-4 ${isKeyboardOpen ? 'pb-2' : 'pb-6'}`}
-        style={{
-          maxHeight: isKeyboardOpen 
-            ? 'calc(100vh - 140px)' // Adjust for header + input when keyboard is open
-            : 'calc(100vh - 200px)'  // Normal height
-        }}
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-[#F8F9FA]"
       >
         {Object.entries(groupedMessages).map(([date, dayMessages]) => (
           <div key={date}>
@@ -316,14 +476,14 @@ const GroupChat = () => {
 
             {/* Messages for this date */}
             <div className="space-y-4">
-              {dayMessages.map((message) => {
+              {dayMessages.map((message, msgIdx) => {
                 const currentUserId = user?.id || user?._id;
                 const isCurrentUser = message.senderId?.toString() === currentUserId?.toString();
                 const isSystem = message.type === 'system';
 
                 if (isSystem) {
                   return (
-                    <div key={message.id} className="flex justify-center">
+                    <div key={message._id || message.id || `${date}-sys-${msgIdx}`} className="flex justify-center">
                       <div 
                         className="px-4 py-2 rounded-xl text-sm text-center max-w-xs"
                         style={{
@@ -338,7 +498,7 @@ const GroupChat = () => {
                 }
 
                 return (
-                  <div key={message.id} className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                  <div key={message._id || message.id || `${date}-${msgIdx}`} className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[80%] ${isCurrentUser ? 'order-2' : 'order-1'}`}>
                       <div className={`flex items-center mb-1 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
                         {!isCurrentUser && (
@@ -453,7 +613,7 @@ const GroupChat = () => {
           backgroundColor: isKeyboardOpen 
             ? theme.semantic.background.primary 
             : `${theme.semantic.background.primary}F0`,
-          borderTopColor: theme.semantic.border.light,
+          borderColor: theme.semantic.border.light,
           boxShadow: isKeyboardOpen 
             ? `0 -2px 10px ${theme.semantic.card.shadow}` 
             : `0 -4px 20px ${theme.semantic.card.shadow}`,
@@ -561,40 +721,98 @@ const GroupChat = () => {
             
             {/* Group Members */}
             <div className="mb-6">
-              <h4 className="font-semibold mb-3" style={{ color: theme.semantic.text.primary }}>
-                Members ({group.members?.length || 0})
-              </h4>
-              <div className="space-y-3">
-                {group.members?.map(member => (
-                    <div key={member.userId || member._id || Math.random()} className="flex items-center space-x-3">
-                      <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-semibold text-sm" style={{ color: theme.semantic.text.primary }}>
+                  Members ({group.members?.length || 0})
+                </h4>
+                {isCurrentUserAdmin() && (
+                  <button
+                    onClick={() => setShowAddMembers(true)}
+                    className="text-xs font-bold px-2.5 py-1 rounded-lg transition active:scale-95"
+                    style={{ backgroundColor: theme.colors.primary[50], color: theme.colors.primary[600] }}
+                  >
+                    + Invite via WhatsApp
+                  </button>
+                )}
+              </div>
+              <div className="space-y-2.5">
+                {group.members?.map(member => {
+                  const mId = member._id || member.id || member.userId;
+                  const isPending = member.status === 'pending';
+                  const isCopied = copiedMemberId === (member._id || member.id);
+                  return (
+                    <div 
+                      key={mId || Math.random()} 
+                      className="p-2.5 rounded-xl border flex items-center justify-between gap-2"
+                      style={{ 
+                        backgroundColor: theme.semantic.background.secondary,
+                        borderColor: theme.semantic.border.light 
+                      }}
+                    >
+                      <div className="flex items-center space-x-2.5 min-w-0">
                         <img
                           src={member.avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=50&h=50&fit=crop&crop=face'}
                           alt={member.name}
-                          className="w-10 h-10 rounded-full object-cover"
+                          className="w-8 h-8 rounded-full object-cover flex-shrink-0"
                         />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-sm" style={{ color: theme.semantic.text.primary }}>
-                          {member.name}
-                        </p>
-                        <p className="text-xs" style={{ color: theme.semantic.text.secondary }}>
-                          {member.relation || 'Member'}
-                        </p>
-                      </div>
-                      {member.role === 'admin' && (
-                        <div 
-                          className="px-2 py-1 rounded-full text-xs font-medium"
-                          style={{
-                            backgroundColor: theme.colors.accent[100],
-                            color: theme.colors.accent[700]
-                          }}
-                        >
-                          Admin
+                        <div className="min-w-0">
+                          <p className="font-bold text-xs truncate" style={{ color: theme.semantic.text.primary }}>
+                            {member.name}
+                          </p>
+                          <p className="text-[11px] truncate" style={{ color: theme.semantic.text.secondary }}>
+                            {member.relation || 'Member'} {member.phone ? `• ${member.phone}` : ''}
+                          </p>
                         </div>
-                      )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {member.role === 'admin' ? (
+                          <span 
+                            className="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                            style={{
+                              backgroundColor: theme.colors.accent[100],
+                              color: theme.colors.accent[700]
+                            }}
+                          >
+                            Admin
+                          </span>
+                        ) : isPending ? (
+                          <>
+                            <button
+                              type="button"
+                              disabled={isGeneratingLink}
+                              onClick={() => handleWhatsAppMember(member)}
+                              className="px-2 py-1 rounded-lg text-[11px] font-bold text-white flex items-center gap-1 shadow-sm transition active:scale-95"
+                              style={{ backgroundColor: '#25D366' }}
+                              title="Share on WhatsApp"
+                            >
+                              <span>📱</span>
+                              <span>WhatsApp</span>
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isGeneratingLink}
+                              onClick={() => handleCopyMemberLink(member)}
+                              className="p-1 rounded-lg border text-xs font-semibold transition active:scale-95"
+                              style={{
+                                backgroundColor: isCopied ? '#ECFDF5' : 'white',
+                                borderColor: isCopied ? '#10B981' : theme.semantic.border.light,
+                                color: isCopied ? '#059669' : theme.semantic.text.primary
+                              }}
+                              title="Copy Invite Link"
+                            >
+                              <Icon name={isCopied ? 'check' : 'copy'} size="xs" />
+                            </button>
+                          </>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            Joined
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  ))}
+                  );
+                })}
               </div>
             </div>
             
@@ -613,6 +831,7 @@ const GroupChat = () => {
                     Add Members
                   </button>
                   <button
+                    onClick={handleOpenSettings}
                     className="w-full py-3 px-4 rounded-xl font-medium transition-colors"
                     style={{
                       backgroundColor: theme.colors.secondary[100],
@@ -645,6 +864,161 @@ const GroupChat = () => {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Group Settings Modal */}
+      {showGroupSettings && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div 
+            className="w-full max-w-md rounded-2xl p-6 max-h-[85vh] overflow-y-auto space-y-5"
+            style={{ backgroundColor: theme.semantic.background.primary }}
+          >
+            <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: theme.semantic.border.light }}>
+              <h3 className="text-lg font-bold" style={{ color: theme.semantic.text.primary }}>
+                Group Settings
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowGroupSettings(false)}
+                className="p-1.5 rounded-full hover:bg-stone-100"
+              >
+                <Icon name="close" size="sm" style={{ color: theme.semantic.text.secondary }} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSettings} className="space-y-4">
+              {/* Avatar Selection */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: theme.semantic.text.secondary }}>
+                  Group Icon
+                </label>
+                <div className="flex items-center gap-3 mb-2">
+                  <img
+                    src={settingsAvatar || 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=150&h=150&fit=crop'}
+                    alt="Group Avatar"
+                    className="w-16 h-16 rounded-full object-cover border-2 shadow-sm flex-shrink-0"
+                    style={{ borderColor: theme.colors.primary[500] }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium mb-1.5" style={{ color: theme.semantic.text.primary }}>Choose a preset icon:</p>
+                    <div className="flex gap-2">
+                      {[
+                        { label: 'Wedding', url: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=150&h=150&fit=crop' },
+                        { label: 'Couple', url: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=150&h=150&fit=crop' },
+                        { label: 'Rings', url: 'https://images.unsplash.com/photo-1537633552985-df8429e8048b?w=150&h=150&fit=crop' },
+                        { label: 'Party', url: 'https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?w=150&h=150&fit=crop' }
+                      ].map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => setSettingsAvatar(preset.url)}
+                          className={`w-9 h-9 rounded-full overflow-hidden border-2 transition ${settingsAvatar === preset.url ? 'ring-2 ring-purple-600 scale-105' : 'opacity-70 hover:opacity-100'}`}
+                          style={{ borderColor: settingsAvatar === preset.url ? theme.colors.primary[500] : 'transparent' }}
+                        >
+                          <img src={preset.url} alt={preset.label} className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Group Name */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider mb-1" style={{ color: theme.semantic.text.secondary }}>
+                  Group Name
+                </label>
+                <input
+                  type="text"
+                  value={settingsName}
+                  onChange={(e) => setSettingsName(e.target.value)}
+                  placeholder="e.g. Tiwari Family Wedding"
+                  className="w-full px-3.5 py-2.5 rounded-xl border text-sm font-medium focus:outline-none focus:ring-2"
+                  style={{ 
+                    borderColor: theme.semantic.border.light,
+                    color: theme.semantic.text.primary 
+                  }}
+                  required
+                />
+              </div>
+
+              {/* Group Description */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider mb-1" style={{ color: theme.semantic.text.secondary }}>
+                  Description
+                </label>
+                <textarea
+                  value={settingsDesc}
+                  onChange={(e) => setSettingsDesc(e.target.value)}
+                  placeholder="Add a short description or notes for the family..."
+                  rows={3}
+                  className="w-full px-3.5 py-2.5 rounded-xl border text-sm resize-none focus:outline-none focus:ring-2"
+                  style={{ 
+                    borderColor: theme.semantic.border.light,
+                    color: theme.semantic.text.primary 
+                  }}
+                />
+              </div>
+
+              {/* Shared Planning Resources Permissions */}
+              <div className="pt-2 border-t" style={{ borderColor: theme.semantic.border.light }}>
+                <label className="block text-xs font-bold uppercase tracking-wider mb-2.5" style={{ color: theme.semantic.text.secondary }}>
+                  Shared Planning Access
+                </label>
+                <div className="space-y-2">
+                  {[
+                    { key: 'checklist', label: 'Wedding Checklist & Tasks', desc: 'Allow members to view wedding checklist' },
+                    { key: 'timeline', label: 'Wedding Timeline & Schedule', desc: 'Allow members to follow event timelines' },
+                    { key: 'inspiration', label: 'Inspiration Board & Gallery', desc: 'Allow members to see saved decor and styles' },
+                    { key: 'guestList', label: 'Guest List Access', desc: 'Allow members to view RSVPs and guest counts' },
+                    { key: 'budget', label: 'Budget Planner Access', desc: 'Allow members to view budget breakdowns' }
+                  ].map((resource) => (
+                    <label 
+                      key={resource.key}
+                      className="flex items-center justify-between p-2.5 rounded-xl border cursor-pointer hover:bg-stone-50 transition"
+                      style={{ borderColor: theme.semantic.border.light }}
+                    >
+                      <div>
+                        <p className="text-xs font-bold" style={{ color: theme.semantic.text.primary }}>
+                          {resource.label}
+                        </p>
+                        <p className="text-[10px]" style={{ color: theme.semantic.text.secondary }}>
+                          {resource.desc}
+                        </p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(settingsShared[resource.key])}
+                        onChange={(e) => setSettingsShared(prev => ({ ...prev, [resource.key]: e.target.checked }))}
+                        className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex gap-3 pt-3 border-t" style={{ borderColor: theme.semantic.border.light }}>
+                <button
+                  type="button"
+                  onClick={() => setShowGroupSettings(false)}
+                  className="flex-1 py-2.5 rounded-xl border text-xs font-bold transition hover:bg-stone-50"
+                  style={{ borderColor: theme.semantic.border.light, color: theme.semantic.text.primary }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingSettings}
+                  className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white shadow-sm transition active:scale-95"
+                  style={{ backgroundColor: theme.colors.primary[500] }}
+                >
+                  {isSavingSettings ? 'Saving...' : 'Save Settings'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -831,6 +1205,46 @@ const GroupChat = () => {
                 </div>
               </>
             )}
+
+            {/* Quick Invite Any Contact via WhatsApp */}
+            <div className="pt-4 border-t mt-4" style={{ borderColor: theme.semantic.border.light }}>
+              <h4 className="font-bold text-xs uppercase tracking-wider mb-2" style={{ color: theme.semantic.text.secondary }}>
+                Invite by Phone & Share on WhatsApp
+              </h4>
+              <form onSubmit={handleQuickInviteMember} className="space-y-2.5">
+                <input
+                  type="text"
+                  placeholder="Contact Name (e.g. Rahul, Khushu)"
+                  value={quickInviteName}
+                  onChange={(e) => setQuickInviteName(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border focus:outline-none"
+                  style={{ borderColor: theme.semantic.border.light }}
+                />
+                <input
+                  type="tel"
+                  placeholder="10-digit Phone Number (e.g. 9876543210)"
+                  value={quickInvitePhone}
+                  onChange={(e) => setQuickInvitePhone(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border focus:outline-none"
+                  style={{ borderColor: theme.semantic.border.light }}
+                />
+                <button
+                  type="submit"
+                  disabled={isInvitingQuick}
+                  className="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 text-white shadow-sm transition active:scale-95"
+                  style={{ backgroundColor: '#25D366' }}
+                >
+                  {isInvitingQuick ? (
+                    <span>Generating WhatsApp Invite...</span>
+                  ) : (
+                    <>
+                      <span>📱</span>
+                      <span>Send WhatsApp Invitation</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
@@ -17,8 +17,46 @@ const CreateGroup = () => {
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [groupAvatar, setGroupAvatar] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newMember, setNewMember] = useState({ name: '', phone: '', email: '', relation: 'Family', role: 'member' });
+  const [createdGroup, setCreatedGroup] = useState(null);
+  const [copiedMemberId, setCopiedMemberId] = useState(null);
+
+  const getFullInviteUrl = (token) => {
+    return `${window.location.origin}/family/join/${token}`;
+  };
+
+  const handleCopyLink = async (token, memberId) => {
+    if (!token) {
+      toast.warning('No invitation token available for this member');
+      return;
+    }
+    const url = getFullInviteUrl(token);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedMemberId(memberId || 'general');
+      toast.success('Invitation link copied to clipboard!');
+      setTimeout(() => setCopiedMemberId(null), 3000);
+    } catch {
+      toast.info(url);
+    }
+  };
+
+  const handleShareWhatsApp = (token, memberName = '', phone = '') => {
+    if (!token) {
+      toast.warning('No invitation token available');
+      return;
+    }
+    const url = getFullInviteUrl(token);
+    const greeting = memberName ? `Hi ${memberName}! ` : 'Hi! ';
+    const text = `${greeting}You're invited to join our wedding planning group "${createdGroup?.name || groupName.trim()}" on Utsavo.\n\nClick this link to join and start planning:\n${url}`;
+    const cleanPhone = phone ? phone.replace(/\D/g, '') : '';
+    const whatsappUrl = cleanPhone 
+      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(whatsappUrl, '_blank');
+  };
 
   // Get selected contacts from navigation state or fallback
   useEffect(() => {
@@ -61,11 +99,16 @@ const CreateGroup = () => {
   }, [location.state]);
 
   const handleCreateGroup = async () => {
+    if (isSubmittingRef.current || isCreating) return;
+
     if (!groupName.trim()) {
-      toast.warning('Please enter a group name');
+      toast.warning('Please enter a group name to create your group');
+      const inputEl = document.getElementById('group-name-input');
+      if (inputEl) inputEl.focus();
       return;
     }
 
+    isSubmittingRef.current = true;
     setIsCreating(true);
 
     try {
@@ -75,7 +118,7 @@ const CreateGroup = () => {
         email: c.email || '',
         role: c.role || 'member',
         relation: c.relation || 'Family',
-        status: 'accepted'
+        status: 'pending' // Initialized as pending invitations
       }));
 
       const payload = {
@@ -86,40 +129,17 @@ const CreateGroup = () => {
       };
 
       const res = await userApi.createFamilyGroup(payload);
-      const savedGroup = res.data?.group || res.data || {
-        _id: String(Date.now()),
-        ...payload
-      };
+      const savedGroup = res.data?.group || res.data;
 
-      // Also update local copy for backward compatibility with GroupChat
-      const existingGroups = JSON.parse(localStorage.getItem('familyGroups') || '[]');
-      const groupForChat = {
-        id: savedGroup._id || Date.now(),
-        name: savedGroup.name,
-        description: savedGroup.description,
-        avatar: savedGroup.avatar,
-        members: selectedMembers.map(c => c.id || c._id),
-        createdBy: 1,
-        createdAt: savedGroup.createdAt || new Date().toISOString(),
-        lastMessage: {
-          text: `${savedGroup.name} group created!`,
-          sender: 'System',
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        },
-        unreadCount: 0,
-        isActive: true
-      };
-      existingGroups.push(groupForChat);
-      localStorage.setItem('familyGroups', JSON.stringify(existingGroups));
-
-      setIsCreating(false);
-      navigate(`/user/family/group/${groupForChat.id}`, { 
-        state: { group: groupForChat, isNewGroup: true }
-      });
+      // Keep user on the page and show the celebratory Share Invitations screen
+      setCreatedGroup(savedGroup);
+      toast.success(`Group "${groupName.trim()}" created successfully!`);
     } catch (err) {
       console.error('Error creating family group:', err);
       toast.error(getFriendlyErrorMessage(err, 'Failed to create family group'));
+    } finally {
       setIsCreating(false);
+      isSubmittingRef.current = false;
     }
   };
 
@@ -155,6 +175,198 @@ const CreateGroup = () => {
     'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=150&h=150&fit=crop',
     'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=150&h=150&fit=crop'
   ];
+
+  if (createdGroup) {
+    const invitedMembers = (createdGroup.members || []).filter(m => m.role !== 'admin' || m.inviteToken);
+    const firstMemberWithToken = (createdGroup.members || []).find(m => m.inviteToken);
+    const primaryToken = firstMemberWithToken?.inviteToken;
+
+    return (
+      <div className="min-h-screen pb-16" style={{ backgroundColor: theme.semantic.background.primary }}>
+        {/* Header */}
+        <div 
+          className="sticky top-0 z-10 px-4 py-4 border-b backdrop-blur-sm"
+          style={{ 
+            backgroundColor: `${theme.semantic.background.primary}95`,
+            borderBottomColor: theme.semantic.border.light 
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <h1 className="text-lg font-bold" style={{ color: theme.semantic.text.primary }}>
+              Group Created
+            </h1>
+            <button
+              onClick={() => navigate('/user/family/groups')}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border hover:bg-stone-50"
+              style={{ borderColor: theme.semantic.border.light, color: theme.semantic.text.secondary }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+
+        <div className="max-w-md mx-auto px-4 py-6 space-y-6">
+          {/* Success Banner */}
+          <Card className="text-center p-6 space-y-3 border shadow-sm" style={{ borderColor: theme.semantic.border.light }}>
+            <div className="relative inline-block">
+              <img
+                src={createdGroup.avatar || 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=150&h=150&fit=crop'}
+                alt={createdGroup.name}
+                className="w-20 h-20 rounded-full object-cover mx-auto border-4 shadow-md"
+                style={{ borderColor: theme.colors.primary[500] }}
+              />
+              <span className="absolute bottom-0 right-0 text-xl">🎉</span>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold" style={{ color: theme.semantic.text.primary }}>
+                {createdGroup.name}
+              </h2>
+              <p className="text-xs mt-1" style={{ color: theme.semantic.text.secondary }}>
+                {createdGroup.description || 'Wedding planning group'}
+              </p>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span>✓</span>
+              <span>Ready for Family Planning</span>
+            </div>
+          </Card>
+
+          {/* Share Invitation Section */}
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-bold text-base" style={{ color: theme.semantic.text.primary }}>
+                Share Group Invitation
+              </h3>
+              <p className="text-xs" style={{ color: theme.semantic.text.secondary }}>
+                Send the invitation link or WhatsApp message to your family members so they can join.
+              </p>
+            </div>
+
+            {/* If members were invited */}
+            {invitedMembers.length > 0 ? (
+              <div className="space-y-3">
+                {invitedMembers.map((m) => {
+                  const mToken = m.inviteToken || primaryToken;
+                  const isCopied = copiedMemberId === (m._id || m.id || m.name);
+                  return (
+                    <Card key={m._id || m.id || m.name} className="p-4 border" style={{ borderColor: theme.semantic.border.light }}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2.5">
+                          <div 
+                            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white"
+                            style={{ backgroundColor: theme.colors.primary[500] }}
+                          >
+                            {m.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-sm" style={{ color: theme.semantic.text.primary }}>
+                              {m.name}
+                            </h4>
+                            <p className="text-xs" style={{ color: theme.semantic.text.secondary }}>
+                              {m.relation || 'Family Member'} {m.phone ? `• ${m.phone}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                          Pending
+                        </span>
+                      </div>
+
+                      <div className="flex gap-2">
+                        {/* WhatsApp Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleShareWhatsApp(mToken, m.name, m.phone)}
+                          className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm text-white transition active:scale-95"
+                          style={{ backgroundColor: '#25D366' }}
+                        >
+                          <span className="text-base leading-none">📱</span>
+                          <span>WhatsApp {m.name.split(' ')[0]}</span>
+                        </button>
+
+                        {/* Copy Link Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleCopyLink(mToken, m._id || m.id || m.name)}
+                          className="py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border transition active:scale-95"
+                          style={{
+                            backgroundColor: isCopied ? '#ECFDF5' : theme.semantic.background.secondary,
+                            borderColor: isCopied ? '#10B981' : theme.semantic.border.light,
+                            color: isCopied ? '#059669' : theme.semantic.text.primary
+                          }}
+                        >
+                          <Icon name={isCopied ? 'check' : 'copy'} size="xs" />
+                          <span>{isCopied ? 'Copied!' : 'Copy Link'}</span>
+                        </button>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : primaryToken ? (
+              <Card className="p-4 border space-y-3" style={{ borderColor: theme.semantic.border.light }}>
+                <p className="text-xs font-medium" style={{ color: theme.semantic.text.secondary }}>
+                  Copy or share your group's unique invitation link:
+                </p>
+                <div 
+                  className="p-2.5 rounded-lg border text-xs font-mono break-all"
+                  style={{ backgroundColor: theme.semantic.background.secondary, borderColor: theme.semantic.border.light }}
+                >
+                  {getFullInviteUrl(primaryToken)}
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleShareWhatsApp(primaryToken)}
+                    className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 text-white shadow-sm"
+                    style={{ backgroundColor: '#25D366' }}
+                  >
+                    <span>📱</span>
+                    <span>Share on WhatsApp</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyLink(primaryToken, 'general')}
+                    className="py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border"
+                    style={{
+                      backgroundColor: copiedMemberId === 'general' ? '#ECFDF5' : theme.semantic.background.secondary,
+                      borderColor: copiedMemberId === 'general' ? '#10B981' : theme.semantic.border.light,
+                      color: copiedMemberId === 'general' ? '#059669' : theme.semantic.text.primary
+                    }}
+                  >
+                    <Icon name={copiedMemberId === 'general' ? 'check' : 'copy'} size="xs" />
+                    <span>{copiedMemberId === 'general' ? 'Copied!' : 'Copy'}</span>
+                  </button>
+                </div>
+              </Card>
+            ) : null}
+          </div>
+
+          {/* Actions to continue */}
+          <div className="space-y-3 pt-4 border-t" style={{ borderColor: theme.semantic.border.light }}>
+            <Button
+              onClick={() => navigate(`/user/family/group/${createdGroup._id || createdGroup.id}`, { state: { group: createdGroup } })}
+              className="w-full py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2"
+              style={{ backgroundColor: theme.colors.primary[500], color: 'white' }}
+            >
+              <Icon name="chat" size="sm" />
+              <span>Open Group Chat</span>
+              <Icon name="chevronRight" size="sm" />
+            </Button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/user/family/groups')}
+              className="w-full py-3 rounded-xl border text-sm font-semibold text-center hover:bg-stone-50 transition"
+              style={{ borderColor: theme.semantic.border.light, color: theme.semantic.text.primary }}
+            >
+              View All Family Groups
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pb-24" style={{ backgroundColor: theme.semantic.background.primary }}>
@@ -238,6 +450,7 @@ const CreateGroup = () => {
                 Group Name *
               </label>
               <input
+                id="group-name-input"
                 type="text"
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
@@ -508,16 +721,12 @@ const CreateGroup = () => {
         <div className="max-w-md mx-auto">
           <Button
             onClick={handleCreateGroup}
-            disabled={!groupName.trim() || isCreating}
+            disabled={isCreating}
             className="w-full py-4 rounded-xl font-bold text-base flex items-center justify-center gap-3 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
             style={{
-              backgroundColor: (!groupName.trim() || isCreating) 
-                ? theme.semantic.text.tertiary 
-                : theme.colors.primary[500],
+              backgroundColor: isCreating ? theme.semantic.text.tertiary : theme.colors.primary[500],
               color: 'white',
-              boxShadow: (!groupName.trim() || isCreating) 
-                ? 'none' 
-                : `0 4px 20px ${theme.colors.primary[500]}40`,
+              boxShadow: isCreating ? 'none' : `0 4px 20px ${theme.colors.primary[500]}40`,
               minHeight: '56px'
             }}
           >

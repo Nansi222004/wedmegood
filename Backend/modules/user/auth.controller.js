@@ -63,30 +63,8 @@ exports.register = async (req, res) => {
 
     await user.save();
 
-    // Auto-link any pending Family Group invitations based on email or phone
-    try {
-      const emailMatch = email ? email.toLowerCase() : null;
-      const orConditions = [];
-      if (emailMatch) orConditions.push({ 'members.email': emailMatch, 'members.userId': null });
-      if (phone) orConditions.push({ 'members.phone': phone, 'members.userId': null });
-
-      if (orConditions.length > 0) {
-        await FamilyGroup.updateMany(
-          { $or: orConditions },
-          { $set: { 'members.$[elem].userId': user._id } },
-          {
-            arrayFilters: [{ 
-              $or: [
-                ...(emailMatch ? [{ 'elem.email': emailMatch, 'elem.userId': null }] : []),
-                ...(phone ? [{ 'elem.phone': phone, 'elem.userId': null }] : [])
-              ] 
-            }]
-          }
-        );
-      }
-    } catch (linkErr) {
-      console.error('Error auto-linking family groups:', linkErr);
-    }
+    // Safeguard 1: Do not auto-link invitations on unverified registration.
+    // Joining requires explicit acceptance via secure invitation token or verified contact ownership.
 
     // Send verification emails
     await sendVerificationEmail(email, name, emailOTP);

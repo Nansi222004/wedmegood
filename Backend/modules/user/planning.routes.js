@@ -62,6 +62,7 @@ router.get('/vendor-management', vendorManagementController.getVendorManagement)
 // 8. Family Collaboration (Groups)
 router.get('/family-groups', familyController.getFamilyGroups);
 router.get('/family-groups/invitations/pending', familyController.getPendingInvitations);
+router.post('/family-groups/join/:token', familyController.joinGroupWithToken);
 router.get('/family-groups/:id', familyController.getFamilyGroupById);
 router.get('/family-groups/:id/messages', familyController.getGroupMessages);
 router.post('/family-groups/:id/messages', familyController.sendMessage);
@@ -69,6 +70,8 @@ router.post('/family-groups', familyController.createFamilyGroup);
 router.put('/family-groups/:id', familyController.updateFamilyGroup);
 router.delete('/family-groups/:id', familyController.deleteFamilyGroup);
 router.post('/family-groups/:id/members', familyController.inviteMember);
+router.post('/family-groups/:id/members/:memberId/share-link', familyController.getOrRefreshMemberInviteLink);
+router.delete('/family-groups/:id/invitations/:memberId/revoke', familyController.revokeInvitation);
 router.put('/family-groups/:id/invitations/respond', familyController.respondInvitation);
 router.post('/family-groups/:id/invitations/respond', familyController.respondInvitation);
 router.delete('/family-groups/:id/members/:memberId', familyController.removeMember);

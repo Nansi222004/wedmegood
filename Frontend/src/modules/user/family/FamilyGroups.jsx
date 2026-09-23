@@ -18,6 +18,13 @@ const FamilyGroups = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [shareModalGroup, setShareModalGroup] = useState(null);
+  const [copiedMemberId, setCopiedMemberId] = useState(null);
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [newInviteName, setNewInviteName] = useState('');
+  const [newInvitePhone, setNewInvitePhone] = useState('');
+  const [isAddingMember, setIsAddingMember] = useState(false);
 
   // Check if current user is admin/owner of a group with real RBAC
   const isCurrentUserAdmin = (group) => {
@@ -51,6 +58,7 @@ const FamilyGroups = () => {
   const fetchGroups = async () => {
     try {
       setIsLoading(true);
+      setError(null);
       const res = await userApi.getFamilyGroups();
       if (res.success) {
         const groupsData = Array.isArray(res.data) ? res.data : (res.data?.groups || []);
@@ -65,11 +73,13 @@ const FamilyGroups = () => {
       } else {
         setGroups([]);
         setPendingInvitations([]);
+        setError(res.message || 'Failed to load family groups');
       }
     } catch (err) {
       console.error('Error loading family groups from MongoDB:', err);
       setGroups([]);
       setPendingInvitations([]);
+      setError(err?.message || 'Could not load family groups. Please check your connection or login session.');
     } finally {
       setIsLoading(false);
     }
@@ -136,6 +146,97 @@ const FamilyGroups = () => {
       .filter(Boolean)
       .slice(0, 3)
       .join(', ');
+  };
+
+  const handleCopyLinkForMember = async (group, member) => {
+    try {
+      setIsGeneratingLink(true);
+      const res = await userApi.getFamilyMemberShareLink(group._id || group.id, member._id || member.id);
+      if (res.success && res.data?.inviteToken) {
+        const fullUrl = `${window.location.origin}/family/join/${res.data.inviteToken}`;
+        await navigator.clipboard.writeText(fullUrl);
+        setCopiedMemberId(member._id || member.id);
+        toast.success(`Invitation link for ${member.name} copied!`);
+        setTimeout(() => setCopiedMemberId(null), 3000);
+      } else {
+        toast.error(res.message || 'Could not generate invitation link');
+      }
+    } catch (err) {
+      toast.error('Failed to get invite link');
+    } finally {
+      setIsGeneratingLink(false);
+    }
+  };
+
+  const handleWhatsAppForMember = async (group, member) => {
+    try {
+      setIsGeneratingLink(true);
+      const res = await userApi.getFamilyMemberShareLink(group._id || group.id, member._id || member.id);
+      if (res.success && res.data?.inviteToken) {
+        const fullUrl = `${window.location.origin}/family/join/${res.data.inviteToken}`;
+        const greeting = `Hi ${member.name}! `;
+        const text = `${greeting}You're invited to join our wedding planning group "${group.name}" on Utsavo.\n\nClick this link to join and start planning with the family:\n${fullUrl}`;
+        const cleanPhone = (member.phone || '').replace(/\D/g, '');
+        const whatsappUrl = cleanPhone 
+          ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`
+          : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+        window.open(whatsappUrl, '_blank');
+      } else {
+        toast.error(res.message || 'Could not generate WhatsApp invitation link');
+      }
+    } catch (err) {
+      toast.error('Failed to prepare WhatsApp invitation');
+    } finally {
+      setIsGeneratingLink(false);
+    }
+  };
+
+  const handleAddNewMemberAndWhatsApp = async (e) => {
+    e.preventDefault();
+    if (!shareModalGroup) return;
+    if (!newInviteName.trim()) {
+      toast.warning('Please enter member name');
+      return;
+    }
+    if (!newInvitePhone.trim()) {
+      toast.warning('Please enter member phone number');
+      return;
+    }
+
+    setIsAddingMember(true);
+    try {
+      const res = await userApi.inviteFamilyGroupMember(shareModalGroup._id || shareModalGroup.id, {
+        name: newInviteName.trim(),
+        phone: newInvitePhone.trim(),
+        role: 'member',
+        relation: 'Family'
+      });
+
+      if (res.success) {
+        toast.success(`Invitation created for ${newInviteName.trim()}!`);
+        const token = res.data?.inviteToken;
+        if (token) {
+          const fullUrl = `${window.location.origin}/family/join/${token}`;
+          const text = `Hi ${newInviteName.trim()}! You're invited to join our wedding planning group "${shareModalGroup.name}" on Utsavo.\n\nClick this link to join:\n${fullUrl}`;
+          const cleanPhone = newInvitePhone.replace(/\D/g, '');
+          window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`, '_blank');
+        }
+        setNewInviteName('');
+        setNewInvitePhone('');
+        await fetchGroups();
+        const updated = await userApi.getFamilyGroups();
+        if (updated.success) {
+          const found = (updated.data?.groups || updated.data || []).find(g => (g._id || g.id) === (shareModalGroup._id || shareModalGroup.id));
+          if (found) setShareModalGroup(found);
+        }
+      } else {
+        toast.error(res.message || 'Failed to add member');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to invite member');
+    } finally {
+      setIsAddingMember(false);
+    }
   };
 
   const formatTime = (timestamp) => {
@@ -219,6 +320,27 @@ const FamilyGroups = () => {
           </div>
         </div>
       </div>
+
+      {/* Error Alert Banner */}
+      {error && (
+        <div className="px-4 pt-4">
+          <div className="p-4 rounded-xl border border-rose-200 bg-rose-50 flex items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center space-x-3 text-rose-800 min-w-0">
+              <span className="text-xl flex-shrink-0">⚠️</span>
+              <div className="text-xs min-w-0">
+                <p className="font-bold text-sm text-rose-900">Failed to load groups</p>
+                <p className="text-rose-700 truncate">{error}</p>
+              </div>
+            </div>
+            <button
+              onClick={fetchGroups}
+              className="px-3 py-1.5 bg-rose-600 text-white text-xs font-semibold rounded-lg hover:bg-rose-700 transition flex-shrink-0 shadow-sm"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Pending Group Invitations Banner / Cards */}
       {pendingInvitations.length > 0 && (
@@ -442,7 +564,7 @@ const FamilyGroups = () => {
                     </div>
                   )}
                   
-                  <div className="flex items-center justify-between mt-2">
+                  <div className="flex items-center justify-between mt-3 pt-2 border-t" style={{ borderColor: theme.semantic.border.light }}>
                     <div className="flex items-center space-x-1">
                       <Icon name="users" size="xs" style={{ color: theme.semantic.text.secondary }} />
                       <span className="text-xs" style={{ color: theme.semantic.text.secondary }}>
@@ -450,7 +572,7 @@ const FamilyGroups = () => {
                       </span>
                       {isCurrentUserAdmin(group) && (
                         <div 
-                          className="px-2 py-1 rounded-full text-xs font-medium ml-2"
+                          className="px-2 py-0.5 rounded-full text-[11px] font-semibold ml-1.5"
                           style={{
                             backgroundColor: theme.colors.accent[100],
                             color: theme.colors.accent[700]
@@ -461,10 +583,19 @@ const FamilyGroups = () => {
                       )}
                     </div>
                     
-                    <div className="flex items-center space-x-1">
-                      <span className="text-xs" style={{ color: theme.semantic.text.secondary }}>
-                        {getMemberNames(group.members)}
-                      </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShareModalGroup(group);
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100 active:scale-95"
+                        title="Share Group Invitation via WhatsApp or Link"
+                      >
+                        <span className="text-sm leading-none">📱</span>
+                        <span>Share Invite</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -576,6 +707,144 @@ const FamilyGroups = () => {
                   Delete
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Invitation & WhatsApp Modal */}
+      {shareModalGroup && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div 
+            className="w-full max-w-md rounded-2xl p-6 max-h-[85vh] overflow-y-auto space-y-5"
+            style={{ backgroundColor: theme.semantic.background.primary }}
+          >
+            <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: theme.semantic.border.light }}>
+              <div className="flex items-center gap-2.5">
+                <img
+                  src={shareModalGroup.avatar || 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=150&h=150&fit=crop'}
+                  alt={shareModalGroup.name}
+                  className="w-10 h-10 rounded-full object-cover"
+                />
+                <div>
+                  <h3 className="font-bold text-base" style={{ color: theme.semantic.text.primary }}>
+                    Share Group Invite
+                  </h3>
+                  <p className="text-xs truncate max-w-[200px]" style={{ color: theme.semantic.text.secondary }}>
+                    {shareModalGroup.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShareModalGroup(null)}
+                className="p-1.5 rounded-full hover:bg-stone-100"
+              >
+                <Icon name="close" size="sm" style={{ color: theme.semantic.text.secondary }} />
+              </button>
+            </div>
+
+            {/* Pending members section */}
+            <div>
+              <h4 className="font-bold text-xs uppercase tracking-wider mb-2.5" style={{ color: theme.semantic.text.secondary }}>
+                Invited Members
+              </h4>
+              <div className="space-y-2.5">
+                {(shareModalGroup.members || [])
+                  .filter(m => m.role !== 'admin' || m.status === 'pending')
+                  .map((m) => {
+                    const isPending = m.status === 'pending';
+                    const isCopied = copiedMemberId === (m._id || m.id);
+                    return (
+                      <div 
+                        key={m._id || m.id || m.name}
+                        className="p-3 rounded-xl border flex items-center justify-between gap-2"
+                        style={{ backgroundColor: theme.semantic.background.secondary, borderColor: theme.semantic.border.light }}
+                      >
+                        <div className="min-w-0">
+                          <p className="font-bold text-xs truncate" style={{ color: theme.semantic.text.primary }}>
+                            {m.name}
+                          </p>
+                          <p className="text-[11px] truncate" style={{ color: theme.semantic.text.secondary }}>
+                            {m.relation || 'Family'} {m.phone ? `• ${m.phone}` : ''}
+                          </p>
+                          <span className={`inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded-full ${isPending ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                            {isPending ? 'Pending Acceptance' : 'Joined'}
+                          </span>
+                        </div>
+
+                        {isPending && (
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button
+                              type="button"
+                              disabled={isGeneratingLink}
+                              onClick={() => handleWhatsAppForMember(shareModalGroup, m)}
+                              className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-white flex items-center gap-1 shadow-sm transition active:scale-95"
+                              style={{ backgroundColor: '#25D366' }}
+                              title="Share on WhatsApp"
+                            >
+                              <span>📱</span>
+                              <span>WhatsApp</span>
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isGeneratingLink}
+                              onClick={() => handleCopyLinkForMember(shareModalGroup, m)}
+                              className="p-1.5 rounded-lg border text-xs font-semibold transition active:scale-95"
+                              style={{
+                                backgroundColor: isCopied ? '#ECFDF5' : 'white',
+                                borderColor: isCopied ? '#10B981' : theme.semantic.border.light,
+                                color: isCopied ? '#059669' : theme.semantic.text.primary
+                              }}
+                              title="Copy Invite Link"
+                            >
+                              <Icon name={isCopied ? 'check' : 'copy'} size="xs" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {/* Quick Invite New Contact & WhatsApp */}
+            <div className="pt-2 border-t" style={{ borderColor: theme.semantic.border.light }}>
+              <h4 className="font-bold text-xs uppercase tracking-wider mb-2" style={{ color: theme.semantic.text.secondary }}>
+                Invite Another Contact via WhatsApp
+              </h4>
+              <form onSubmit={handleAddNewMemberAndWhatsApp} className="space-y-2">
+                <input
+                  type="text"
+                  placeholder="Contact Name (e.g. Rahul, Khushu)"
+                  value={newInviteName}
+                  onChange={(e) => setNewInviteName(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border focus:outline-none"
+                  style={{ borderColor: theme.semantic.border.light }}
+                />
+                <input
+                  type="tel"
+                  placeholder="10-digit Phone Number (e.g. 9876543210)"
+                  value={newInvitePhone}
+                  onChange={(e) => setNewInvitePhone(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border focus:outline-none"
+                  style={{ borderColor: theme.semantic.border.light }}
+                />
+                <button
+                  type="submit"
+                  disabled={isAddingMember}
+                  className="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 text-white shadow-sm transition active:scale-95"
+                  style={{ backgroundColor: '#25D366' }}
+                >
+                  {isAddingMember ? (
+                    <span>Generating WhatsApp Invite...</span>
+                  ) : (
+                    <>
+                      <span>📱</span>
+                      <span>Send WhatsApp Invitation</span>
+                    </>
+                  )}
+                </button>
+              </form>
             </div>
           </div>
         </div>

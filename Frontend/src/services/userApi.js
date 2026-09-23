@@ -528,6 +528,13 @@ export const userApi = {
     });
   },
 
+  inviteFamilyGroupMember: async (groupId, memberData) => {
+    return request(`/user/family-groups/${groupId}/members`, {
+      method: 'POST',
+      body: memberData
+    });
+  },
+
   deleteFamilyGroup: async (groupId) => {
     return request(`/user/family-groups/${groupId}`, {
       method: 'DELETE'
@@ -553,6 +560,26 @@ export const userApi = {
     return request(`/user/family-groups/${groupId}/invitations/respond`, {
       method: 'PUT',
       body: data
+    });
+  },
+
+  getPublicFamilyInvitation: async (token) => {
+    return request(`/public/family-invitations/${token}`, { method: 'GET' });
+  },
+
+  joinFamilyGroupWithToken: async (token) => {
+    return request(`/user/family-groups/join/${token}`, { method: 'POST' });
+  },
+
+  revokeFamilyInvitation: async (groupId, memberId) => {
+    return request(`/user/family-groups/${groupId}/invitations/${memberId}/revoke`, {
+      method: 'DELETE'
+    });
+  },
+
+  getFamilyMemberShareLink: async (groupId, memberId) => {
+    return request(`/user/family-groups/${groupId}/members/${memberId}/share-link`, {
+      method: 'POST'
     });
   },
 
@@ -676,6 +703,12 @@ export const userApi = {
     });
   },
 
+  deleteFamilyGroup: async (groupId) => {
+    return request(`/user/family-groups/${groupId}`, {
+      method: 'DELETE'
+    });
+  },
+
   inviteFamilyMember: async (groupId, memberData) => {
     return request(`/user/family-groups/${groupId}/members`, {
       method: 'POST',
@@ -698,6 +731,20 @@ export const userApi = {
 
   getFamilySharedData: async (groupId) => {
     return request(`/user/family-groups/${groupId}/shared-data`, { method: 'GET' });
+  },
+
+  getPublicFamilyInvitation: async (token) => {
+    return request(`/public/family-invitations/${token}`, { method: 'GET' });
+  },
+
+  joinFamilyGroupWithToken: async (token) => {
+    return request(`/user/family-groups/join/${token}`, { method: 'POST' });
+  },
+
+  revokeFamilyInvitation: async (groupId, memberId) => {
+    return request(`/user/family-groups/${groupId}/invitations/${memberId}/revoke`, {
+      method: 'DELETE'
+    });
   },
 
   // 17. Inspiration Gallery

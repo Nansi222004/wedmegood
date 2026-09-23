@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useTheme } from '../../../hooks/useTheme';
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   const { theme } = useTheme();
   const [formData, setFormData] = useState({
@@ -13,6 +14,9 @@ const Login = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+
+  const searchParams = new URLSearchParams(location.search);
+  const redirectUrl = searchParams.get('redirect');
 
   useEffect(() => {
     // Add Designer fonts for the Lilac theme
@@ -27,7 +31,7 @@ const Login = () => {
     setError('');
     const result = await login(formData.username, formData.password);
     if (result.success) {
-      navigate('/user/dashboard');
+      navigate(redirectUrl || '/user/dashboard');
     } else {
       setError(result.error);
     }
@@ -127,7 +131,7 @@ const Login = () => {
         {/* FOOTER LINKS - MOVED UP */}
         <div className="mt-4 flex flex-col items-center gap-4">
            <button 
-             onClick={() => navigate('/signup')} 
+             onClick={() => navigate('/signup' + (location.search || ''))} 
              className="text-[#5D3E3E] text-[10px] font-black uppercase tracking-widest border-b border-[#5D3E3E]/40"
              style={{ fontFamily: '"Outfit", sans-serif' }}
            >

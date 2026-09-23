@@ -199,7 +199,9 @@ function initSocketService(io) {
                 const group = await FamilyGroup.findById(groupId);
                 if (!group) throw new Error('Group not found');
                 
-                const isMember = group.userId.equals(user.id) || group.members.some(m => m.userId && m.userId.equals(user.id) && m.status === 'accepted');
+                const userIdStr = String(user._id || user.id || '');
+                const isMember = (group.userId && (group.userId.equals ? group.userId.equals(user.id) : String(group.userId._id || group.userId) === userIdStr)) ||
+                                 group.members.some(m => m.userId && (m.userId.equals ? m.userId.equals(user.id) : String(m.userId._id || m.userId) === userIdStr) && m.status === 'accepted');
                 if (!isMember) throw new Error('Not a member of this group');
 
                 const roomName = `family_group_${groupId}`;

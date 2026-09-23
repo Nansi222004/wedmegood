@@ -57,6 +57,11 @@ const Header = () => {
   };
 
   const isDashboard = location.pathname === '/user/dashboard';
+  const isChatRoom = location.pathname.startsWith('/user/family/group/') || location.pathname.startsWith('/user/chats/');
+
+  if (isChatRoom) {
+    return null;
+  }
 
   const headerStyles = {
     backgroundColor: 'transparent',

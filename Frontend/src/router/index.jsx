@@ -42,6 +42,7 @@ import FamilyContacts from '../modules/user/family/FamilyContacts';
 import CreateGroup from '../modules/user/family/CreateGroup';
 import GroupChat from '../modules/user/family/GroupChat';
 import FamilyGroups from '../modules/user/family/FamilyGroups';
+import JoinFamilyGroup from '../modules/user/family/JoinFamilyGroup';
 import Header from '../components/common/Header';
 import BottomNav from '../components/common/BottomNav';
 import PlaceholderPage from '../components/common/PlaceholderPage';
@@ -101,15 +102,28 @@ const AppRouter = () => {
       {/* Public Digital Wedding Invitation Route (No Auth Required) */}
       <Route path="/invite/:slug" element={<PublicInvite />} />
 
+      {/* Public Family Group Invitation Route (No Auth Required for Preview) */}
+      <Route path="/family/join/:token" element={<JoinFamilyGroup />} />
+      <Route path="/user/family/join/:token" element={<JoinFamilyGroup />} />
+
       {/* Route alias for vender misspelling */}
       <Route path="/vender/*" element={<Navigate to="/vendor" replace />} />
 
       {/* Auth Routes */}
       <Route path="/login" element={
-        isAuthenticated ? <Navigate to="/user/dashboard" replace /> : <Login />
+        isAuthenticated ? (
+          <Navigate to={new URLSearchParams(location.search).get('redirect') || "/user/dashboard"} replace />
+        ) : <Login />
       } />
       <Route path="/signup" element={
-        isAuthenticated ? <Navigate to="/user/wedding-details" replace /> : <Signup />
+        isAuthenticated ? (
+          <Navigate to={new URLSearchParams(location.search).get('redirect') || "/user/wedding-details"} replace />
+        ) : <Signup />
+      } />
+      <Route path="/register" element={
+        isAuthenticated ? (
+          <Navigate to={new URLSearchParams(location.search).get('redirect') || "/user/wedding-details"} replace />
+        ) : <Signup />
       } />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
@@ -132,15 +146,17 @@ const AppRouter = () => {
                 <div 
                   className="fixed inset-0 z-[-1]" 
                   style={{ 
-                    backgroundImage: location.pathname === '/user/dashboard' ? "url('/dashboardbackgroundimage.png')" : "url('/background.png')", 
+                    backgroundImage: location.pathname.startsWith('/user/family/group/') || location.pathname.startsWith('/user/chats/')
+                      ? 'none'
+                      : location.pathname === '/user/dashboard' ? "url('/dashboardbackgroundimage.png')" : "url('/background.png')", 
                     backgroundSize: location.pathname === '/user/dashboard' ? 'cover' : '100% 100%', 
                     backgroundPosition: location.pathname === '/user/dashboard' ? 'center 10%' : 'center', 
-                    backgroundColor: '#EAE1D8',
+                    backgroundColor: location.pathname.startsWith('/user/family/group/') || location.pathname.startsWith('/user/chats/') ? '#ffffff' : '#EAE1D8',
                     backgroundRepeat: 'no-repeat'
                   }} 
                 />
                 <Header />
-                <main className="pb-16 md:pb-0 relative z-0">
+                <main className={location.pathname.startsWith('/user/family/group/') || location.pathname.startsWith('/user/chats/') ? "relative z-0" : "pb-16 md:pb-0 relative z-0"}>
                   <Routes>
                     <Route path="dashboard" element={<Dashboard />} />
                     <Route path="home" element={<UserHome />} />
@@ -165,6 +181,7 @@ const AppRouter = () => {
                     <Route path="family/create-group" element={<CreateGroup />} />
                     <Route path="family/group/:groupId" element={<GroupChat />} />
                     <Route path="family/groups" element={<FamilyGroups />} />
+                    <Route path="family/join/:token" element={<JoinFamilyGroup />} />
 
                     <Route path="account" element={<Account />} />
                     <Route path="account/profile" element={<Profile />} />

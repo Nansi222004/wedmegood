@@ -30,4 +30,9 @@ router.post('/invites/:slug/share', inviteController.trackShare);
 // Public active banners for home and discover pages
 router.get('/banners', bannerController.getPublicBanners);
 
+// Public read family group invitation preview by token
+const familyController = require('./family.controller');
+router.get('/family-invitations/:token', familyController.getPublicInvitationByToken);
+
 module.exports = router;
+

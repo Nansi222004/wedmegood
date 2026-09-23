@@ -34,8 +34,8 @@ const familyGroupMemberSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'accepted', 'declined'],
-    default: 'accepted'
+    enum: ['pending', 'accepted', 'declined', 'revoked'],
+    default: 'pending'
   },
   permissions: {
     type: [String],
@@ -44,6 +44,14 @@ const familyGroupMemberSchema = new mongoose.Schema({
   avatar: {
     type: String,
     default: ''
+  },
+  inviteTokenHash: {
+    type: String,
+    default: null
+  },
+  inviteTokenExpiresAt: {
+    type: Date,
+    default: null
   },
   invitedAt: {
     type: Date,
@@ -92,6 +100,8 @@ const familyGroupSchema = new mongoose.Schema({
 
 familyGroupSchema.index({ userId: 1, createdAt: -1 });
 familyGroupSchema.index({ 'members.email': 1 });
+familyGroupSchema.index({ 'members.phone': 1 });
 familyGroupSchema.index({ 'members.userId': 1 });
+familyGroupSchema.index({ 'members.inviteTokenHash': 1 });
 
 module.exports = mongoose.models.FamilyGroup || mongoose.model('FamilyGroup', familyGroupSchema);
