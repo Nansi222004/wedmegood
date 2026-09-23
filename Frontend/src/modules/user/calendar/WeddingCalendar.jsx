@@ -154,57 +154,55 @@ const WeddingCalendar = () => {
   const selectedDayEvents = eventsByDate[selectedDateKey] || [];
 
   return (
-    <div className="min-h-screen px-4 sm:px-6 py-6 pb-28" style={{ backgroundColor: '#EAE1D8' }}>
-      <div className="max-w-6xl mx-auto space-y-6">
-
+    <div className="min-h-screen px-4 sm:px-6 py-6 pb-28 bg-transparent">
+      <div className="max-w-xl mx-auto space-y-5">
+        
         {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/user/dashboard')}
-              className="p-2.5 rounded-xl bg-white shadow-sm border border-white active:scale-95 transition-all text-[#3D2B2B]"
-            >
-              <Icon name="chevronLeft" size="sm" />
-            </button>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-[#3D2B2B]" style={{ fontFamily: '"Playfair Display", serif' }}>
-                Wedding Planning Calendar
-              </h1>
-              <p className="text-xs text-[#3D2B2B]/60">
-                Milestones, vendor dates, checklist deadlines, and timeline events
-              </p>
-            </div>
-          </div>
-
-          {/* Controls */}
-          <div className="flex items-center gap-2">
-            <div className="flex bg-white/70 backdrop-blur rounded-xl p-1 shadow-sm border border-white">
-              <button
-                onClick={() => setViewMode('month')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  viewMode === 'month' ? 'bg-[#3D2B2B] text-white shadow' : 'text-[#3D2B2B]/70'
-                }`}
-              >
-                Month Grid
-              </button>
-              <button
-                onClick={() => setViewMode('agenda')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  viewMode === 'agenda' ? 'bg-[#3D2B2B] text-white shadow' : 'text-[#3D2B2B]/70'
-                }`}
-              >
-                Agenda View
-              </button>
-            </div>
-
-            <Button variant="outline" size="sm" onClick={goToToday} className="bg-white">
-              Today
-            </Button>
+        <div className="flex items-start gap-4">
+          <button
+            onClick={() => navigate('/user/dashboard')}
+            className="w-12 h-12 flex-shrink-0 rounded-2xl bg-white shadow-sm border border-white flex items-center justify-center active:scale-95 transition-all text-[#4A2B42]"
+          >
+            <Icon name="chevronLeft" size="sm" />
+          </button>
+          <div>
+            <h1 className="text-[28px] font-bold text-[#4A2B42] leading-tight" style={{ fontFamily: '"Playfair Display", serif' }}>
+              Wedding Planning Calendar
+            </h1>
+            <p className="text-[13px] text-[#6B6C80] leading-snug mt-1">
+              Milestones, vendor dates, checklists, deadlines, and timeline events
+            </p>
           </div>
         </div>
 
+        {/* Controls */}
+        <div className="flex flex-wrap items-center gap-3 pt-2">
+          <button
+            onClick={() => setViewMode('month')}
+            className={`px-5 py-2.5 rounded-[14px] text-[13px] font-bold transition-all ${
+              viewMode === 'month' ? 'bg-[#5C204B] text-white shadow-md' : 'bg-white/70 text-[#4A2B42] hover:bg-white'
+            }`}
+          >
+            Month View
+          </button>
+          <button
+            onClick={() => setViewMode('agenda')}
+            className={`px-5 py-2.5 rounded-[14px] text-[13px] font-bold transition-all ${
+              viewMode === 'agenda' ? 'bg-[#5C204B] text-white shadow-md' : 'bg-white/70 text-[#4A2B42] hover:bg-white'
+            }`}
+          >
+            Agenda View
+          </button>
+          <button 
+            onClick={goToToday} 
+            className="px-5 py-2.5 rounded-[14px] text-[13px] font-bold bg-[#F4E8F8] text-[#863773] hover:bg-[#ebd5f2] transition-all"
+          >
+            Today
+          </button>
+        </div>
+
         {/* Filter Chips */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+        <div className="flex flex-wrap items-center gap-2">
           {['ALL', 'WEDDING', 'BOOKING', 'CHECKLIST', 'TIMELINE', 'RSVP_DEADLINE'].map(type => {
             const isSelected = filterType === type;
             const config = EVENT_TYPE_CONFIG[type];
@@ -212,10 +210,10 @@ const WeddingCalendar = () => {
               <button
                 key={type}
                 onClick={() => setFilterType(type)}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shadow-sm border ${
+                className={`px-4 py-2 rounded-full text-[12px] font-bold whitespace-nowrap transition-all flex items-center gap-2 shadow-sm ${
                   isSelected
-                    ? 'bg-[#3D2B2B] text-white border-[#3D2B2B]'
-                    : 'bg-white/90 text-[#3D2B2B]/80 border-white hover:bg-white'
+                    ? 'bg-[#5C204B] text-white'
+                    : 'bg-white/90 text-[#6B6C80] hover:bg-white'
                 }`}
               >
                 {config && (
@@ -230,97 +228,81 @@ const WeddingCalendar = () => {
           })}
         </div>
 
-        {/* Month Navigation */}
-        <div className="flex items-center justify-between bg-white rounded-2xl p-4 shadow-sm border border-white">
-          <button
-            onClick={prevMonth}
-            className="p-2 rounded-xl hover:bg-[#EAE1D8]/50 active:scale-95 transition-all text-[#3D2B2B]"
-            aria-label="Previous Month"
-          >
-            <Icon name="chevronLeft" size="md" />
-          </button>
-          <h2 className="text-lg sm:text-xl font-bold text-[#3D2B2B]" style={{ fontFamily: '"Playfair Display", serif' }}>
-            {monthName}
-          </h2>
-          <button
-            onClick={nextMonth}
-            className="p-2 rounded-xl hover:bg-[#EAE1D8]/50 active:scale-95 transition-all text-[#3D2B2B]"
-            aria-label="Next Month"
-          >
-            <Icon name="chevronRight" size="md" />
-          </button>
-        </div>
-
         {/* Main Calendar Area */}
         {viewMode === 'month' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="space-y-4">
+            {/* Month Navigation */}
+            <div className="flex items-center justify-between bg-white/40 backdrop-blur-md rounded-2xl p-2 px-4 border border-white/50">
+              <button
+                onClick={prevMonth}
+                className="p-2 active:scale-95 transition-all text-[#4A2B42]"
+              >
+                <Icon name="chevronLeft" size="sm" />
+              </button>
+              <h2 className="text-[19px] font-bold text-[#4A2B42]" style={{ fontFamily: '"Playfair Display", serif' }}>
+                {monthName}
+              </h2>
+              <button
+                onClick={nextMonth}
+                className="p-2 active:scale-95 transition-all text-[#4A2B42]"
+              >
+                <Icon name="chevronRight" size="sm" />
+              </button>
+            </div>
+
             {/* 7-day Grid */}
-            <div className="lg:col-span-2 bg-white rounded-3xl p-4 sm:p-6 shadow-sm border border-white">
+            <div 
+              className="rounded-3xl p-5 shadow-sm border border-white/50 bg-white/40"
+              style={{
+                backgroundImage: "url('/calender%20bg.png')",
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat'
+              }}
+            >
               {/* Day Headers */}
-              <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 text-center text-[11px] font-black uppercase text-[#3D2B2B]/40 tracking-wider">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-                  <div key={d} className="py-1">{d}</div>
+              <div className="grid grid-cols-7 gap-2 mb-3 text-center text-[10px] font-bold uppercase text-[#6B6C80] tracking-widest">
+                {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
+                  <div key={d}>{d}</div>
                 ))}
               </div>
 
               {/* Day Cells */}
-              <div className="grid grid-cols-7 gap-1 sm:gap-2">
+              <div className="grid grid-cols-7 gap-2">
                 {daysGrid.map((cell, idx) => {
                   if (cell.blank) {
-                    return <div key={cell.key || idx} className="h-20 sm:h-24 rounded-2xl bg-transparent" />;
+                    return <div key={cell.key || idx} className="aspect-square" />;
                   }
 
                   const isSelected = cell.dateKey === selectedDateKey;
                   const isToday = cell.dateKey === toDateKey(new Date());
-                  const hasEvents = cell.events.length > 0;
 
                   return (
                     <button
                       key={cell.dateKey}
                       onClick={() => setSelectedDateKey(cell.dateKey)}
-                      className={`h-20 sm:h-24 rounded-2xl p-1.5 flex flex-col justify-between text-left transition-all border ${
+                      className={`relative aspect-square rounded-[14px] flex flex-col items-center justify-center transition-all ${
                         isSelected
-                          ? 'border-[#3D2B2B] bg-[#3D2B2B]/5 shadow-sm'
-                          : isToday
-                          ? 'border-rose-300 bg-rose-50/50'
-                          : 'border-transparent bg-[#FAF8F5] hover:bg-[#F3EFEA]'
+                          ? 'bg-[#5C204B] text-white shadow-md'
+                          : 'bg-[#FDFBF9] hover:bg-white text-[#4A2B42]'
                       }`}
                     >
-                      <div className="flex items-center justify-between w-full">
-                        <span className={`text-xs font-bold rounded-md px-1.5 py-0.5 ${
-                          isSelected
-                            ? 'bg-[#3D2B2B] text-white'
-                            : isToday
-                            ? 'bg-rose-500 text-white'
-                            : 'text-[#3D2B2B]'
-                        }`}>
-                          {cell.dayNumber}
-                        </span>
-                        {hasEvents && (
-                          <span className="text-[10px] font-bold text-[#3D2B2B]/50">
-                            {cell.events.length}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Event Chips / Dots */}
-                      <div className="w-full space-y-1 overflow-hidden">
-                        {cell.events.slice(0, 2).map((ev, i) => {
+                      <span className={`text-[15px] font-semibold ${isSelected ? 'text-white' : 'text-[#4A2B42]'}`}>
+                        {cell.dayNumber}
+                      </span>
+                      
+                      {/* Event Dots Container */}
+                      <div className="absolute bottom-1.5 flex gap-0.5 justify-center w-full">
+                        {cell.events.slice(0, 3).map((ev, i) => {
                           const conf = EVENT_TYPE_CONFIG[ev.type] || {};
                           return (
-                            <div
+                            <span
                               key={ev.id || i}
-                              className={`text-[9px] font-semibold truncate rounded px-1 py-0.5 leading-tight ${conf.bgLight || 'bg-gray-100'} ${conf.textColor || 'text-gray-700'}`}
-                            >
-                              {ev.title}
-                            </div>
+                              className="w-1.5 h-1.5 rounded-full"
+                              style={{ backgroundColor: isSelected ? 'white' : conf.dotColor || '#5C204B' }}
+                            />
                           );
                         })}
-                        {cell.events.length > 2 && (
-                          <div className="text-[8px] font-bold text-[#3D2B2B]/50 pl-1">
-                            +{cell.events.length - 2} more
-                          </div>
-                        )}
                       </div>
                     </button>
                   );
@@ -329,12 +311,20 @@ const WeddingCalendar = () => {
             </div>
 
             {/* Selected Date Inspector Panel */}
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-white flex flex-col h-fit">
-              <div className="border-b border-gray-100 pb-4 mb-4">
-                <p className="text-[10px] font-black uppercase text-[#3D2B2B]/40 tracking-wider">
-                  Events on
+            <div 
+              className="bg-white/80 backdrop-blur-md rounded-3xl p-6 shadow-sm border border-white/50 relative overflow-hidden"
+              style={{
+                backgroundImage: "url('/cakender%20div%20bg.png')",
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat'
+              }}
+            >
+              <div className="mb-6 relative z-10">
+                <p className="text-[10px] font-black uppercase text-[#6B6C80] tracking-wider mb-1">
+                  EVENTS ON
                 </p>
-                <h3 className="text-xl font-bold text-[#3D2B2B]" style={{ fontFamily: '"Playfair Display", serif' }}>
+                <h3 className="text-[22px] font-bold text-[#4A2B42]" style={{ fontFamily: '"Playfair Display", serif' }}>
                   {new Date(selectedDateKey + 'T00:00:00').toLocaleDateString('en-US', {
                     weekday: 'long',
                     month: 'short',
@@ -345,44 +335,45 @@ const WeddingCalendar = () => {
               </div>
 
               {selectedDayEvents.length === 0 ? (
-                <div className="py-12 text-center text-[#3D2B2B]/50 space-y-2">
-                  <div className="w-12 h-12 mx-auto rounded-full bg-[#EAE1D8]/50 flex items-center justify-center">
-                    <Icon name="calendar" size="md" />
+                <div className="py-8 text-center text-[#6B6C80] relative z-10">
+                  <div className="w-14 h-14 mx-auto rounded-full bg-white shadow-sm flex items-center justify-center mb-4">
+                    <Icon name="calendar" size="md" className="text-[#4A2B42]/50" />
                   </div>
-                  <p className="text-xs font-semibold">No milestones on this day</p>
-                  <p className="text-[10px] text-[#3D2B2B]/40">Select another date or switch to agenda view</p>
+                  <p className="text-[14px] font-bold text-[#4A2B42] mb-1">No milestones on this day</p>
+                  <p className="text-[12px]">Select another date or switch to agenda view</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 relative z-10">
                   {selectedDayEvents.map(ev => {
                     const conf = EVENT_TYPE_CONFIG[ev.type] || {};
                     return (
                       <div
                         key={ev.id}
-                        className={`p-3.5 rounded-2xl border transition-all ${conf.bgLight || 'bg-gray-50 border-gray-200'}`}
+                        className={`p-4 rounded-2xl bg-white/80 shadow-sm border border-white transition-all`}
                       >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full text-white ${conf.color || 'bg-gray-600'}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: conf.dotColor || '#5C204B' }}>
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: conf.dotColor || '#5C204B' }} />
                             {conf.label || ev.type}
                           </span>
                           {ev.time && (
-                            <span className="text-[10px] font-bold text-gray-500">
+                            <span className="text-[11px] font-bold text-[#6B6C80]">
                               {ev.time}
                             </span>
                           )}
                         </div>
-                        <h4 className="text-sm font-bold text-[#3D2B2B]">
+                        <h4 className="text-[15px] font-bold text-[#4A2B42]">
                           {ev.title}
                         </h4>
                         {ev.status && (
-                          <p className="text-[11px] text-gray-600 capitalize mt-0.5">
-                            Status: <span className="font-semibold">{ev.status}</span>
+                          <p className="text-[12px] text-[#6B6C80] capitalize mt-1">
+                            Status: <span className="font-semibold text-[#4A2B42]">{ev.status}</span>
                           </p>
                         )}
                         {ev.navigationPath && (
                           <button
                             onClick={() => navigate(ev.navigationPath)}
-                            className="mt-2 text-xs font-bold text-[#3D2B2B] hover:underline flex items-center gap-1"
+                            className="mt-3 text-[12px] font-bold text-[#5C204B] hover:underline flex items-center gap-1"
                           >
                             <span>Open details</span>
                             <Icon name="chevronRight" size="xs" />
@@ -397,50 +388,51 @@ const WeddingCalendar = () => {
           </div>
         ) : (
           /* Agenda View */
-          <div className="bg-white rounded-3xl p-6 shadow-sm border border-white space-y-4">
-            <h3 className="text-lg font-bold text-[#3D2B2B]" style={{ fontFamily: '"Playfair Display", serif' }}>
+          <div className="bg-white/80 backdrop-blur-md rounded-3xl p-6 shadow-sm border border-white/50 space-y-4">
+            <h3 className="text-xl font-bold text-[#4A2B42]" style={{ fontFamily: '"Playfair Display", serif' }}>
               All Upcoming Milestones & Deadlines
             </h3>
 
             {loading ? (
-              <div className="py-12 text-center text-[#3D2B2B]/50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3D2B2B] mx-auto mb-2" />
-                <p className="text-xs">Loading calendar milestones...</p>
+              <div className="py-12 text-center text-[#6B6C80]">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#5C204B] mx-auto mb-2" />
+                <p className="text-[13px]">Loading calendar milestones...</p>
               </div>
             ) : events.length === 0 ? (
-              <div className="py-12 text-center text-[#3D2B2B]/50">
-                <p className="text-sm">No milestones found in this window.</p>
+              <div className="py-12 text-center text-[#6B6C80]">
+                <p className="text-[14px]">No milestones found in this window.</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-[#4A2B42]/10">
                 {events
                   .filter(ev => filterType === 'ALL' || ev.type === filterType)
                   .map(ev => {
                     const conf = EVENT_TYPE_CONFIG[ev.type] || {};
                     const dateObj = new Date(ev.date);
                     return (
-                      <div key={ev.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <div className="w-12 text-center flex-shrink-0">
-                            <span className="text-[10px] font-black uppercase text-[#3D2B2B]/40 block">
+                      <div key={ev.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start gap-4">
+                          <div className="w-12 text-center flex-shrink-0 bg-white rounded-xl py-2 shadow-sm border border-white">
+                            <span className="text-[10px] font-black uppercase text-[#5C204B] block">
                               {dateObj.toLocaleString('en-US', { month: 'short' })}
                             </span>
-                            <span className="text-lg font-bold text-[#3D2B2B] leading-none block">
+                            <span className="text-[18px] font-bold text-[#4A2B42] leading-none block mt-0.5">
                               {dateObj.getDate()}
                             </span>
                           </div>
                           <div>
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full text-white ${conf.color || 'bg-gray-600'}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: conf.dotColor || '#5C204B' }}>
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: conf.dotColor || '#5C204B' }} />
                                 {conf.label || ev.type}
                               </span>
                               {ev.status && (
-                                <span className="text-[10px] text-gray-500 capitalize">
-                                  ({ev.status})
+                                <span className="text-[10px] text-[#6B6C80] capitalize">
+                                  • {ev.status}
                                 </span>
                               )}
                             </div>
-                            <h4 className="text-sm font-bold text-[#3D2B2B]">{ev.title}</h4>
+                            <h4 className="text-[15px] font-bold text-[#4A2B42]">{ev.title}</h4>
                           </div>
                         </div>
 
@@ -449,7 +441,7 @@ const WeddingCalendar = () => {
                             variant="outline"
                             size="sm"
                             onClick={() => navigate(ev.navigationPath)}
-                            className="self-end sm:self-center text-xs"
+                            className="self-end sm:self-center text-xs bg-white text-[#4A2B42] border-[#4A2B42]/20 hover:border-[#4A2B42]/40"
                           >
                             View
                           </Button>

@@ -169,144 +169,104 @@ const Inspirations = () => {
   };
 
   return (
-    <div className="min-h-screen pb-20" style={{ backgroundColor: theme.semantic.background.primary }}>
+    <div className="min-h-screen pb-20 bg-transparent">
       {/* Header */}
-      <div 
-        className="sticky top-0 z-40 px-4 py-4 border-b"
-        style={{ 
-          backgroundColor: theme.semantic.background.primary,
-          borderBottomColor: theme.semantic.border.light
-        }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
+      <div className="px-4 pt-6 pb-2">
+        <div className="flex items-start justify-between mb-5">
+          <div className="flex items-start gap-4">
             <button
               onClick={() => navigate(-1)}
-              className="p-2 rounded-full transition-colors"
-              style={{ backgroundColor: theme.semantic.background.accent }}
+              className="w-12 h-12 flex-shrink-0 rounded-2xl bg-white shadow-sm border border-white flex items-center justify-center active:scale-95 transition-all text-[#4A2B42]"
             >
-              <Icon name="chevronDown" size="sm" className="rotate-90" style={{ color: theme.semantic.text.primary }} />
+              <Icon name="chevronLeft" size="sm" />
             </button>
             <div>
               <h1 
-                className="text-xl font-bold"
-                style={{ color: theme.semantic.text.primary }}
+                className="text-[28px] font-bold text-[#4A2B42] leading-tight"
+                style={{ fontFamily: '"Playfair Display", serif' }}
               >
                 Wedding Inspirations
               </h1>
-              <p 
-                className="text-sm"
-                style={{ color: theme.semantic.text.secondary }}
-              >
+              <p className="text-[13px] text-[#6B6C80] leading-snug mt-1">
                 {filteredItems.length} ideas to inspire your wedding
               </p>
             </div>
           </div>
           <button
             onClick={() => navigate('/user/favourites')}
-            className="p-2 rounded-full transition-colors"
-            style={{ backgroundColor: theme.semantic.background.accent }}
+            className="w-12 h-12 flex-shrink-0 rounded-2xl bg-white shadow-sm border border-white flex items-center justify-center active:scale-95 transition-all text-[#9D3875]"
           >
-            <Icon name="heart" size="sm" style={{ color: theme.colors.primary[500] }} />
+            <Icon name="heart" size="sm" />
           </button>
         </div>
 
         {/* Category Filter */}
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
-          {categories.map((category) => (
-            <button
-              key={category.id}
-              onClick={() => setSelectedCategory(category.id)}
-              className="flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200"
-              style={{
-                backgroundColor: selectedCategory === category.id 
-                  ? theme.colors.primary[500] 
-                  : theme.semantic.background.accent,
-                color: selectedCategory === category.id 
-                  ? 'white' 
-                  : theme.semantic.text.primary
-              }}
-            >
-              {category.name}
-            </button>
-          ))}
+        <div className="relative pb-3">
+          <div className="flex gap-2 overflow-x-auto pb-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            {categories.map((category) => (
+              <button
+                key={category.id}
+                onClick={() => setSelectedCategory(category.id)}
+                className={`flex-shrink-0 px-4 py-2 rounded-full text-[13px] font-bold transition-all duration-200 flex items-center gap-2 shadow-sm border border-white/50 ${
+                  selectedCategory === category.id 
+                    ? 'bg-[#8A3A69] text-white' 
+                    : 'bg-white/80 text-[#4A2B42] hover:bg-white'
+                }`}
+              >
+                <Icon 
+                  name={category.icon} 
+                  size="xs" 
+                  className={selectedCategory === category.id ? 'text-white' : 'text-[#8A3A69]'}
+                />
+                {category.name}
+              </button>
+            ))}
+          </div>
+          {/* Decorative bottom line */}
+          <div className="absolute bottom-0 left-0 right-0 flex">
+             <div className="h-0.5 bg-[#8A3A69]" style={{ width: '70px', borderRadius: '2px' }}></div>
+             <div className="h-0.5 bg-[#8A3A69]/10 flex-1 rounded-r-sm"></div>
+          </div>
         </div>
       </div>
 
       {/* Masonry Grid */}
-      <div className="px-4 py-4">
+      <div className="px-4 py-3">
         <div className="columns-2 gap-3 space-y-3">
           {filteredItems.map((item) => (
             <div
               key={item.id}
-              className="break-inside-avoid mb-3 cursor-pointer group"
+              className="break-inside-avoid mb-3 cursor-pointer group relative"
               onClick={() => handleItemClick(item)}
             >
-              <div 
-                className="relative rounded-2xl overflow-hidden shadow-md transition-all duration-300 group-hover:shadow-xl"
-                style={{ backgroundColor: theme.semantic.background.accent }}
-              >
+              <div className="relative rounded-[20px] overflow-hidden shadow-sm">
                 {/* Image */}
-                <div className="relative">
-                  <img
-                    src={item.image}
-                    alt={item.title}
-                    className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105"
-                    loading="lazy"
-                    onError={(e) => {
-                      e.target.src = 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=600&fit=crop&q=80';
-                    }}
-                  />
-                  
-                  {/* Gradient Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  
-                  {/* Save Button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSave(item);
-                    }}
-                    className="absolute top-3 right-3 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-sm"
+                <img
+                  src={item.image}
+                  alt={item.title}
+                  className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-105"
+                  loading="lazy"
+                  onError={(e) => {
+                    e.target.src = 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=600&fit=crop&q=80';
+                  }}
+                />
+                
+                {/* Save Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSave(item);
+                  }}
+                  className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/95 shadow-sm flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95"
+                >
+                  <Icon 
+                    name="heart" 
+                    size="sm" 
                     style={{ 
-                      backgroundColor: savedMap.has(item.title) 
-                        ? theme.colors.primary[500] 
-                        : 'rgba(255,255,255,0.9)'
-                    }}
-                  >
-                    <Icon 
-                      name="heart" 
-                      size="sm" 
-                      style={{ 
-                        color: savedMap.has(item.title) 
-                          ? 'white' 
-                          : theme.semantic.text.tertiary 
-                      }} 
-                    />
-                  </button>
-
-                  {/* Info on Hover */}
-                  <div className="absolute bottom-0 left-0 right-0 p-3 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
-                    <h3 className="text-white font-semibold text-sm mb-0.5 line-clamp-1">
-                      {item.title}
-                    </h3>
-                    {item.vendorBusinessName && (
-                      <p className="text-[10px] text-amber-300 font-bold uppercase tracking-wider mb-1 line-clamp-1">
-                        By {item.vendorBusinessName}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-3 text-white/90 text-xs">
-                      <span className="flex items-center gap-1">
-                        <Icon name="heart" size="xs" />
-                        {item.saves || 0}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Icon name="eye" size="xs" />
-                        {item.views || 0}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                      color: savedMap.has(item.title) ? '#9D3875' : '#4A2B42' 
+                    }} 
+                  />
+                </button>
               </div>
             </div>
           ))}
@@ -316,22 +276,13 @@ const Inspirations = () => {
       {/* Empty State */}
       {filteredItems.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 px-4">
-          <div 
-            className="w-24 h-24 rounded-full flex items-center justify-center mb-4"
-            style={{ backgroundColor: theme.semantic.background.accent }}
-          >
-            <Icon name="search" size="lg" style={{ color: theme.semantic.text.tertiary }} />
+          <div className="w-20 h-20 rounded-full bg-white/60 backdrop-blur shadow-sm flex items-center justify-center mb-4 border border-white">
+            <Icon name="search" size="lg" className="text-[#4A2B42]/50" />
           </div>
-          <h3 
-            className="text-lg font-semibold mb-2"
-            style={{ color: theme.semantic.text.primary }}
-          >
+          <h3 className="text-[17px] font-bold text-[#4A2B42] mb-1">
             No inspirations found
           </h3>
-          <p 
-            className="text-sm text-center"
-            style={{ color: theme.semantic.text.secondary }}
-          >
+          <p className="text-[13px] text-[#6B6C80]">
             Try selecting a different category
           </p>
         </div>

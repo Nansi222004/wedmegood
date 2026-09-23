@@ -167,23 +167,25 @@ const GuestList = () => {
   const getPercentage = (value, total) => (total > 0 ? ((value / total) * 100).toFixed(1) : 0);
 
   return (
-    <div className="min-h-screen pb-24" style={{ backgroundColor: theme.semantic.background.primary }}>
+    <div className="min-h-screen pb-24 bg-transparent relative">
       {/* Header */}
-      <div className="px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center">
+      <div className="px-6 py-8 relative z-10">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
             <button
               onClick={handleBack}
-              className="mr-3 p-2 rounded-full transition-transform active:scale-95"
-              style={{ backgroundColor: theme.semantic.background.accent }}
+              className="w-10 h-10 rounded-full flex items-center justify-center bg-[#FDF4F7] shadow-sm transition-all active:scale-95 border border-white"
             >
-              <Icon name="chevronDown" size="sm" className="rotate-90" style={{ color: theme.semantic.text.primary }} />
+              <Icon name="chevronLeft" size="sm" style={{ color: '#4A2B42' }} />
             </button>
             <div>
-              <h1 className="text-2xl font-bold" style={{ color: theme.semantic.text.primary }}>
-                Guest List
-              </h1>
-              <p className="text-sm mt-1" style={{ color: theme.semantic.text.secondary }}>
+              <div className="flex items-center gap-2">
+                <h1 className="text-3xl font-bold text-[#4A2B42]" style={{ fontFamily: '"Playfair Display", serif' }}>
+                  Guest List
+                </h1>
+                <img src="/exproler%20section%20bg.png" alt="decor" className="w-8 h-8 object-contain" />
+              </div>
+              <p className="text-[12px] text-[#6B6C80] font-medium mt-0.5">
                 Track invitations, headcounts and RSVPs
               </p>
             </div>
@@ -191,107 +193,164 @@ const GuestList = () => {
 
           <button
             onClick={() => handleOpenAddModal(null)}
-            className="flex items-center space-x-1 px-4 py-2 rounded-xl text-white text-sm font-semibold shadow-md active:scale-95 transition-all"
-            style={{ backgroundColor: theme.colors.primary[500] }}
+            className="relative overflow-hidden flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-full text-white text-[12px] font-bold shadow-md active:scale-95 transition-all bg-gradient-to-r from-[#4A2B42] to-[#69395D] border border-[#EAC397]/50"
           >
-            <Icon name="plus" size="xs" />
-            <span>Add Guest</span>
+            <div className="absolute right-0 top-0 bottom-0 w-12 bg-no-repeat bg-cover opacity-40" style={{ backgroundImage: "url('/invitation%20bg.png')" }} />
+            <Icon name="plus" size="xs" className="relative z-10" />
+            <span className="relative z-10">Add Guest</span>
           </button>
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-black/5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-gray-500 font-medium">Total Invited</span>
-              <Icon name="users" size="sm" style={{ color: theme.colors.primary[500] }} />
+        <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="relative bg-white/70 backdrop-blur-md rounded-[20px] p-5 shadow-sm border border-white overflow-hidden">
+            <div className="absolute inset-0 bg-no-repeat opacity-80" style={{ backgroundImage: "url('/cart1.png')", backgroundSize: '100% 100%' }} />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-[#F5EDF3] flex items-center justify-center">
+                    <Icon name="users" size="xs" className="text-[#4A2B42]" />
+                  </div>
+                  <span className="text-[10px] text-[#6B6C80] font-bold">Total Invited</span>
+                </div>
+                <div className="w-5 h-5 rounded-full bg-[#FDF4F7] flex items-center justify-center">
+                  <Icon name="chevronRight" size="xs" className="text-[#9D7D9A]" />
+                </div>
+              </div>
+              <p className="text-[28px] font-black text-[#4A2B42] leading-none mb-1" style={{ fontFamily: '"Playfair Display", serif' }}>{stats.totalInvited}</p>
+              <p className="text-[10px] text-[#9D7D9A] font-medium">{stats.totalGuests} parties registered</p>
             </div>
-            <p className="text-2xl font-black text-gray-900">{stats.totalInvited}</p>
-            <p className="text-[11px] text-gray-400 mt-1">{stats.totalGuests} parties registered</p>
           </div>
 
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-black/5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-gray-500 font-medium">Confirmed</span>
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+          <div className="relative bg-white/70 backdrop-blur-md rounded-[20px] p-5 shadow-sm border border-white overflow-hidden">
+            <div className="absolute inset-0 bg-no-repeat opacity-80" style={{ backgroundImage: "url('/cart2.png')", backgroundSize: '100% 100%' }} />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-[#EAF5F0] flex items-center justify-center">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-[#2F855A]"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  </div>
+                  <span className="text-[10px] text-[#6B6C80] font-bold">Confirmed</span>
+                </div>
+                <div className="w-5 h-5 rounded-full bg-[#EAF5F0] flex items-center justify-center">
+                  <Icon name="chevronRight" size="xs" className="text-[#2F855A]" />
+                </div>
+              </div>
+              <p className="text-[28px] font-black text-[#2F855A] leading-none mb-1" style={{ fontFamily: '"Playfair Display", serif' }}>{stats.confirmed}</p>
+              <p className="text-[10px] text-[#9D7D9A] font-medium">{getPercentage(stats.confirmed, stats.totalInvited)}% of total invited</p>
             </div>
-            <p className="text-2xl font-black text-emerald-600">{stats.confirmed}</p>
-            <p className="text-[11px] text-gray-400 mt-1">{getPercentage(stats.confirmed, stats.totalInvited)}% of total invited</p>
           </div>
 
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-black/5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-gray-500 font-medium">Pending Response</span>
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+          <div className="relative bg-white/70 backdrop-blur-md rounded-[20px] p-5 shadow-sm border border-white overflow-hidden">
+            <div className="absolute inset-0 bg-no-repeat opacity-80" style={{ backgroundImage: "url('/cart3.png')", backgroundSize: '100% 100%' }} />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-[#FEF3E2] flex items-center justify-center">
+                    <Icon name="clock" size="xs" className="text-[#C27803]" />
+                  </div>
+                  <span className="text-[10px] text-[#6B6C80] font-bold">Pending Response</span>
+                </div>
+                <div className="w-5 h-5 rounded-full bg-[#FEF3E2] flex items-center justify-center">
+                  <Icon name="chevronRight" size="xs" className="text-[#C27803]" />
+                </div>
+              </div>
+              <p className="text-[28px] font-black text-[#C27803] leading-none mb-1" style={{ fontFamily: '"Playfair Display", serif' }}>{stats.pending}</p>
+              <p className="text-[10px] text-[#9D7D9A] font-medium">{getPercentage(stats.pending, stats.totalInvited)}% awaiting reply</p>
             </div>
-            <p className="text-2xl font-black text-amber-500">{stats.pending}</p>
-            <p className="text-[11px] text-gray-400 mt-1">{getPercentage(stats.pending, stats.totalInvited)}% awaiting reply</p>
           </div>
 
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-black/5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-gray-500 font-medium">Declined</span>
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+          <div className="relative bg-white/70 backdrop-blur-md rounded-[20px] p-5 shadow-sm border border-white overflow-hidden">
+            <div className="absolute inset-0 bg-no-repeat opacity-80" style={{ backgroundImage: "url('/cart4.png')", backgroundSize: '100% 100%' }} />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-[#FCE8E8] flex items-center justify-center">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-[#E53E3E]"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  </div>
+                  <span className="text-[10px] text-[#6B6C80] font-bold">Declined</span>
+                </div>
+                <div className="w-5 h-5 rounded-full bg-[#FCE8E8] flex items-center justify-center">
+                  <Icon name="chevronRight" size="xs" className="text-[#E53E3E]" />
+                </div>
+              </div>
+              <p className="text-[28px] font-black text-[#E53E3E] leading-none mb-1" style={{ fontFamily: '"Playfair Display", serif' }}>{stats.declined}</p>
+              <p className="text-[10px] text-[#9D7D9A] font-medium">{getPercentage(stats.declined, stats.totalInvited)}% declined</p>
             </div>
-            <p className="text-2xl font-black text-rose-500">{stats.declined}</p>
-            <p className="text-[11px] text-gray-400 mt-1">{getPercentage(stats.declined, stats.totalInvited)}% declined</p>
           </div>
         </div>
 
         {/* Search & Filters */}
-        <form onSubmit={handleSearch} className="flex gap-2 mb-4">
-          <div className="relative flex-1">
-            <Icon name="search" size="sm" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <form onSubmit={handleSearch} className="flex gap-2 mb-6">
+          <div className="relative flex-1 flex items-center bg-white/90 backdrop-blur-sm rounded-full shadow-sm border border-white p-1">
+            <Icon name="search" size="sm" className="absolute left-4 text-[#9D7D9A]" />
             <input
               type="text"
               placeholder="Search by name, phone or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm bg-white rounded-xl border border-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              className="w-full pl-11 pr-3 py-2 text-[13px] bg-transparent focus:outline-none text-[#4A2B42] placeholder-[#9D7D9A]"
             />
+            <button
+              type="submit"
+              className="px-6 py-2 bg-[#4A2B42] text-white text-[12px] font-bold rounded-full active:scale-95 transition-transform shadow-md ml-2"
+            >
+              Search
+            </button>
           </div>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-xl"
-          >
-            Search
-          </button>
         </form>
 
         {/* Filter Pills */}
-        <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide text-xs">
+        <div className="flex gap-2 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden text-[12px]">
           {['All', 'Family', 'Friends', 'Colleagues', 'VIP', 'Others'].map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition-colors ${
-                activeCategory === cat ? 'bg-primary-500 text-white' : 'bg-white text-gray-600 border border-gray-200'
+              className={`px-5 py-2 rounded-full font-bold whitespace-nowrap transition-all shadow-sm border ${
+                activeCategory === cat ? 'bg-[#4A2B42] text-white border-[#4A2B42]' : 'bg-[#F8EBEE] text-[#4A2B42] border-white hover:bg-[#F1D8E7]'
               }`}
             >
               {cat}
             </button>
           ))}
         </div>
+        
+        {/* Divider */}
+        <div className="flex items-center justify-center my-8">
+           <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-[#EAC397] to-transparent relative flex items-center justify-center">
+              <div className="absolute bg-transparent px-2 text-[#EAC397]">
+                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 3c-1.2 0-2.4.6-3 1.5C8.4 3.6 7.2 3 6 3 3 3 2 5.5 2 8c0 3 4.5 7 10 12 5.5-5 10-9 10-12 0-2.5-1-5-4-5-1.2 0-2.4.6-3 1.5-.6-.9-1.8-1.5-3-1.5z" fill="#EAC397" fillOpacity="0.2"/></svg>
+              </div>
+           </div>
+        </div>
       </div>
 
       {/* Guest Cards List */}
-      <div className="px-4 space-y-3">
+      <div className="px-6 space-y-4">
         {isLoading ? (
           <div className="py-12 text-center text-sm text-gray-500">
             <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
             Loading guests...
           </div>
         ) : guests.length === 0 ? (
-          <div className="bg-white rounded-2xl p-8 text-center border border-gray-100 shadow-sm">
-            <Icon name="users" size="lg" className="text-gray-300 mx-auto mb-3" />
-            <p className="font-bold text-gray-700">No guests found</p>
-            <p className="text-xs text-gray-400 mt-1 mb-4">Add your family and friends to manage RSVPs</p>
-            <button
-              onClick={() => handleOpenAddModal(null)}
-              className="px-4 py-2 bg-primary-500 text-white rounded-lg text-xs font-semibold"
-            >
-              Add First Guest
-            </button>
+          <div className="bg-white/60 backdrop-blur-md rounded-[32px] p-8 text-center border border-white shadow-sm relative overflow-hidden">
+            <div className="absolute inset-0 opacity-40 bg-no-repeat bg-cover bg-center pointer-events-none" style={{ backgroundImage: "url('/invitation%20bg.png')" }} />
+            <div className="relative z-10 flex flex-col items-center">
+               <div className="w-24 h-24 bg-white rounded-[24px] rotate-3 flex items-center justify-center mb-6 shadow-sm border border-[#F5EDF3]">
+                  <div className="-rotate-3">
+                     <Icon name="users" size="lg" className="text-[#9D7D9A]" />
+                  </div>
+               </div>
+               <p className="text-2xl font-bold text-[#4A2B42] mb-2" style={{ fontFamily: '"Playfair Display", serif' }}>No guests found</p>
+               <p className="text-[13px] text-[#6B6C80] font-medium mb-6">Add your family and friends to manage RSVPs</p>
+               <button
+                 onClick={() => handleOpenAddModal(null)}
+                 className="px-6 py-3 bg-[#561D42] text-white rounded-full text-[12px] font-bold shadow-md active:scale-95 transition-all flex items-center gap-2"
+               >
+                 <Icon name="plus" size="xs" />
+                 Add Your First Guest
+               </button>
+            </div>
           </div>
         ) : (
           guests.map((g) => {
