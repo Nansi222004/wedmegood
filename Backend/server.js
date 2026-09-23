@@ -134,8 +134,13 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('combined'));
 }
 
-// Static files
-app.use('/uploads', express.static('uploads'));
+// Static files: strictly serve public uploads, block private family media
+app.use('/uploads', (req, res, next) => {
+  if (req.path.startsWith('/private') || req.path.includes('private')) {
+    return res.status(403).json({ success: false, message: 'Forbidden: Private media access requires authorization' });
+  }
+  next();
+}, express.static('uploads'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {

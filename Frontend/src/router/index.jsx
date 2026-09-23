@@ -43,6 +43,7 @@ import CreateGroup from '../modules/user/family/CreateGroup';
 import GroupChat from '../modules/user/family/GroupChat';
 import FamilyGroups from '../modules/user/family/FamilyGroups';
 import JoinFamilyGroup from '../modules/user/family/JoinFamilyGroup';
+import JoinFamilyGroupGeneral from '../modules/user/family/JoinFamilyGroupGeneral';
 import Header from '../components/common/Header';
 import BottomNav from '../components/common/BottomNav';
 import PlaceholderPage from '../components/common/PlaceholderPage';
@@ -105,6 +106,8 @@ const AppRouter = () => {
       {/* Public Family Group Invitation Route (No Auth Required for Preview) */}
       <Route path="/family/join/:token" element={<JoinFamilyGroup />} />
       <Route path="/user/family/join/:token" element={<JoinFamilyGroup />} />
+      <Route path="/family/join-group/:token" element={<JoinFamilyGroupGeneral />} />
+      <Route path="/user/family/join-group/:token" element={<JoinFamilyGroupGeneral />} />
 
       {/* Route alias for vender misspelling */}
       <Route path="/vender/*" element={<Navigate to="/vendor" replace />} />
@@ -151,7 +154,11 @@ const AppRouter = () => {
                       : location.pathname === '/user/dashboard' ? "url('/dashboardbackgroundimage.png')" : "url('/background.png')", 
                     backgroundSize: location.pathname === '/user/dashboard' ? 'cover' : '100% 100%', 
                     backgroundPosition: location.pathname === '/user/dashboard' ? 'center 10%' : 'center', 
-                    backgroundColor: location.pathname.startsWith('/user/family/group/') || location.pathname.startsWith('/user/chats/') ? '#ffffff' : '#EAE1D8',
+                    backgroundColor: location.pathname.startsWith('/user/family/group/') || location.pathname.startsWith('/user/chats/')
+                      ? '#ffffff'
+                      : location.pathname.startsWith('/user/family')
+                        ? '#FAF6F0'
+                        : '#EAE1D8',
                     backgroundRepeat: 'no-repeat'
                   }} 
                 />
@@ -182,6 +189,7 @@ const AppRouter = () => {
                     <Route path="family/group/:groupId" element={<GroupChat />} />
                     <Route path="family/groups" element={<FamilyGroups />} />
                     <Route path="family/join/:token" element={<JoinFamilyGroup />} />
+                    <Route path="family/join-group/:token" element={<JoinFamilyGroupGeneral />} />
 
                     <Route path="account" element={<Account />} />
                     <Route path="account/profile" element={<Profile />} />

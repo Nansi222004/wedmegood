@@ -59,10 +59,32 @@ router.get('/inspiration-gallery', inspirationController.getInspirationGallery);
 // 7. Vendor Management (aggregated from Phase 1 models)
 router.get('/vendor-management', vendorManagementController.getVendorManagement);
 
+const { verifyAcceptedFamilyMember, verifyGroupAdminOrOwner } = require('../../middleware/familyGroupAuth.middleware');
+const { familyUpload } = require('../../utils/cloudinary');
+
+const handleFamilyAttachmentUpload = (req, res, next) => {
+  familyUpload.single('file')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          success: false,
+          message: 'File size exceeds maximum allowed limit (50MB)'
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: err.message || 'Invalid file upload'
+      });
+    }
+    next();
+  });
+};
+
 // 8. Family Collaboration (Groups)
 router.get('/family-groups', familyController.getFamilyGroups);
 router.get('/family-groups/invitations/pending', familyController.getPendingInvitations);
 router.post('/family-groups/join/:token', familyController.joinGroupWithToken);
+router.post('/family-groups/join-group/:token', familyController.requestJoinGroupWithToken);
 router.get('/family-groups/:id', familyController.getFamilyGroupById);
 router.get('/family-groups/:id/messages', familyController.getGroupMessages);
 router.post('/family-groups/:id/messages', familyController.sendMessage);
@@ -76,6 +98,25 @@ router.put('/family-groups/:id/invitations/respond', familyController.respondInv
 router.post('/family-groups/:id/invitations/respond', familyController.respondInvitation);
 router.delete('/family-groups/:id/members/:memberId', familyController.removeMember);
 router.get('/family-groups/:id/shared-data', familyController.getSharedPlanningData);
+
+// General Group Invite & Join Request Approval Routes
+router.post('/family-groups/:id/group-invite/share-link', verifyGroupAdminOrOwner, familyController.getOrRefreshGroupInviteLink);
+router.delete('/family-groups/:id/group-invite/revoke', verifyGroupAdminOrOwner, familyController.revokeGroupInviteLink);
+router.get('/family-groups/:id/join-requests', verifyGroupAdminOrOwner, familyController.getJoinRequests);
+router.put('/family-groups/:id/join-requests/:memberId', verifyGroupAdminOrOwner, familyController.respondJoinRequest);
+
+// Pre-Authorized Attachment Upload & Protected Gateway
+router.post(
+  '/family-groups/:id/attachments',
+  verifyAcceptedFamilyMember,
+  handleFamilyAttachmentUpload,
+  familyController.uploadFamilyAttachment
+);
+router.get(
+  '/family-groups/:id/attachments/:messageId/:attachmentIndex?',
+  verifyAcceptedFamilyMember,
+  familyController.getPrivateAttachment
+);
 
 // 9. E-Invites (Owner Management)
 router.get('/invites', inviteController.getInvites);

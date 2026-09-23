@@ -48,6 +48,16 @@ const GroupChat = () => {
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
 
+  // File upload and general invite states
+  const fileInputRef = useRef(null);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [generalInviteData, setGeneralInviteData] = useState(null);
+  const [isGeneratingGeneralLink, setIsGeneratingGeneralLink] = useState(false);
+  const [isCopiedGeneralLink, setIsCopiedGeneralLink] = useState(false);
+  const [joinRequests, setJoinRequests] = useState([]);
+  const [isLoadingJoinRequests, setIsLoadingJoinRequests] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
+
   // Check if current user is admin
   const isCurrentUserAdmin = () => {
     const currentUserId = user?.id || user?._id;
@@ -281,8 +291,8 @@ const GroupChat = () => {
       const mId = member._id || member.id;
       const gId = group._id || group.id;
       const res = await userApi.getFamilyMemberShareLink(gId, mId);
-      if (res.success && res.data?.inviteLink) {
-        const inviteUrl = res.data.inviteLink;
+      if (res.success && (res.data?.inviteUrl || res.data?.inviteLink)) {
+        const inviteUrl = res.data.inviteUrl || `${window.location.origin}${res.data.inviteLink}`;
         const cleanPhone = (member.phone || '').replace(/\D/g, '');
         const text = encodeURIComponent(
           `Hi ${member.name}! You've been invited to join our wedding planning group "${group.name}" on Utsavo.\n\nClick this link to join and start planning with us:\n${inviteUrl}`
@@ -307,8 +317,9 @@ const GroupChat = () => {
       const gId = group._id || group.id;
       setIsGeneratingLink(true);
       const res = await userApi.getFamilyMemberShareLink(gId, mId);
-      if (res.success && res.data?.inviteLink) {
-        await navigator.clipboard.writeText(res.data.inviteLink);
+      if (res.success && (res.data?.inviteUrl || res.data?.inviteLink)) {
+        const fullUrl = res.data.inviteUrl || `${window.location.origin}${res.data.inviteLink}`;
+        await navigator.clipboard.writeText(fullUrl);
         setCopiedMemberId(mId);
         toast.success(`Copied invite link for ${member.name}!`);
         setTimeout(() => setCopiedMemberId(null), 2500);
@@ -346,7 +357,7 @@ const GroupChat = () => {
         const updatedMembers = res.data.members || [...(group.members || []), res.data.member];
         setGroup(prev => ({ ...prev, members: updatedMembers }));
 
-        const inviteUrl = res.data.inviteLink || res.data.member?.inviteLink;
+        const inviteUrl = res.data.inviteUrl || res.data.member?.inviteUrl || (res.data.inviteLink ? `${window.location.origin}${res.data.inviteLink}` : null);
         if (inviteUrl) {
           const text = encodeURIComponent(
             `Hi ${quickInviteName.trim()}! You've been invited to join our wedding planning group "${group.name}" on Utsavo.\n\nClick this link to join and start planning with us:\n${inviteUrl}`
@@ -363,6 +374,172 @@ const GroupChat = () => {
       toast.error(err.response?.data?.message || 'Failed to invite member');
     } finally {
       setIsInvitingQuick(false);
+    }
+  };
+
+  // General Group Invite Link management
+  const handleGenerateGeneralLink = async () => {
+    try {
+      setIsGeneratingGeneralLink(true);
+      const gId = group._id || group.id;
+      const res = await userApi.getFamilyGroupShareLink(gId);
+      if (res.success && res.data) {
+        setGeneralInviteData(res.data);
+        return res.data;
+      } else {
+        toast.error(res.message || 'Failed to generate group link');
+      }
+    } catch (err) {
+      console.error('Error generating group link', err);
+    } finally {
+      setIsGeneratingGeneralLink(false);
+    }
+  };
+
+  const handleCopyGeneralLink = async () => {
+    let data = generalInviteData;
+    if (!data) {
+      data = await handleGenerateGeneralLink();
+    }
+    if (data?.inviteUrl || data?.inviteLink) {
+      const fullUrl = data.inviteUrl || `${window.location.origin}${data.inviteLink}`;
+      await navigator.clipboard.writeText(fullUrl);
+      setIsCopiedGeneralLink(true);
+      toast.success('Group invitation link copied to clipboard!');
+      setTimeout(() => setIsCopiedGeneralLink(false), 2500);
+    }
+  };
+
+  const handleWhatsAppGeneralLink = async () => {
+    let data = generalInviteData;
+    if (!data) {
+      data = await handleGenerateGeneralLink();
+    }
+    if (data?.inviteUrl || data?.inviteLink) {
+      const fullUrl = data.inviteUrl || `${window.location.origin}${data.inviteLink}`;
+      const text = encodeURIComponent(
+        `Hi! You've been invited to join our wedding planning group "${group.name}" on Utsavo.\n\nRequest to join here:\n${fullUrl}`
+      );
+      window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+    }
+  };
+
+  const handleRevokeGeneralLink = async () => {
+    if (!window.confirm('Revoke this general invitation link? Anyone with this link will no longer be able to request to join. Existing members remain unchanged.')) {
+      return;
+    }
+    try {
+      const gId = group._id || group.id;
+      const res = await userApi.revokeFamilyGroupShareLink(gId);
+      if (res.success) {
+        setGeneralInviteData(null);
+        toast.success('General invitation link revoked successfully');
+      } else {
+        toast.error(res.message || 'Failed to revoke link');
+      }
+    } catch (err) {
+      toast.error('Failed to revoke link');
+    }
+  };
+
+  // Join Requests management (Host/Admin)
+  const fetchJoinRequests = async () => {
+    try {
+      const gId = group._id || group.id;
+      setIsLoadingJoinRequests(true);
+      const res = await userApi.getFamilyGroupJoinRequests(gId);
+      if (res.success && res.data) {
+        setJoinRequests(res.data.requests || []);
+      }
+    } catch (err) {
+      console.error('Error fetching join requests', err);
+    } finally {
+      setIsLoadingJoinRequests(false);
+    }
+  };
+
+  const handleRespondJoinRequest = async (memberId, action) => {
+    try {
+      const gId = group._id || group.id;
+      const res = await userApi.respondFamilyGroupJoinRequest(gId, memberId, { action });
+      if (res.success) {
+        toast.success(action === 'approve' ? 'Join request approved!' : 'Join request rejected.');
+        setJoinRequests(prev => prev.filter(r => (r._id || r.memberId) !== memberId));
+        // Refresh group members
+        const groupsRes = await userApi.getFamilyGroups();
+        if (groupsRes.success) {
+          const list = Array.isArray(groupsRes.data) ? groupsRes.data : (groupsRes.data?.groups || []);
+          const updated = list.find(g => (g._id || g.id) === gId);
+          if (updated) setGroup(updated);
+        }
+      } else {
+        toast.error(res.message || 'Failed to respond to request');
+      }
+    } catch (err) {
+      toast.error('Error processing join request');
+    }
+  };
+
+  // Fetch join requests & general link when opening Group Info if admin
+  useEffect(() => {
+    if (showGroupInfo && isCurrentUserAdmin() && (group?._id || group?.id)) {
+      fetchJoinRequests();
+      handleGenerateGeneralLink();
+    }
+  }, [showGroupInfo]);
+
+  // File Upload Handler (Pre-validated)
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !groupId) return;
+
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/');
+    const isDoc = !isImage && !isVideo;
+
+    if (isImage && file.size > 10 * 1024 * 1024) {
+      toast.error('Images must be smaller than 10MB');
+      return;
+    }
+    if (isVideo && file.size > 50 * 1024 * 1024) {
+      toast.error('Videos must be smaller than 50MB');
+      return;
+    }
+    if (isDoc && file.size > 20 * 1024 * 1024) {
+      toast.error('Documents must be smaller than 20MB');
+      return;
+    }
+
+    const clientMsgId = 'client_upload_' + Date.now();
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('clientMessageId', clientMsgId);
+    if (newMessage.trim()) {
+      formData.append('caption', newMessage.trim());
+      setNewMessage('');
+    }
+
+    try {
+      setIsUploadingAttachment(true);
+      const res = await userApi.uploadFamilyGroupAttachment(groupId, formData);
+      if (res.success && res.data) {
+        setMessages(prev => {
+          if (prev.some(m => m._id === res.data._id || m.clientMessageId === clientMsgId)) {
+            return prev.map(m => (m._id === res.data._id || m.clientMessageId === clientMsgId) ? res.data : m);
+          }
+          return [...prev, res.data];
+        });
+        toast.success('File uploaded successfully');
+      } else {
+        toast.error(res.message || 'Failed to upload attachment');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Failed to upload file');
+    } finally {
+      setIsUploadingAttachment(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -535,7 +712,78 @@ const GroupChat = () => {
                           borderWidth: !isCurrentUser ? '1px' : '0'
                         }}
                       >
-                        <p className="text-sm leading-relaxed">{message.message}</p>
+                        {/* Attachments rendering */}
+                        {message.attachments && message.attachments.length > 0 && (
+                          <div className="space-y-2 mb-1.5">
+                            {message.attachments.map((att, attIdx) => {
+                              const attType = (att.type || '').toLowerCase();
+                              if (attType === 'image') {
+                                return (
+                                  <div 
+                                    key={att._id || attIdx} 
+                                    className="relative group rounded-xl overflow-hidden cursor-pointer bg-black/5"
+                                  >
+                                    <img
+                                      src={att.url}
+                                      alt={att.name || 'image'}
+                                      className="max-h-64 rounded-xl object-cover w-full transition-transform duration-200 group-hover:scale-105"
+                                      onClick={() => setPreviewImage(att.url)}
+                                    />
+                                    <a
+                                      href={att.downloadUrl || att.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      download
+                                      className="absolute bottom-2 right-2 bg-black/60 text-white p-1.5 rounded-full hover:bg-black/80 transition"
+                                      title="Download Image"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <Icon name="download" size="xs" />
+                                    </a>
+                                  </div>
+                                );
+                              }
+                              if (attType === 'video') {
+                                return (
+                                  <div key={att._id || attIdx} className="rounded-xl overflow-hidden bg-black">
+                                    <video
+                                      src={att.url}
+                                      controls
+                                      className="max-h-64 rounded-xl w-full"
+                                    />
+                                  </div>
+                                );
+                              }
+                              // Document
+                              return (
+                                <a
+                                  key={att._id || attIdx}
+                                  href={att.downloadUrl || att.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  download
+                                  className={`flex items-center gap-2.5 p-2.5 rounded-xl transition ${
+                                    isCurrentUser ? 'bg-white/15 hover:bg-white/25 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                                  }`}
+                                >
+                                  <div className="p-1.5 rounded-lg bg-red-500/20 text-red-500 flex-shrink-0">
+                                    <Icon name="fileText" size="sm" />
+                                  </div>
+                                  <div className="flex-1 min-w-0 text-left">
+                                    <p className="text-xs font-semibold truncate">{att.name || 'Document'}</p>
+                                    <p className="text-[10px] opacity-75">
+                                      {att.size ? `${(att.size / 1024).toFixed(1)} KB` : 'Document'}
+                                    </p>
+                                  </div>
+                                  <Icon name="download" size="xs" />
+                                </a>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {message.message ? (
+                          <p className="text-sm leading-relaxed">{message.message}</p>
+                        ) : null}
                       </div>
                       
                       <div className={`text-xs mt-1 ${isCurrentUser ? 'text-right' : 'text-left'}`}>
@@ -622,13 +870,28 @@ const GroupChat = () => {
         }}
       >
         <div className={`flex items-end gap-3 ${isKeyboardOpen ? 'max-w-full' : 'max-w-4xl mx-auto'}`}>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            className="hidden"
+            accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+          />
           <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploadingAttachment}
             className={`rounded-full flex-shrink-0 transition-colors hover:scale-105 ${
               isKeyboardOpen ? 'p-2' : 'p-3'
             }`}
             style={{ backgroundColor: theme.semantic.background.accent }}
+            title="Attach image, video or document"
           >
-            <Icon name="plus" size="sm" style={{ color: theme.semantic.text.secondary }} />
+            {isUploadingAttachment ? (
+              <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Icon name="plus" size="sm" style={{ color: theme.semantic.text.secondary }} />
+            )}
           </button>
           
           <div className="flex-1">
@@ -718,6 +981,126 @@ const GroupChat = () => {
                 {group.description || 'Wedding planning group'}
               </p>
             </div>
+
+            {/* General Group Invite Link (Admin/Owner) */}
+            {isCurrentUserAdmin() && (
+              <div 
+                className="mb-6 p-4 rounded-xl border text-left"
+                style={{ 
+                  backgroundColor: theme.semantic.background.secondary,
+                  borderColor: theme.semantic.border.light 
+                }}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-bold text-xs flex items-center gap-1.5" style={{ color: theme.semantic.text.primary }}>
+                    <span>🔗</span> General Group Invite Link
+                  </span>
+                  {generalInviteData && (
+                    <button
+                      type="button"
+                      onClick={handleRevokeGeneralLink}
+                      className="text-[11px] text-red-500 hover:text-red-700 font-semibold"
+                    >
+                      Revoke Link
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-gray-500 mb-3">
+                  Share with family & friends. Users authenticate and submit a request to join, which you approve before they get access.
+                </p>
+
+                {generalInviteData ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="text" 
+                        readOnly 
+                        value={generalInviteData.inviteUrl || `${window.location.origin}${generalInviteData.inviteLink}`} 
+                        className="text-xs p-2 rounded-lg border bg-white flex-1 truncate font-mono text-gray-600 select-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCopyGeneralLink}
+                        className="px-3 py-2 rounded-lg text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-800 flex items-center gap-1 flex-shrink-0"
+                      >
+                        <Icon name={isCopiedGeneralLink ? "check" : "copy"} size="xs" />
+                        <span>{isCopiedGeneralLink ? "Copied" : "Copy"}</span>
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleWhatsAppGeneralLink}
+                      className="w-full py-2 px-3 rounded-lg text-xs font-bold text-white flex items-center justify-center gap-1.5 shadow-sm active:scale-98 transition"
+                      style={{ backgroundColor: '#25D366' }}
+                    >
+                      <span>📱</span>
+                      <span>Share via WhatsApp (Opens WhatsApp)</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={isGeneratingGeneralLink}
+                    onClick={handleGenerateGeneralLink}
+                    className="w-full py-2 px-3 rounded-lg text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100 transition"
+                  >
+                    {isGeneratingGeneralLink ? 'Generating Link...' : 'Generate Shareable Group Link'}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Pending Join Requests (Admin/Owner) */}
+            {isCurrentUserAdmin() && joinRequests.length > 0 && (
+              <div 
+                className="mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50/50 text-left"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-bold text-xs text-amber-900 flex items-center gap-1.5">
+                    <span>🔔</span> Join Requests ({joinRequests.length})
+                  </h4>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800">
+                    Awaiting Approval
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {joinRequests.map(req => (
+                    <div 
+                      key={req._id || req.memberId} 
+                      className="p-2.5 rounded-lg bg-white border border-amber-100 flex items-center justify-between gap-2 shadow-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <img
+                          src={req.avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=50&h=50&fit=crop&crop=face'}
+                          alt={req.name}
+                          className="w-7 h-7 rounded-full object-cover flex-shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-gray-900 truncate">{req.name}</p>
+                          <p className="text-[10px] text-gray-500 truncate">{req.email || req.phone || 'Requested join'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleRespondJoinRequest(req._id || req.memberId, 'approve')}
+                          className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-green-600 text-white hover:bg-green-700 transition"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRespondJoinRequest(req._id || req.memberId, 'reject')}
+                          className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-gray-200 text-gray-700 hover:bg-gray-300 transition"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             
             {/* Group Members */}
             <div className="mb-6">
@@ -1239,12 +1622,35 @@ const GroupChat = () => {
                   ) : (
                     <>
                       <span>📱</span>
-                      <span>Send WhatsApp Invitation</span>
+                      <span>Share via WhatsApp (Opens WhatsApp)</span>
                     </>
                   )}
                 </button>
               </form>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Image Preview Lightbox */}
+      {previewImage && (
+        <div 
+          className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <img 
+              src={previewImage} 
+              alt="Preview" 
+              className="max-h-[85vh] max-w-full rounded-xl object-contain mx-auto shadow-2xl" 
+            />
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute top-3 right-3 bg-black/70 text-white p-2 rounded-full hover:bg-black/90 transition"
+              title="Close Preview"
+            >
+              <Icon name="close" size="sm" />
+            </button>
           </div>
         </div>
       )}

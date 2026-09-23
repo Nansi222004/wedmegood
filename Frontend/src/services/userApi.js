@@ -583,6 +583,45 @@ export const userApi = {
     });
   },
 
+  getFamilyGroupShareLink: async (groupId) => {
+    return request(`/user/family-groups/${groupId}/group-invite/share-link`, {
+      method: 'POST'
+    });
+  },
+
+  revokeFamilyGroupShareLink: async (groupId) => {
+    return request(`/user/family-groups/${groupId}/group-invite/revoke`, {
+      method: 'DELETE'
+    });
+  },
+
+  getPublicFamilyGroupPreview: async (token) => {
+    return request(`/public/family-groups/preview/${token}`, { method: 'GET' });
+  },
+
+  requestJoinFamilyGroup: async (token) => {
+    return request(`/user/family-groups/join-group/${token}`, { method: 'POST' });
+  },
+
+  getFamilyGroupJoinRequests: async (groupId) => {
+    return request(`/user/family-groups/${groupId}/join-requests`, { method: 'GET' });
+  },
+
+  respondFamilyGroupJoinRequest: async (groupId, memberId, data) => {
+    return request(`/user/family-groups/${groupId}/join-requests/${memberId}`, {
+      method: 'PUT',
+      body: data
+    });
+  },
+
+  uploadFamilyGroupAttachment: async (groupId, formData) => {
+    return request(`/user/family-groups/${groupId}/attachments`, {
+      method: 'POST',
+      body: formData,
+      isFormData: true
+    });
+  },
+
   // 9. E-Invites (Owner)
   getInvites: async () => {
     return request('/user/invites', { method: 'GET' });

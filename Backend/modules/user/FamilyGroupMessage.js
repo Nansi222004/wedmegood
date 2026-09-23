@@ -1,5 +1,46 @@
 const mongoose = require('mongoose');
 
+const attachmentSchema = new mongoose.Schema({
+  url: {
+    type: String,
+    required: true
+  },
+  downloadUrl: {
+    type: String,
+    default: ''
+  },
+  type: {
+    type: String,
+    enum: ['image', 'video', 'document'],
+    required: true
+  },
+  name: {
+    type: String,
+    required: true,
+    default: 'attachment'
+  },
+  size: {
+    type: Number,
+    default: 0
+  },
+  mimeType: {
+    type: String,
+    required: true
+  },
+  publicId: {
+    type: String,
+    default: null
+  },
+  resourceType: {
+    type: String,
+    default: 'image'
+  },
+  storagePath: {
+    type: String,
+    default: null
+  }
+}, { _id: true });
+
 const familyGroupMessageSchema = new mongoose.Schema({
   groupId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -23,14 +64,18 @@ const familyGroupMessageSchema = new mongoose.Schema({
   },
   message: {
     type: String,
-    required: true,
     trim: true,
-    maxlength: 2000
+    maxlength: 2000,
+    default: ''
   },
   type: {
     type: String,
-    enum: ['text', 'image', 'document', 'system'],
+    enum: ['text', 'image', 'video', 'document', 'system'],
     default: 'text'
+  },
+  attachments: {
+    type: [attachmentSchema],
+    default: []
   },
   clientMessageId: {
     type: String,

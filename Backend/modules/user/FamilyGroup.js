@@ -34,7 +34,7 @@ const familyGroupMemberSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'accepted', 'declined', 'revoked'],
+    enum: ['pending', 'pending_approval', 'accepted', 'declined', 'revoked'],
     default: 'pending'
   },
   permissions: {
@@ -59,6 +59,15 @@ const familyGroupMemberSchema = new mongoose.Schema({
   },
   respondedAt: {
     type: Date,
+    default: null
+  },
+  joinRequestedAt: {
+    type: Date,
+    default: null
+  },
+  approvedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
     default: null
   }
 }, { _id: true });
@@ -93,6 +102,23 @@ const familyGroupSchema = new mongoose.Schema({
     guestList: { type: Boolean, default: false },
     inspiration: { type: Boolean, default: true }
   },
+  groupInviteTokenHash: {
+    type: String,
+    default: null
+  },
+  groupInviteExpiresAt: {
+    type: Date,
+    default: null
+  },
+  groupInviteEnabled: {
+    type: Boolean,
+    default: true
+  },
+  groupInviteRole: {
+    type: String,
+    enum: ['member', 'admin'],
+    default: 'member'
+  },
   members: [familyGroupMemberSchema]
 }, {
   timestamps: true
@@ -103,5 +129,6 @@ familyGroupSchema.index({ 'members.email': 1 });
 familyGroupSchema.index({ 'members.phone': 1 });
 familyGroupSchema.index({ 'members.userId': 1 });
 familyGroupSchema.index({ 'members.inviteTokenHash': 1 });
+familyGroupSchema.index({ groupInviteTokenHash: 1 });
 
 module.exports = mongoose.models.FamilyGroup || mongoose.model('FamilyGroup', familyGroupSchema);

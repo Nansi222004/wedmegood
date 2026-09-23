@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const crypto = require('crypto');
+const path = require('path');
+const fs = require('fs');
 const FamilyGroup = require('./FamilyGroup');
 const FamilyGroupMessage = require('./FamilyGroupMessage');
 const User = require('./user.model');
@@ -8,6 +10,22 @@ const TimelineEvent = require('./TimelineEvent');
 const Budget = require('./Budget');
 const Guest = require('./Guest');
 const Inspiration = require('./Inspiration');
+const { getSignedAttachmentUrl, destroyFile } = require('../../utils/cloudinary');
+
+// Resolve configured production frontend URL
+const getFrontendUrl = (req) => {
+  if (process.env.FRONTEND_URL) {
+    return process.env.FRONTEND_URL.replace(/\/+$/, '');
+  }
+  const origin = req ? (req.get('origin') || req.get('referer')) : null;
+  if (origin) {
+    try {
+      const parsed = new URL(origin);
+      return parsed.origin;
+    } catch (e) {}
+  }
+  return 'http://localhost:5174';
+};
 
 // Country-code-aware phone normalization (E.164 compatible)
 const normalizePhone = (phone) => {
@@ -366,6 +384,7 @@ exports.createFamilyGroup = async (req, res) => {
     });
 
     const groupObj = group.toObject();
+    const frontendUrl = getFrontendUrl(req);
     // Expose rawTokens in the immediate response for share link generation
     if (groupObj.members && Array.isArray(groupObj.members)) {
       groupObj.members = groupObj.members.map((m, idx) => {
@@ -373,7 +392,8 @@ exports.createFamilyGroup = async (req, res) => {
           return {
             ...m,
             inviteToken: rawTokensMap[idx],
-            inviteLink: `/family/join/${rawTokensMap[idx]}`
+            inviteLink: `/family/join/${rawTokensMap[idx]}`,
+            inviteUrl: `${frontendUrl}/family/join/${rawTokensMap[idx]}`
           };
         }
         return m;
@@ -521,9 +541,11 @@ exports.inviteMember = async (req, res) => {
     group.members.push(newMember);
     await group.save();
 
+    const frontendUrl = getFrontendUrl(req);
     const createdMember = group.members[group.members.length - 1].toObject();
     createdMember.inviteToken = rawToken;
     createdMember.inviteLink = `/family/join/${rawToken}`;
+    createdMember.inviteUrl = `${frontendUrl}/family/join/${rawToken}`;
 
     // Send in-app notification to invited user if registered
     if (targetUserId) {
@@ -550,7 +572,8 @@ exports.inviteMember = async (req, res) => {
       data: {
         member: createdMember,
         inviteToken: rawToken,
-        inviteLink: `/family/join/${rawToken}`
+        inviteLink: `/family/join/${rawToken}`,
+        inviteUrl: `${frontendUrl}/family/join/${rawToken}`
       }
     });
   } catch (error) {
@@ -845,8 +868,24 @@ exports.getGroupMessages = async (req, res) => {
       .sort({ createdAt: 1 })
       .limit(100);
 
-    res.status(200).json({ success: true, data: messages });
+    const populatedMessages = messages.map(msg => {
+      const msgObj = msg.toObject();
+      if (msgObj.attachments && Array.isArray(msgObj.attachments)) {
+        msgObj.attachments = msgObj.attachments.map((att, idx) => {
+          const freshSignedUrl = att.publicId ? getSignedAttachmentUrl(att.publicId, att.resourceType, 3600) : null;
+          return {
+            ...att,
+            url: freshSignedUrl || att.url,
+            downloadUrl: `/api/user/family-groups/${id}/attachments/${msg._id}/${idx}`
+          };
+        });
+      }
+      return msgObj;
+    });
+
+    res.status(200).json({ success: true, data: populatedMessages });
   } catch (error) {
+    console.error('getGroupMessages error:', error);
     res.status(500).json({ success: false, message: 'Failed to retrieve messages' });
   }
 };
@@ -858,7 +897,7 @@ exports.sendMessage = async (req, res) => {
   try {
     const userId = req.user._id;
     const { id } = req.params;
-    const { message, type, clientMessageId } = req.body;
+    const { message, type, clientMessageId, attachments } = req.body;
 
     // Check membership
     const group = await FamilyGroup.findById(id);
@@ -867,6 +906,14 @@ exports.sendMessage = async (req, res) => {
     const member = group.members.find(m => m.userId && m.userId.equals(userId) && m.status === 'accepted');
     const isOwner = group.userId.equals(userId);
     if (!member && !isOwner) return res.status(403).json({ success: false, message: 'Not a member of this group' });
+
+    // Idempotency check
+    if (clientMessageId) {
+      const existing = await FamilyGroupMessage.findOne({ groupId: id, clientMessageId });
+      if (existing) {
+        return res.status(200).json({ success: true, isDuplicate: true, data: existing });
+      }
+    }
 
     let senderName = req.user.name || 'User';
     let senderAvatar = req.user.profileImage || '';
@@ -880,12 +927,13 @@ exports.sendMessage = async (req, res) => {
       senderId: userId,
       senderName,
       senderAvatar,
-      message,
-      type: type || 'text',
+      message: (message || '').trim(),
+      type: type || (attachments && attachments.length ? attachments[0].type : 'text'),
+      attachments: Array.isArray(attachments) ? attachments : [],
       clientMessageId
     });
 
-    // Broadcast via socket
+    // Broadcast via socket strictly after successful persistence
     const io = req.app.get('io');
     if (io) {
       io.to(`family_group_${id}`).emit('family_group:message', { message: newMessage });
@@ -893,6 +941,7 @@ exports.sendMessage = async (req, res) => {
 
     res.status(201).json({ success: true, data: newMessage });
   } catch (error) {
+    console.error('sendMessage error:', error);
     res.status(500).json({ success: false, message: 'Failed to send message' });
   }
 };
@@ -1168,6 +1217,8 @@ exports.getOrRefreshMemberInviteLink = async (req, res) => {
     member.status = 'pending';
     await group.save();
 
+    const frontendUrl = getFrontendUrl(req);
+
     res.status(200).json({
       success: true,
       message: 'Share link generated successfully',
@@ -1177,7 +1228,8 @@ exports.getOrRefreshMemberInviteLink = async (req, res) => {
         memberPhone: member.phone,
         memberEmail: member.email,
         inviteToken: rawToken,
-        inviteLink: `/family/join/${rawToken}`
+        inviteLink: `/family/join/${rawToken}`,
+        inviteUrl: `${frontendUrl}/family/join/${rawToken}`
       }
     });
   } catch (error) {
@@ -1186,10 +1238,10 @@ exports.getOrRefreshMemberInviteLink = async (req, res) => {
   }
 };
 
-// @desc    Delete family group (Owner only)
-// @route   DELETE /api/user/family-groups/:id
-// @access  Private (User - Owner Only)
-exports.deleteFamilyGroup = async (req, res) => {
+// @desc    Get or generate fresh shareable invitation link for entire group (Owner/Admin)
+// @route   POST /api/user/family-groups/:id/group-invite/share-link
+// @access  Private (User - Owner/Admin)
+exports.getOrRefreshGroupInviteLink = async (req, res) => {
   try {
     const userId = req.user._id;
     const { id } = req.params;
@@ -1199,29 +1251,537 @@ exports.deleteFamilyGroup = async (req, res) => {
     }
 
     const group = await FamilyGroup.findById(id);
-    if (!group) {
-      return res.status(404).json({ success: false, message: 'Family group not found' });
-    }
+    if (!group) return res.status(404).json({ success: false, message: 'Family group not found' });
 
     const isOwner = group.userId && (group.userId.equals ? group.userId.equals(userId) : String(group.userId._id || group.userId) === String(userId));
-    if (!isOwner) {
-      return res.status(403).json({ success: false, message: 'Only the group owner can delete this group' });
+    const actingMember = group.members.find(m => m.userId && (m.userId.equals ? m.userId.equals(userId) : String(m.userId._id || m.userId) === String(userId)));
+    const isAdmin = actingMember && actingMember.role === 'admin' && actingMember.status === 'accepted';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Only owner or admin can generate group share links' });
     }
 
-    await FamilyGroupMessage.deleteMany({ groupId: id });
-    await FamilyGroup.findByIdAndDelete(id);
+    const { rawToken, tokenHash } = generateInviteToken();
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    group.groupInviteTokenHash = tokenHash;
+    group.groupInviteExpiresAt = expiresAt;
+    group.groupInviteEnabled = true;
+    if (req.body.role === 'admin' && isOwner) {
+      group.groupInviteRole = 'admin';
+    } else {
+      group.groupInviteRole = 'member';
+    }
+    await group.save();
+
+    const frontendUrl = getFrontendUrl(req);
 
     res.status(200).json({
       success: true,
-      message: 'Family group deleted successfully'
+      message: 'Group share link generated successfully',
+      data: {
+        groupId: group._id,
+        groupName: group.name,
+        inviteToken: rawToken,
+        inviteLink: `/family/join-group/${rawToken}`,
+        inviteUrl: `${frontendUrl}/family/join-group/${rawToken}`,
+        expiresAt: group.groupInviteExpiresAt,
+        requiresApproval: true
+      }
     });
   } catch (error) {
-    console.error('deleteFamilyGroup error:', error);
+    console.error('getOrRefreshGroupInviteLink error:', error);
+    res.status(500).json({ success: false, message: 'Failed to generate group invite link' });
+  }
+};
+
+// @desc    Revoke general group invitation link (Owner/Admin only)
+// @route   DELETE /api/user/family-groups/:id/group-invite/revoke
+// @access  Private (User - Owner/Admin)
+exports.revokeGroupInviteLink = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid group ID format' });
+    }
+
+    const group = await FamilyGroup.findById(id);
+    if (!group) return res.status(404).json({ success: false, message: 'Family group not found' });
+
+    const isOwner = group.userId && (group.userId.equals ? group.userId.equals(userId) : String(group.userId._id || group.userId) === String(userId));
+    const actingMember = group.members.find(m => m.userId && (m.userId.equals ? m.userId.equals(userId) : String(m.userId._id || m.userId) === String(userId)));
+    const isAdmin = actingMember && actingMember.role === 'admin' && actingMember.status === 'accepted';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Only owner or admin can revoke group share links' });
+    }
+
+    // Invalidate token without removing existing members
+    group.groupInviteTokenHash = null;
+    group.groupInviteExpiresAt = null;
+    group.groupInviteEnabled = false;
+    await group.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'General group invitation link revoked successfully. Existing members are not affected.'
+    });
+  } catch (error) {
+    console.error('revokeGroupInviteLink error:', error);
+    res.status(500).json({ success: false, message: 'Failed to revoke group invite link' });
+  }
+};
+
+// @desc    Get public general group invitation preview by token
+// @route   GET /api/public/family-groups/preview/:token
+// @access  Public
+exports.getPublicGroupPreviewByToken = async (req, res) => {
+  try {
+    const { token } = req.params;
+    if (!token || !token.trim()) {
+      return res.status(400).json({ success: false, message: 'Invitation token is required' });
+    }
+
+    const tokenHash = hashInviteToken(token);
+    const group = await FamilyGroup.findOne({
+      groupInviteTokenHash: tokenHash,
+      groupInviteEnabled: true
+    });
+
+    if (!group) {
+      return res.status(404).json({ success: false, message: 'Invalid or revoked group invitation link' });
+    }
+
+    if (group.groupInviteExpiresAt && new Date(group.groupInviteExpiresAt) < new Date()) {
+      return res.status(400).json({ success: false, message: 'This group invitation link has expired' });
+    }
+
+    const host = await User.findById(group.userId).select('name profileImage');
+    const acceptedCount = group.members.filter(m => m.status === 'accepted').length;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        groupId: group._id,
+        groupName: group.name,
+        groupDescription: group.description,
+        groupAvatar: group.avatar,
+        hostName: host?.name || 'Wedding Host',
+        memberCount: acceptedCount,
+        requiresApproval: true,
+        isExpired: false
+      }
+    });
+  } catch (error) {
+    console.error('getPublicGroupPreviewByToken error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to delete family group',
+      message: 'Failed to retrieve group invitation details',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
+  }
+};
+
+// @desc    Submit request to join group via general link (Authenticated User)
+// @route   POST /api/user/family-groups/join-group/:token
+// @access  Private (User)
+exports.requestJoinGroupWithToken = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { token } = req.params;
+
+    if (!token || !token.trim()) {
+      return res.status(400).json({ success: false, message: 'Invitation token is required' });
+    }
+
+    const tokenHash = hashInviteToken(token);
+    const group = await FamilyGroup.findOne({
+      groupInviteTokenHash: tokenHash,
+      groupInviteEnabled: true
+    });
+
+    if (!group) {
+      return res.status(404).json({ success: false, message: 'Invalid or revoked group invitation link' });
+    }
+
+    if (group.groupInviteExpiresAt && new Date(group.groupInviteExpiresAt) < new Date()) {
+      return res.status(400).json({ success: false, message: 'This group invitation link has expired' });
+    }
+
+    const userEmail = req.user.email ? req.user.email.toLowerCase() : '';
+    const userPhone = normalizePhone(req.user.phone);
+
+    // Is owner?
+    if (group.userId && (group.userId.equals ? group.userId.equals(userId) : String(group.userId._id || group.userId) === String(userId))) {
+      return res.status(400).json({ success: false, message: 'You are the owner of this group' });
+    }
+
+    // Existing member check
+    const existingMember = group.members.find(m =>
+      (m.userId && (m.userId.equals ? m.userId.equals(userId) : String(m.userId._id || m.userId) === String(userId))) ||
+      (userEmail && m.email && m.email.toLowerCase() === userEmail) ||
+      (userPhone && m.phone && normalizePhone(m.phone) === userPhone)
+    );
+
+    if (existingMember) {
+      if (existingMember.status === 'accepted') {
+        return res.status(200).json({
+          success: true,
+          message: 'You are already an accepted member of this group',
+          data: { status: 'accepted', groupId: group._id }
+        });
+      }
+      if (existingMember.status === 'pending_approval') {
+        return res.status(200).json({
+          success: true,
+          message: 'Your join request has already been submitted and is awaiting host approval.',
+          data: { status: 'pending_approval', groupId: group._id }
+        });
+      }
+      if (existingMember.status === 'pending') {
+        // User had a pending individual invite -> auto-accept and link
+        existingMember.status = 'accepted';
+        existingMember.userId = userId;
+        existingMember.respondedAt = new Date();
+        existingMember.inviteTokenHash = null;
+        existingMember.inviteTokenExpiresAt = null;
+        await group.save();
+
+        return res.status(200).json({
+          success: true,
+          message: 'Your pending invitation has been accepted. Welcome to the group!',
+          data: { status: 'accepted', groupId: group._id }
+        });
+      }
+      if (existingMember.status === 'declined' || existingMember.status === 'revoked') {
+        // Re-request join
+        existingMember.status = 'pending_approval';
+        existingMember.userId = userId;
+        existingMember.joinRequestedAt = new Date();
+        existingMember.respondedAt = null;
+        await group.save();
+
+        return res.status(200).json({
+          success: true,
+          message: 'Your request to re-join this group has been submitted for host approval.',
+          data: { status: 'pending_approval', groupId: group._id }
+        });
+      }
+    }
+
+    // Add new pending_approval member
+    const newMember = {
+      userId,
+      name: req.user.name || 'Member',
+      email: userEmail,
+      phone: userPhone,
+      relation: 'Family',
+      role: group.groupInviteRole || 'member',
+      status: 'pending_approval',
+      permissions: ['view_planning'],
+      avatar: req.user.profileImage || '',
+      joinRequestedAt: new Date()
+    };
+
+    group.members.push(newMember);
+    await group.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Join request submitted successfully. Awaiting approval from the group host.',
+      data: {
+        status: 'pending_approval',
+        groupId: group._id,
+        groupName: group.name
+      }
+    });
+  } catch (error) {
+    console.error('requestJoinGroupWithToken error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to submit join request',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Get pending join requests for a group (Owner/Admin)
+// @route   GET /api/user/family-groups/:id/join-requests
+// @access  Private (User - Owner/Admin)
+exports.getJoinRequests = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid group ID format' });
+    }
+
+    const group = await FamilyGroup.findById(id);
+    if (!group) return res.status(404).json({ success: false, message: 'Family group not found' });
+
+    const isOwner = group.userId && (group.userId.equals ? group.userId.equals(userId) : String(group.userId._id || group.userId) === String(userId));
+    const actingMember = group.members.find(m => m.userId && (m.userId.equals ? m.userId.equals(userId) : String(m.userId._id || m.userId) === String(userId)));
+    const isAdmin = actingMember && actingMember.role === 'admin' && actingMember.status === 'accepted';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Only owner or admin can review join requests' });
+    }
+
+    const requests = group.members
+      .filter(m => m.status === 'pending_approval')
+      .map(m => ({
+        _id: m._id,
+        memberId: m._id,
+        userId: m.userId,
+        name: m.name,
+        email: m.email,
+        phone: m.phone,
+        avatar: m.avatar,
+        role: m.role,
+        relation: m.relation,
+        joinRequestedAt: m.joinRequestedAt || m.invitedAt
+      }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        requests,
+        totalRequests: requests.length
+      }
+    });
+  } catch (error) {
+    console.error('getJoinRequests error:', error);
+    res.status(500).json({ success: false, message: 'Failed to retrieve join requests' });
+  }
+};
+
+// @desc    Approve or reject a join request (Owner/Admin)
+// @route   PUT /api/user/family-groups/:id/join-requests/:memberId
+// @access  Private (User - Owner/Admin)
+exports.respondJoinRequest = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { id, memberId } = req.params;
+    const { action, role } = req.body; // action: 'approve' | 'reject'
+
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(memberId)) {
+      return res.status(400).json({ success: false, message: 'Invalid ID format' });
+    }
+
+    const isApprove = action === 'approve' || req.body.status === 'accepted';
+    const isReject = action === 'reject' || req.body.status === 'declined';
+
+    if (!isApprove && !isReject) {
+      return res.status(400).json({ success: false, message: 'Action must be "approve" or "reject"' });
+    }
+
+    const group = await FamilyGroup.findById(id);
+    if (!group) return res.status(404).json({ success: false, message: 'Family group not found' });
+
+    const isOwner = group.userId && (group.userId.equals ? group.userId.equals(userId) : String(group.userId._id || group.userId) === String(userId));
+    const actingMember = group.members.find(m => m.userId && (m.userId.equals ? m.userId.equals(userId) : String(m.userId._id || m.userId) === String(userId)));
+    const isAdmin = actingMember && actingMember.role === 'admin' && actingMember.status === 'accepted';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Only owner or admin can review join requests' });
+    }
+
+    const member = group.members.id(memberId);
+    if (!member) {
+      return res.status(404).json({ success: false, message: 'Join request record not found' });
+    }
+
+    if (member.status !== 'pending_approval') {
+      return res.status(400).json({
+        success: false,
+        message: `This request has already been processed (Current status: ${member.status})`
+      });
+    }
+
+    if (isApprove) {
+      member.status = 'accepted';
+      member.respondedAt = new Date();
+      member.approvedBy = userId;
+      if (role && isOwner) {
+        member.role = role === 'admin' ? 'admin' : 'member';
+      }
+    } else {
+      member.status = 'declined';
+      member.respondedAt = new Date();
+      member.approvedBy = userId;
+    }
+
+    await group.save();
+
+    // Broadcast member update via socket if approved
+    const io = req.app.get('io');
+    if (io && isApprove) {
+      io.to(`family_group_${id}`).emit('family_group:member_joined', {
+        groupId: id,
+        member: {
+          _id: member._id,
+          name: member.name,
+          role: member.role,
+          avatar: member.avatar
+        }
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: isApprove ? 'Join request approved successfully' : 'Join request rejected',
+      data: {
+        memberId: member._id,
+        status: member.status
+      }
+    });
+  } catch (error) {
+    console.error('respondJoinRequest error:', error);
+    res.status(500).json({ success: false, message: 'Failed to process join request' });
+  }
+};
+
+// @desc    Pre-authorized family group attachment upload
+// @route   POST /api/user/family-groups/:id/attachments
+// @access  Private (User - Accepted Member/Owner only)
+exports.uploadFamilyAttachment = async (req, res) => {
+  const { id } = req.params;
+  const file = req.file;
+
+  if (!file) {
+    return res.status(400).json({ success: false, message: 'Please attach a valid file' });
+  }
+
+  const isVideo = file.mimetype.startsWith('video/');
+  const isDoc = !isVideo && !file.mimetype.startsWith('image/');
+  const attType = isVideo ? 'video' : (isDoc ? 'document' : 'image');
+  const resourceType = isVideo ? 'video' : (isDoc ? 'raw' : 'image');
+  const publicId = file.filename || file.public_id || null;
+  const storagePath = file.path || null;
+
+  // Category file size validation
+  if (attType === 'image' && file.size > 10 * 1024 * 1024) {
+    await destroyFile({ publicId, resourceType, storagePath });
+    return res.status(400).json({ success: false, message: 'Image exceeds maximum permitted size of 10MB' });
+  }
+  if (attType === 'video' && file.size > 50 * 1024 * 1024) {
+    await destroyFile({ publicId, resourceType, storagePath });
+    return res.status(400).json({ success: false, message: 'Video exceeds maximum permitted size of 50MB' });
+  }
+  if (attType === 'document' && file.size > 20 * 1024 * 1024) {
+    await destroyFile({ publicId, resourceType, storagePath });
+    return res.status(400).json({ success: false, message: 'Document exceeds maximum permitted size of 20MB' });
+  }
+
+  // Idempotency / Duplicate check
+  const { clientMessageId, caption } = req.body;
+  if (clientMessageId) {
+    const existingMsg = await FamilyGroupMessage.findOne({ groupId: id, clientMessageId });
+    if (existingMsg) {
+      await destroyFile({ publicId, resourceType, storagePath });
+      return res.status(200).json({
+        success: true,
+        message: 'Message already received',
+        isDuplicate: true,
+        data: existingMsg
+      });
+    }
+  }
+
+  try {
+    const userId = req.user._id;
+    const member = req.groupMember;
+    const senderName = member ? member.name : (req.user.name || 'User');
+    const senderAvatar = member?.avatar || req.user.profileImage || '';
+
+    // Generate signed URL for Cloudinary authenticated asset or fallback URL
+    const signedUrl = publicId ? getSignedAttachmentUrl(publicId, resourceType, 3600) : (file.path || file.secure_url || '');
+
+    const attachmentDoc = {
+      url: signedUrl || '',
+      downloadUrl: '',
+      type: attType,
+      name: file.originalname || 'attachment',
+      size: file.size || 0,
+      mimeType: file.mimetype,
+      publicId: publicId,
+      resourceType: resourceType,
+      storagePath: storagePath
+    };
+
+    const newMessage = await FamilyGroupMessage.create({
+      groupId: id,
+      senderId: userId,
+      senderName,
+      senderAvatar,
+      message: (caption || '').trim(),
+      type: attType,
+      attachments: [attachmentDoc],
+      clientMessageId: clientMessageId || `srv_${Date.now()}`
+    });
+
+    newMessage.attachments[0].downloadUrl = `/api/user/family-groups/${id}/attachments/${newMessage._id}/0`;
+    await newMessage.save();
+
+    // Post-persistence Socket.io broadcast strictly after DB success
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`family_group_${id}`).emit('family_group:message', { message: newMessage });
+    }
+
+    res.status(201).json({
+      success: true,
+      data: newMessage
+    });
+  } catch (error) {
+    console.error('uploadFamilyAttachment error:', error);
+    await destroyFile({ publicId, resourceType, storagePath });
+    res.status(500).json({ success: false, message: 'Failed to persist attachment message' });
+  }
+};
+
+// @desc    Protected gateway to view/download private family group attachments
+// @route   GET /api/user/family-groups/:id/attachments/:messageId/:attachmentIndex?
+// @access  Private (User - Accepted Member/Owner only)
+exports.getPrivateAttachment = async (req, res) => {
+  try {
+    const { id, messageId, attachmentIndex } = req.params;
+    const idx = parseInt(attachmentIndex || '0', 10);
+
+    const message = await FamilyGroupMessage.findOne({ _id: messageId, groupId: id });
+    if (!message) {
+      return res.status(404).json({ success: false, message: 'Message not found' });
+    }
+
+    const attachment = message.attachments && message.attachments[idx];
+    if (!attachment) {
+      return res.status(404).json({ success: false, message: 'Attachment not found' });
+    }
+
+    // Cloudinary authenticated resource -> generate fresh short-lived signed URL
+    if (attachment.publicId) {
+      const signedUrl = getSignedAttachmentUrl(attachment.publicId, attachment.resourceType, 3600);
+      if (signedUrl) {
+        return res.redirect(302, signedUrl);
+      }
+    }
+
+    // Local disk private storage fallback
+    if (attachment.storagePath && fs.existsSync(attachment.storagePath)) {
+      return res.sendFile(path.resolve(attachment.storagePath));
+    }
+
+    if (attachment.url && attachment.url.startsWith('http')) {
+      return res.redirect(302, attachment.url);
+    }
+
+    return res.status(404).json({ success: false, message: 'Attachment file not found' });
+  } catch (error) {
+    console.error('getPrivateAttachment error:', error);
+    res.status(500).json({ success: false, message: 'Failed to retrieve attachment' });
   }
 };
 
