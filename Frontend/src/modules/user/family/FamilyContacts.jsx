@@ -23,9 +23,10 @@ const FamilyContacts = () => {
       setError(null);
       try {
         const res = await userApi.getGuests();
-        if (res.success && Array.isArray(res.data)) {
-          const mapped = res.data.map(g => ({
-            id: g._id,
+        if (res.success) {
+          const list = Array.isArray(res.data) ? res.data : (res.data?.guests || []);
+          const mapped = list.map(g => ({
+            id: g._id || g.id,
             name: g.name || 'Guest',
             phone: g.phone || '',
             email: g.email || '',

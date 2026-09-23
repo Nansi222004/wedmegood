@@ -21,8 +21,9 @@ const EInvites = () => {
     try {
       setIsLoadingInvites(true);
       const res = await userApi.getInvites();
-      if (res.success && Array.isArray(res.data)) {
-        setMyInvites(res.data);
+      if (res.success) {
+        const list = Array.isArray(res.data) ? res.data : (res.data?.invites || []);
+        setMyInvites(list);
       }
     } catch (err) {
       console.error('Error fetching invites from MongoDB:', err);
@@ -56,8 +57,9 @@ const EInvites = () => {
         },
         status: 'Draft'
       });
-      if (res.success && res.data?._id) {
-        navigate(`/user/e-invites/edit/${res.data._id}`);
+      const createdId = res.data?.invite?._id || res.data?._id;
+      if (res.success && createdId) {
+        navigate(`/user/e-invites/edit/${createdId}`);
       }
     } catch (err) {
       console.error('Failed to create invite:', err);
@@ -308,13 +310,13 @@ const EInvites = () => {
                           onClick={() => navigate(`/user/e-invites/edit/${inviteId}`)}
                           className="flex-1 py-3 rounded-full bg-[#EAE1D8]/30 border border-[#EAE1D8] text-[9px] font-black uppercase tracking-widest text-[#3D2B2B] hover:bg-[#EAE1D8]/50 transition-colors"
                         >
-                          Refine
+                          Edit & Publish
                         </button>
                         <button
                           onClick={() => navigate(`/user/e-invites/preview/${inviteId}`)}
                           className="flex-1 py-3 rounded-full bg-[#3D2B2B] text-white text-[9px] font-black uppercase tracking-widest shadow-lg hover:bg-black transition-colors"
                         >
-                          Presenter
+                          Preview & Share
                         </button>
                       </div>
                     </div>

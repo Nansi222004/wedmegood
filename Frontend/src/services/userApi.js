@@ -545,6 +545,17 @@ export const userApi = {
     });
   },
 
+  getPendingFamilyInvitations: async () => {
+    return request('/user/family-groups/invitations/pending', { method: 'GET' });
+  },
+
+  respondFamilyGroupInvitation: async (groupId, data) => {
+    return request(`/user/family-groups/${groupId}/invitations/respond`, {
+      method: 'PUT',
+      body: data
+    });
+  },
+
   // 9. E-Invites (Owner)
   getInvites: async () => {
     return request('/user/invites', { method: 'GET' });

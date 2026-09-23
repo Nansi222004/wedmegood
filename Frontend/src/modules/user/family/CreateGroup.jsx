@@ -66,11 +66,6 @@ const CreateGroup = () => {
       return;
     }
 
-    if (selectedMembers.length < 1) {
-      toast.warning('Please add at least 1 member to the group');
-      return;
-    }
-
     setIsCreating(true);
 
     try {
@@ -513,14 +508,14 @@ const CreateGroup = () => {
         <div className="max-w-md mx-auto">
           <Button
             onClick={handleCreateGroup}
-            disabled={!groupName.trim() || selectedMembers.length < 1 || isCreating}
+            disabled={!groupName.trim() || isCreating}
             className="w-full py-4 rounded-xl font-bold text-base flex items-center justify-center gap-3 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
             style={{
-              backgroundColor: (!groupName.trim() || selectedMembers.length < 1 || isCreating) 
+              backgroundColor: (!groupName.trim() || isCreating) 
                 ? theme.semantic.text.tertiary 
                 : theme.colors.primary[500],
               color: 'white',
-              boxShadow: (!groupName.trim() || selectedMembers.length < 1 || isCreating) 
+              boxShadow: (!groupName.trim() || isCreating) 
                 ? 'none' 
                 : `0 4px 20px ${theme.colors.primary[500]}40`,
               minHeight: '56px'

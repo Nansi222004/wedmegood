@@ -12,6 +12,8 @@ const FamilyGroups = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [groups, setGroups] = useState([]);
+  const [pendingInvitations, setPendingInvitations] = useState([]);
+  const [respondingId, setRespondingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState(null);
@@ -52,18 +54,22 @@ const FamilyGroups = () => {
       const res = await userApi.getFamilyGroups();
       if (res.success) {
         const groupsData = Array.isArray(res.data) ? res.data : (res.data?.groups || []);
+        const pendingData = Array.isArray(res.data?.pendingInvitations) ? res.data.pendingInvitations : [];
         const formatted = groupsData.map(g => ({
           ...g,
           id: g._id,
           members: Array.isArray(g.members) ? g.members : []
         }));
         setGroups(formatted);
+        setPendingInvitations(pendingData);
       } else {
         setGroups([]);
+        setPendingInvitations([]);
       }
     } catch (err) {
       console.error('Error loading family groups from MongoDB:', err);
       setGroups([]);
+      setPendingInvitations([]);
     } finally {
       setIsLoading(false);
     }
@@ -72,6 +78,23 @@ const FamilyGroups = () => {
   useEffect(() => {
     fetchGroups();
   }, []);
+
+  const handleRespondInvitation = async (invitation, accept) => {
+    const groupId = invitation._id || invitation.id;
+    setRespondingId(groupId);
+    try {
+      const res = await userApi.respondFamilyGroupInvitation(groupId, { accept });
+      if (res.success) {
+        await fetchGroups();
+      } else {
+        console.error('Failed to respond to group invitation:', res.message);
+      }
+    } catch (err) {
+      console.error('Error responding to group invitation:', err);
+    } finally {
+      setRespondingId(null);
+    }
+  };
 
   const filteredGroups = groups.filter(group =>
     (group.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -83,7 +106,7 @@ const FamilyGroups = () => {
   };
 
   const handleCreateNewGroup = () => {
-    navigate('/user/family/contacts');
+    navigate('/user/family/create-group');
   };
 
   const handleDeleteGroup = async (groupId) => {
@@ -196,6 +219,85 @@ const FamilyGroups = () => {
           </div>
         </div>
       </div>
+
+      {/* Pending Group Invitations Banner / Cards */}
+      {pendingInvitations.length > 0 && (
+        <div className="px-4 pt-4">
+          <div 
+            className="p-4 rounded-2xl border space-y-3"
+            style={{
+              backgroundColor: '#FEF3C7',
+              borderColor: '#FDE68A'
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <span className="text-base">📩</span>
+                <h2 className="font-bold text-sm text-stone-900">
+                  Pending Invitations ({pendingInvitations.length})
+                </h2>
+              </div>
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
+                Action Required
+              </span>
+            </div>
+            <p className="text-xs text-stone-700">
+              You have been invited to join these wedding planning groups. Accept to view message history and chat.
+            </p>
+
+            <div className="space-y-2.5 pt-1">
+              {pendingInvitations.map((inv) => (
+                <div
+                  key={inv._id || inv.id}
+                  className="p-3 rounded-xl border bg-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  style={{ borderColor: '#E5E7EB' }}
+                >
+                  <div className="flex items-center space-x-3 min-w-0">
+                    <img
+                      src={inv.avatar || 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=150&h=150&fit=crop'}
+                      alt={inv.name}
+                      className="w-11 h-11 rounded-full object-cover flex-shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm text-stone-900 truncate">
+                        {inv.name}
+                      </h3>
+                      {inv.description && (
+                        <p className="text-xs text-stone-500 truncate">
+                          {inv.description}
+                        </p>
+                      )}
+                      <p className="text-[11px] text-amber-700 font-medium mt-0.5">
+                        Role: {inv.relation || 'Family'} ({inv.role || 'member'})
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Accept / Decline Action Buttons */}
+                  <div className="flex items-center space-x-2 self-end sm:self-center flex-shrink-0">
+                    <button
+                      type="button"
+                      disabled={respondingId === (inv._id || inv.id)}
+                      onClick={() => handleRespondInvitation(inv, false)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border text-rose-600 border-rose-200 hover:bg-rose-50 transition disabled:opacity-50"
+                    >
+                      Decline
+                    </button>
+                    <button
+                      type="button"
+                      disabled={respondingId === (inv._id || inv.id)}
+                      onClick={() => handleRespondInvitation(inv, true)}
+                      className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-sm disabled:opacity-50"
+                    >
+                      {respondingId === (inv._id || inv.id) ? 'Accepting...' : 'Accept'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="px-4 py-4">

@@ -54,6 +54,7 @@ import RealWedding from '../modules/user/inspirations/RealWedding';
 import EInvites from '../modules/user/invites/EInvites';
 import EditInvite from '../modules/user/invites/EditInvite';
 import PreviewInvite from '../modules/user/invites/PreviewInvite';
+import PublicInvite from '../modules/user/invites/PublicInvite';
 import Photographers from '../modules/user/photographers/Photographers';
 import PhotographerDetail from '../modules/user/photographers/PhotographerDetail';
 import PhotographerCollection from '../modules/user/photographers/PhotographerCollection';
@@ -95,6 +96,9 @@ const AppRouter = () => {
     <Routes>
       {/* Root - Always show Welcome page on load */}
       <Route path="/" element={<Welcome />} />
+
+      {/* Public Digital Wedding Invitation Route (No Auth Required) */}
+      <Route path="/invite/:slug" element={<PublicInvite />} />
 
       {/* Route alias for vender misspelling */}
       <Route path="/vender/*" element={<Navigate to="/vendor" replace />} />
