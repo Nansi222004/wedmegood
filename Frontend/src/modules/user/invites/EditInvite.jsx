@@ -35,7 +35,8 @@ const EditInvite = () => {
     musicUrl: '',
     enableRSVP: true,
     enableMap: true,
-    enableGallery: false
+    enableGallery: false,
+    enableContact: false
   });
 
   const [activeTab, setActiveTab] = useState('basic');
@@ -46,30 +47,31 @@ const EditInvite = () => {
       userApi.getInviteById(id)
         .then(res => {
           if (res.success && res.data) {
-            const inv = res.data;
+            const inv = res.data.invite || res.data;
             setInviteData({
-              id: inv._id,
-              name: inv.title || inv.name,
+              id: inv._id || inv.id,
+              name: inv.name || inv.title || 'Wedding Invitation',
               template: inv.template || 'Royal Elegance',
               status: inv.status || 'Draft',
-              brideName: inv.eventDetails?.brideName || '',
-              groomName: inv.eventDetails?.groomName || '',
-              weddingDate: inv.eventDetails?.eventDate ? inv.eventDetails.eventDate.split('T')[0] : '',
-              weddingTime: inv.eventDetails?.eventTime || '18:00',
-              venue: inv.eventDetails?.venue || '',
-              venueAddress: inv.eventDetails?.venueAddress || '',
-              message: inv.eventDetails?.message || '',
-              rsvpDeadline: inv.eventDetails?.rsvpDeadline ? inv.eventDetails.rsvpDeadline.split('T')[0] : '',
-              contactPerson: inv.eventDetails?.contactPerson || '',
-              contactPhone: inv.eventDetails?.contactPhone || '',
-              dresscode: inv.eventDetails?.dresscode || '',
-              backgroundColor: inv.design?.backgroundColor || '#8B4513',
-              textColor: inv.design?.textColor || '#FFFFFF',
-              accentColor: inv.design?.accentColor || '#FFD700',
-              musicUrl: inv.design?.musicUrl || '',
-              enableRSVP: inv.settings?.enableRSVP ?? true,
-              enableMap: inv.settings?.enableMap ?? true,
-              enableGallery: inv.settings?.enableGallery ?? false,
+              brideName: inv.brideName || inv.eventDetails?.brideName || '',
+              groomName: inv.groomName || inv.eventDetails?.groomName || '',
+              weddingDate: inv.weddingDate ? (typeof inv.weddingDate === 'string' ? inv.weddingDate.split('T')[0] : new Date(inv.weddingDate).toISOString().split('T')[0]) : (inv.eventDetails?.eventDate ? inv.eventDetails.eventDate.split('T')[0] : ''),
+              weddingTime: inv.weddingTime || inv.eventDetails?.eventTime || '18:00',
+              venue: inv.venue || inv.eventDetails?.venue || '',
+              venueAddress: inv.venueAddress || inv.eventDetails?.venueAddress || '',
+              message: inv.message || inv.eventDetails?.message || '',
+              rsvpDeadline: inv.rsvpDeadline ? (typeof inv.rsvpDeadline === 'string' ? inv.rsvpDeadline.split('T')[0] : new Date(inv.rsvpDeadline).toISOString().split('T')[0]) : (inv.eventDetails?.rsvpDeadline ? inv.eventDetails.rsvpDeadline.split('T')[0] : ''),
+              contactPerson: inv.contactPerson || inv.eventDetails?.contactPerson || '',
+              contactPhone: inv.contactPhone || inv.eventDetails?.contactPhone || '',
+              dresscode: inv.dresscode || inv.eventDetails?.dresscode || '',
+              backgroundColor: inv.backgroundColor || inv.design?.backgroundColor || '#8B4513',
+              textColor: inv.textColor || inv.design?.textColor || '#FFFFFF',
+              accentColor: inv.accentColor || inv.design?.accentColor || '#FFD700',
+              musicUrl: inv.musicUrl || inv.design?.musicUrl || '',
+              enableRSVP: inv.enableRSVP ?? inv.settings?.enableRSVP ?? true,
+              enableMap: inv.enableMap ?? inv.settings?.enableMap ?? true,
+              enableGallery: inv.enableGallery ?? inv.settings?.enableGallery ?? false,
+              enableContact: inv.enableContact ?? inv.settings?.enableContact ?? false,
               slug: inv.slug
             });
           }
@@ -98,14 +100,36 @@ const EditInvite = () => {
     try {
       if (id && id.length === 24) {
         const payload = {
+          name: inviteData.name,
           title: inviteData.name,
           template: inviteData.template,
           status: newStatus,
+          brideName: inviteData.brideName,
+          groomName: inviteData.groomName,
+          weddingDate: inviteData.weddingDate || null,
+          weddingTime: inviteData.weddingTime,
+          venue: inviteData.venue,
+          venueAddress: inviteData.venueAddress,
+          message: inviteData.message,
+          rsvpDeadline: inviteData.rsvpDeadline || null,
+          contactPerson: inviteData.contactPerson,
+          contactPhone: inviteData.contactPhone,
+          dresscode: inviteData.dresscode,
+          backgroundColor: inviteData.backgroundColor,
+          textColor: inviteData.textColor,
+          accentColor: inviteData.accentColor,
+          musicUrl: inviteData.musicUrl,
+          enableRSVP: inviteData.enableRSVP,
+          enableMap: inviteData.enableMap,
+          enableGallery: inviteData.enableGallery,
+          enableContact: inviteData.enableContact,
           eventDetails: {
             brideName: inviteData.brideName,
             groomName: inviteData.groomName,
             eventDate: inviteData.weddingDate,
+            weddingDate: inviteData.weddingDate,
             eventTime: inviteData.weddingTime,
+            weddingTime: inviteData.weddingTime,
             venue: inviteData.venue,
             venueAddress: inviteData.venueAddress,
             message: inviteData.message,
@@ -123,7 +147,8 @@ const EditInvite = () => {
           settings: {
             enableRSVP: inviteData.enableRSVP,
             enableMap: inviteData.enableMap,
-            enableGallery: inviteData.enableGallery
+            enableGallery: inviteData.enableGallery,
+            enableContact: inviteData.enableContact
           }
         };
 
@@ -213,27 +238,36 @@ const EditInvite = () => {
               variant="outline"
               size="sm"
               onClick={handlePreview}
-              className="hidden sm:flex items-center gap-2"
+              className="flex items-center gap-1 text-xs"
             >
-              <Icon name="eye" size="sm" />
-              Preview
+              <Icon name="eye" size="xs" />
+              <span className="hidden sm:inline">Preview</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleSave(false)}
+              disabled={isSaving}
+              className="flex items-center gap-1 text-xs"
+            >
+              <span>Save Draft</span>
             </Button>
             <Button
               variant="primary"
               size="sm"
               onClick={() => handleSave(true)}
               disabled={isSaving}
-              className="flex items-center gap-2"
+              className="flex items-center gap-1 text-xs font-bold"
             >
               {isSaving ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
                   Saving...
                 </>
               ) : (
                 <>
-                  <Icon name="check" size="sm" />
-                  <span className="hidden sm:inline">Publish</span>
+                  <Icon name="check" size="xs" />
+                  <span>Publish</span>
                 </>
               )}
             </Button>

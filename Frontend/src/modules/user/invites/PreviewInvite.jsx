@@ -55,31 +55,32 @@ const PreviewInvite = () => {
       userApi.getInviteById(id)
         .then(res => {
           if (res.success && res.data) {
-            const inv = res.data;
+            const inv = res.data.invite || res.data;
             const rsvpCount = inv.rsvpCount ?? (Array.isArray(inv.rsvps) ? inv.rsvps.length : 0);
             setInviteData({
-              id: inv._id,
-              name: inv.title || inv.name,
+              id: inv._id || inv.id,
+              name: inv.name || inv.title || 'Wedding Invitation',
               template: inv.template || 'Royal Elegance',
               status: inv.status || 'Draft',
-              brideName: inv.eventDetails?.brideName || '',
-              groomName: inv.eventDetails?.groomName || '',
-              weddingDate: inv.eventDetails?.eventDate ? inv.eventDetails.eventDate.split('T')[0] : '2026-03-15',
-              weddingTime: inv.eventDetails?.eventTime || '18:00',
-              venue: inv.eventDetails?.venue || '',
-              venueAddress: inv.eventDetails?.venueAddress || '',
-              message: inv.eventDetails?.message || '',
-              rsvpDeadline: inv.eventDetails?.rsvpDeadline ? inv.eventDetails.rsvpDeadline.split('T')[0] : '',
-              contactPerson: inv.eventDetails?.contactPerson || '',
-              contactPhone: inv.eventDetails?.contactPhone || '',
-              dresscode: inv.eventDetails?.dresscode || '',
-              backgroundColor: inv.design?.backgroundColor || '#8B4513',
-              textColor: inv.design?.textColor || '#FFFFFF',
-              accentColor: inv.design?.accentColor || '#FFD700',
-              enableRSVP: inv.settings?.enableRSVP ?? true,
-              enableMap: inv.settings?.enableMap ?? true,
+              brideName: inv.brideName || inv.eventDetails?.brideName || '',
+              groomName: inv.groomName || inv.eventDetails?.groomName || '',
+              weddingDate: inv.weddingDate ? (typeof inv.weddingDate === 'string' ? inv.weddingDate.split('T')[0] : new Date(inv.weddingDate).toISOString().split('T')[0]) : (inv.eventDetails?.eventDate ? inv.eventDetails.eventDate.split('T')[0] : '2026-03-15'),
+              weddingTime: inv.weddingTime || inv.eventDetails?.eventTime || '18:00',
+              venue: inv.venue || inv.eventDetails?.venue || '',
+              venueAddress: inv.venueAddress || inv.eventDetails?.venueAddress || '',
+              message: inv.message || inv.eventDetails?.message || '',
+              rsvpDeadline: inv.rsvpDeadline ? (typeof inv.rsvpDeadline === 'string' ? inv.rsvpDeadline.split('T')[0] : new Date(inv.rsvpDeadline).toISOString().split('T')[0]) : (inv.eventDetails?.rsvpDeadline ? inv.eventDetails.rsvpDeadline.split('T')[0] : ''),
+              contactPerson: inv.contactPerson || inv.eventDetails?.contactPerson || '',
+              contactPhone: inv.contactPhone || inv.eventDetails?.contactPhone || '',
+              dresscode: inv.dresscode || inv.eventDetails?.dresscode || '',
+              backgroundColor: inv.backgroundColor || inv.design?.backgroundColor || '#8B4513',
+              textColor: inv.textColor || inv.design?.textColor || '#FFFFFF',
+              accentColor: inv.accentColor || inv.design?.accentColor || '#FFD700',
+              enableRSVP: inv.enableRSVP ?? inv.settings?.enableRSVP ?? true,
+              enableMap: inv.enableMap ?? inv.settings?.enableMap ?? true,
               views: inv.views || 0,
               rsvps: rsvpCount,
+              rsvpsList: Array.isArray(inv.rsvps) ? inv.rsvps : [],
               slug: inv.slug,
               shareUrl: inv.slug ? `${window.location.origin}/invite/${inv.slug}` : window.location.href
             });
@@ -105,17 +106,19 @@ const PreviewInvite = () => {
       const res = await userApi.submitPublicRSVP(slug, {
         guestName: rsvpGuestName.trim(),
         phone: rsvpPhone.trim(),
+        status: rsvpAttendance,
         attendance: rsvpAttendance,
-        guestCount: parseInt(rsvpGuestCount) || 1,
+        guestCount: parseInt(rsvpGuestCount, 10) || 1,
         mealPreference: rsvpMealPref,
-        note: rsvpNote.trim()
+        notes: rsvpNote.trim()
       });
       if (res.success) {
         showToast('RSVP submitted successfully! Thank you.', 'success', 3000);
         setIsRSVPModalOpen(false);
+        const newTotal = res.data?.summary?.totalRSVPs;
         setInviteData(prev => ({
           ...prev,
-          rsvps: prev.rsvps + 1
+          rsvps: newTotal !== undefined ? newTotal : prev.rsvps + 1
         }));
         setRsvpGuestName('');
         setRsvpPhone('');
@@ -588,6 +591,66 @@ const PreviewInvite = () => {
                 >
                   Your invitation is live and can be shared with guests
                 </p>
+              )}
+            </Card>
+
+            {/* Guest Responses / RSVP List */}
+            <Card className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 
+                  className="font-semibold text-sm"
+                  style={{ color: theme.semantic.text.primary }}
+                >
+                  RSVP Responses ({inviteData.rsvpsList?.length || 0})
+                </h3>
+                <button
+                  onClick={() => navigate('/user/tools/guests')}
+                  className="text-xs font-bold hover:underline"
+                  style={{ color: theme.colors.primary[500] }}
+                >
+                  Guest List →
+                </button>
+              </div>
+
+              {(!inviteData.rsvpsList || inviteData.rsvpsList.length === 0) ? (
+                <div className="text-center py-6 text-xs text-slate-400">
+                  <Icon name="users" size="md" className="mx-auto mb-2 opacity-40" />
+                  No guest responses recorded yet.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {inviteData.rsvpsList.map((r, idx) => (
+                    <div 
+                      key={r._id || idx} 
+                      className="p-3 rounded-xl border flex items-center justify-between text-xs"
+                      style={{ 
+                        backgroundColor: theme.semantic.background.accent,
+                        borderColor: theme.semantic.border.light 
+                      }}
+                    >
+                      <div className="min-w-0 pr-2">
+                        <div className="font-bold truncate" style={{ color: theme.semantic.text.primary }}>
+                          {r.guestName || 'Guest'}
+                        </div>
+                        <div className="text-[11px] truncate" style={{ color: theme.semantic.text.secondary }}>
+                          {r.phone || r.email || 'No contact'} • {r.guestCount || 1} guest{(r.guestCount || 1) > 1 ? 's' : ''}
+                        </div>
+                        {r.notes && (
+                          <div className="text-[10px] text-slate-500 italic mt-0.5 truncate">
+                            "{r.notes}"
+                          </div>
+                        )}
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold flex-shrink-0 ${
+                        r.status === 'Attending' 
+                          ? 'bg-emerald-100 text-emerald-800' 
+                          : (r.status === 'Not Attending' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800')
+                      }`}>
+                        {r.status || 'Attending'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               )}
             </Card>
           </div>

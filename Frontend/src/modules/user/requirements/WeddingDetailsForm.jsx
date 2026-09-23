@@ -195,17 +195,16 @@ const WeddingDetailsForm = () => {
   };
 
   return (
-    <div className="min-h-screen relative flex flex-col items-center overflow-x-hidden font-['Outfit'] pb-20" style={{ backgroundColor: '#BE9B9B' }}>
-      
-      {/* EDGE-TO-EDGE LEAF DECORATIONS (Matches Signup/Login) */}
-      <div className="absolute top-0 left-0 w-full h-40 opacity-90 pointer-events-none" style={{ mixBlendMode: 'multiply' }}>
-         <img src="/assets/vendor/straight_leaves.png" alt="straight leaves top" className="w-full h-full object-cover scale-x-125 origin-top" />
-      </div>
-
-      <div className="absolute bottom-0 left-0 w-full h-40 opacity-90 pointer-events-none rotate-180 -mb-16" style={{ mixBlendMode: 'multiply' }}>
-         <img src="/assets/vendor/straight_leaves.png" alt="straight leaves bottom" className="w-full h-full object-cover scale-x-125 origin-top" />
-      </div>
-
+    <div 
+      className="min-h-screen relative flex flex-col items-center overflow-x-hidden font-['Outfit'] pb-20"
+      style={{ 
+        backgroundImage: "url('/uservendorre%20page%20bg.png')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'top center',
+        backgroundRepeat: 'no-repeat',
+        backgroundAttachment: 'fixed'
+      }}
+    >
       {/* SEARCH/BACK BUTTON - Minimalist */}
       <div className="relative z-20 w-full px-6 pt-10 flex justify-between items-center">
         <button 

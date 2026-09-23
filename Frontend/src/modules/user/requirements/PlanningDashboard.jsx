@@ -316,328 +316,210 @@ const PlanningDashboard = () => {
   if (!eventData) return null;
 
   return (
-    <div className="min-h-screen relative flex flex-col items-center overflow-x-hidden font-['Outfit'] pb-40" style={{ backgroundColor: '#EAE1D8' }}>
+    <div className="min-h-screen relative flex flex-col items-center overflow-x-hidden font-['Outfit'] pb-40 bg-transparent">
+      {/* Background Image for the whole page */}
+      <div className="fixed inset-0 pointer-events-none z-[-1]" style={{ backgroundImage: "url('/uservendorre%20page%20bg.png')", backgroundSize: 'cover', backgroundPosition: 'center', opacity: 1 }} />
       
       {/* HEADER NAVIGATION */}
-      <div className="relative z-20 w-full px-6 pt-4 flex justify-between items-center">
+      <div className="relative z-20 w-full px-6 pt-0 flex justify-between items-center -mt-2">
         <button 
           onClick={handleBack}
-          className="w-9 h-9 rounded-xl bg-white shadow-sm flex items-center justify-center border border-gray-100 text-[#3D2B2B] hover:bg-gray-50 transition-all active:scale-90"
+          className="w-9 h-9 rounded-xl bg-white shadow-sm flex items-center justify-center border border-gray-100 text-[#301024] hover:bg-gray-50 transition-all active:scale-90"
         >
           <Icon name="chevronDown" size="sm" className="rotate-90" />
         </button>
-        <div className="flex flex-col items-center">
-           <img src="/assets/vendor/logo_theme.png" alt="Utsavo Logo" className="h-16 object-contain" />
-        </div>
-        <div className="w-9 h-9 bg-white shadow-sm rounded-xl flex items-center justify-center border border-gray-100 text-[#3D2B2B]">
+        <div className="w-9 h-9 bg-white shadow-sm rounded-xl flex items-center justify-center border border-gray-100 text-[#301024]">
            <Icon name="users" size="sm" />
         </div>
       </div>
 
       {/* DASHBOARD HERO */}
-      <div className="relative z-20 w-full max-w-md pt-8 px-8 text-center space-y-1 mb-10">
-        <h1 className="text-[#3D2B2B] text-4xl font-bold leading-tight" style={{ fontFamily: '"Great Vibes", cursive' }}>
+      <div className="relative z-20 w-full max-w-md pt-2 px-8 text-center space-y-1 mb-8">
+        <h1 className="text-[#641A3D] text-3xl font-black leading-tight" style={{ fontFamily: '"Playfair Display", serif' }}>
           {getDashboardTitle()}
         </h1>
-        <p className="text-[#3D2B2B]/40 text-[9px] font-bold tracking-[0.2em] uppercase" style={{ fontFamily: '"Outfit", sans-serif' }}>
+        <div className="flex items-center justify-center gap-2 mt-2">
+           <span className="w-6 h-[1px] bg-[#641A3D]/20"></span>
+           <Icon name="heart" size="xs" style={{ color: '#D9B78B' }} />
+           <span className="w-6 h-[1px] bg-[#641A3D]/20"></span>
+        </div>
+        <p className="text-[#641A3D]/60 text-[9px] font-bold tracking-[0.2em] uppercase mt-2">
           Your complete event planning toolkit
         </p>
       </div>
 
-      <div className="relative z-20 w-full max-w-sm px-4 space-y-12">
+      <div className="relative z-20 w-full max-w-sm px-4 space-y-8">
         
         {/* WHAT WE PROVIDE SECTION */}
-        <div className="text-center space-y-8">
-          <h2 className="text-[#3D2B2B] text-2xl font-bold uppercase tracking-widest" style={{ fontFamily: '"Playfair Display", serif' }}>
+        <div className="text-center space-y-6">
+          <h2 className="text-[#641A3D] text-[12px] font-bold uppercase tracking-[0.2em]" style={{ fontFamily: '"Playfair Display", serif' }}>
             What We Provide?
           </h2>
           
-          <div className="grid grid-cols-2 gap-4">
-            {planningTools.slice(0, 10).map((tool) => (
+          <div className="grid grid-cols-2 gap-3">
+            {planningTools.map((tool) => (
               <div
                 key={tool.id}
                 onClick={() => handleToolNavigation(tool)}
-                className="group cursor-pointer space-y-2 transition-transform active:scale-95"
+                className="group cursor-pointer transition-transform active:scale-95"
               >
-                <div className="relative aspect-square rounded-[2rem] overflow-hidden shadow-sm border border-white">
-                  <img 
-                    src={`https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=400&fit=crop&q=80&sig=${tool.id}`} 
-                    alt={tool.title}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  />
-                  <div className="absolute inset-0 bg-black/5 flex items-center justify-center">
-                     <div className="w-8 h-8 rounded-full bg-white/40 backdrop-blur-md border border-white/60 flex items-center justify-center text-[#3D2B2B]">
-                        <Icon name={tool.icon} size="xs" />
-                     </div>
+                <div className="relative h-32 rounded-[1.5rem] bg-white shadow-sm border border-white flex flex-col justify-end">
+                  <div className="absolute top-0 left-0 right-0 h-20 rounded-t-[1.5rem] overflow-hidden">
+                    <img 
+                      src={`https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=400&fit=crop&q=80&sig=${tool.id}`} 
+                      alt={tool.title}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
-                </div>
-                <div className="px-1 text-center">
-                  <h3 className="text-[#3D2B2B] text-[9.5px] font-black uppercase tracking-widest leading-snug" style={{ fontFamily: '"Outfit", sans-serif' }}>
-                    {tool.title}
-                  </h3>
+                  <div className="absolute top-[3.5rem] left-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-white border border-gray-100 flex items-center justify-center shadow-sm">
+                     <Icon name={tool.icon} size="xs" style={{ color: '#BE185D' }} />
+                  </div>
+                  <div className="h-12 flex flex-col justify-end items-center pb-2 px-1">
+                    <h3 className="text-[#641A3D] text-[8px] font-black uppercase tracking-widest leading-none text-center">
+                      {tool.title}
+                    </h3>
+                    <p className="text-[7px] text-[#8E95A4] mt-0.5 text-center px-2 truncate w-full">
+                       {tool.description}
+                    </p>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* ABOUT US SECTION (Inspired by Image 2) */}
-        <div className="text-center py-10 space-y-6">
-           <h2 className="text-[#3D2B2B] text-3xl font-bold uppercase tracking-widest border-t border-[#3D2B2B]/10 pt-10" style={{ fontFamily: '"Playfair Display", serif' }}>
-             About Us
-           </h2>
-           
-           <div className="flex justify-center py-2">
-             <div className="w-10 h-10 rounded-full border-2 border-[#3D2B2B]/20 flex items-center justify-center">
-                <svg viewBox="0 0 100 100" className="w-6 h-6 fill-[#3D2B2B]/60">
-                   <path d="M50 85c-2-2-35-25-35-45 0-12 10-20 20-20 6 0 11 3 15 8 4-5 9-8 15-8 10 0 20 8 20 20 0 20-33 43-35 45z"/>
-                </svg>
-             </div>
-           </div>
-
-           <p className="text-[#3D2B2B]/70 text-[11px] leading-relaxed font-medium italic" style={{ fontFamily: '"Outfit", sans-serif' }}>
-             At Utsavo, we create events where elegance meets emotion. Every story is unique, and we transform yours into a beautifully curated celebration filled with meaning and warmth. We blend refined design, thoughtful details, and seamless coordination to make your day truly unforgettable.
-           </p>
-
-           {/* SMALL DECORATIVE STRIP */}
-           <div className="w-20 h-[1px] bg-[#3D2B2B]/20 mx-auto mt-4" />
+        {/* Planning Progress Summary Bar */}
+        <div
+          className="p-3.5 rounded-[1.5rem] bg-white/95 backdrop-blur-sm shadow-sm border border-white cursor-pointer active:scale-95 transition-transform flex items-center justify-between"
+          onClick={handlePlanningProgressClick}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#FDF4F7] flex items-center justify-center shrink-0">
+               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#BE185D" strokeWidth="2"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/></svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-[12px] font-bold text-[#301024] leading-tight mb-0.5">Planning Progress</h3>
+              <p className="text-[9px] text-[#8E95A4]">Track your wedding planning journey</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 w-28 flex-col items-end justify-center mt-1">
+            <div className="text-[11px] font-bold text-[#BE185D] leading-tight flex items-center gap-1 w-full justify-end">
+              <span>32%</span> <span className="text-[#8E95A4] font-normal">Completed</span>
+            </div>
+            <div className="w-full h-1.5 bg-[#FDF4F7] rounded-full overflow-hidden mt-1">
+               <div className="h-full bg-[#BE185D] rounded-full w-[32%]"></div>
+            </div>
+          </div>
+          <Icon name="chevronRight" size="xs" className="ml-2 text-gray-400" />
         </div>
 
-        {/* ADDITIONAL PLANNING SECTIONS (Original logic kept) */}
-        <div className="space-y-12 pb-20">
+        {/* YOUR SACRED CEREMONIES */}
+        {eventData.subcategories && eventData.subcategories.length > 0 && (
+          <div className="text-center pt-2">
+             <h4 className="text-[#8E95A4] text-[9px] font-bold uppercase tracking-[0.3em] flex items-center gap-3 justify-center mb-4">
+                <span className="w-8 h-[1px] bg-[#8E95A4]/30" />
+                Your Sacred Ceremonies
+                <span className="w-8 h-[1px] bg-[#8E95A4]/30" />
+             </h4>
+             
+             <div className="flex justify-between gap-2 overflow-x-auto pb-4 scrollbar-hide px-1">
+               {eventData.subcategories.map((subId, index) => {
+                 const label = eventData?.subcategoryLabels?.[index] || subId;
+                 const getStyle = (id) => {
+                   if (id.includes('wedding') || id.includes('roka')) return { icon: 'heart', color: '#E10079' };
+                   if (id.includes('engagement')) return { icon: 'rings', color: '#8B5CF6' };
+                   if (id.includes('mehendi') || id.includes('sangeet')) return { icon: 'music', color: '#E10079' };
+                   if (id.includes('haldi')) return { icon: 'sparkles', color: '#D97706' };
+                   return { icon: 'star', color: '#10B981' };
+                 };
+                 const style = getStyle(subId);
 
+                 return (
+                   <div
+                     key={subId}
+                     className="flex flex-col items-center gap-2 p-3 rounded-[1.5rem] bg-white/95 backdrop-blur-sm shadow-sm border border-white min-w-[75px] flex-1 cursor-pointer active:scale-95 transition-transform"
+                     onClick={() => setSelectedCeremony(subId)}
+                   >
+                     <div className="w-8 h-8 flex items-center justify-center mb-1">
+                       <Icon name={style.icon} size="sm" style={{ color: style.color }} />
+                     </div>
+                     <span className="text-[7.5px] font-bold text-[#301024] text-center uppercase tracking-widest leading-tight w-full break-words">{label}</span>
+                   </div>
+                 );
+               })}
+             </div>
+          </div>
+        )}
 
-            {/* Enhanced Planning Progress Section */}
-            <div
-              className="p-4 rounded-xl mb-6 cursor-pointer"
-              onClick={handlePlanningProgressClick}
-              style={{
-                background: 'linear-gradient(135deg, #fdf2f8 0%, #fffbeb 100%)',
-                border: `1px solid ${theme.semantic.border.accent}`
-              }}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3
-                  className="font-bold text-lg"
-                  style={{ color: theme.semantic.text.primary }}
+        {/* Upcoming Tasks */}
+        <div className="px-2">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[14px] font-bold text-[#301024] flex items-center gap-2" style={{ fontFamily: '"Playfair Display", serif' }}>
+              <Icon name="calendar" size="xs" style={{ color: '#8B5CF6' }} /> Upcoming Tasks
+            </h2>
+            <button className="text-[10px] text-[#8E95A4] font-medium flex items-center gap-1 hover:text-[#301024]">
+              View All <Icon name="chevronRight" size="xs" />
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {upcomingTasks.map((item, index) => {
+              const getTaskStyle = (priority) => {
+                if (priority === 'high') return { icon: 'warning', color: '#F43F5E', bg: '#FFE4E6' };
+                if (priority === 'medium') return { icon: 'clock', color: '#D97706', bg: '#FEF3C7' };
+                return { icon: 'check', color: '#10B981', bg: '#D1FAE5' };
+              };
+              const style = getTaskStyle(item.priority);
+
+              return (
+                <div
+                  key={index}
+                  className="p-3 rounded-[1.2rem] bg-white shadow-sm border border-white flex items-center justify-between cursor-pointer active:scale-95 transition-transform"
                 >
-                  Planning Progress
-                </h3>
-                <Icon
-                  name="chevronDown"
-                  size="sm"
-                  className="-rotate-90"
-                  style={{ color: theme.semantic.text.secondary }}
-                />
-              </div>
-
-              {/* Planning Categories List */}
-              <div className="space-y-3">
-                {planningCategories.map((category, index) => (
-                  <div
-                    key={category.id}
-                    className="flex items-center justify-between p-2 rounded-lg hover:bg-white hover:bg-opacity-50 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // Cycle through statuses on click
-                      const statuses = ['Pending with Discussion', 'Pending with Budget', 'Confirmed'];
-                      const currentIndex = statuses.indexOf(category.status);
-                      const nextStatus = statuses[(currentIndex + 1) % statuses.length];
-                      updateCategoryStatus(category.id, nextStatus);
-                    }}
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <span
-                          className="font-medium text-sm"
-                          style={{ color: theme.semantic.text.primary }}
-                        >
-                          {category.name}
-                        </span>
-                        <span
-                          className="text-xs font-medium px-2 py-1 rounded-full cursor-pointer"
-                          style={{
-                            backgroundColor: `${getStatusColor(category.status)}20`,
-                            color: getStatusColor(category.status)
-                          }}
-                        >
-                          {category.status}
-                        </span>
-                      </div>
-
-                      {category.status === 'Confirmed' && (
-                        <div className="flex items-center gap-4 text-xs mb-2">
-                          <span style={{ color: theme.semantic.text.secondary }}>
-                            Advance: <span className="font-medium">{category.advancePaid}</span>
-                          </span>
-                          <span style={{ color: theme.semantic.text.secondary }}>
-                            Balance: <span className="font-medium">{category.balanceAmount}</span>
-                          </span>
-                          <span style={{ color: theme.semantic.text.secondary }}>
-                            Total: <span className="font-medium">{category.totalBudget}</span>
-                          </span>
-                        </div>
-                      )}
-
-                      {category.status !== 'Confirmed' && (
-                        <div className="text-xs mb-2" style={{ color: theme.semantic.text.secondary }}>
-                          Budget: {category.totalBudget}
-                        </div>
-                      )}
-
-                      {/* Vendor Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleVendorNavigation(category.name);
-                        }}
-                        className="w-full py-1 px-3 rounded text-xs font-medium transition-all duration-200"
-                        style={{
-                          backgroundColor: `${getStatusColor(category.status)}20`,
-                          color: getStatusColor(category.status),
-                          border: `1px solid ${getStatusColor(category.status)}40`
-                        }}
-                      >
-                        Find {category.name} Vendors →
-                      </button>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: style.bg }}>
+                       <Icon name={style.icon} size="xs" style={{ color: style.color }} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-[12px] text-[#301024] leading-tight mb-0.5">{item.task}</p>
+                      <p className="text-[10px] text-[#8E95A4]">{item.dueDate}</p>
                     </div>
                   </div>
-                ))}
-              </div>
-              <p className="text-xs text-center mt-3" style={{ color: theme.semantic.text.tertiary }}>
-                💡 Click on categories to change status
-              </p>
-            </div>
-
-            {/* YOUR EVENTS SECTION */}
-            {eventData.subcategories && eventData.subcategories.length > 0 && (
-              <div className="mb-10">
-                <h2 className="text-[#5D3E3E] text-[11px] font-black uppercase tracking-[0.2em] mb-4 text-center">Your Sacred Ceremonies</h2>
-                <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide px-2">
-                  {eventData.subcategories.map((subId, index) => {
-                    const label = eventData?.subcategoryLabels?.[index] || subId;
-                    const emoji = subcategoryEmojis[subId] || '✨';
-
-                    return (
-                      <div
-                        key={subId}
-                        className="flex flex-col items-center gap-3 p-5 rounded-[2.5rem] bg-white/60 backdrop-blur-xl border border-white/40 shadow-lg min-w-[140px]"
-                      >
-                        <div className="w-16 h-16 rounded-full bg-[#5D3E3E]/5 border border-[#5D3E3E]/10 flex items-center justify-center text-3xl">
-                          {emoji}
-                        </div>
-                        <span className="text-[10px] font-black text-[#5D3E3E] text-center uppercase tracking-widest">{label}</span>
-                      </div>
-                    );
-                  })}
+                  <Icon name="chevronRight" size="xs" className="text-gray-300" />
                 </div>
-              </div>
-            )}
+              );
+            })}
+          </div>
+        </div>
 
-            {/* Upcoming Tasks */}
-            <div className="px-4 mb-8">
-              <h2
-                className="text-xl font-bold mb-4"
-                style={{ color: theme.semantic.text.primary }}
-              >
-                Upcoming Tasks
-              </h2>
-
-              <div className="space-y-3">
-                {upcomingTasks.map((item, index) => (
-                  <div
-                    key={index}
-                    className="p-4 rounded-xl flex items-center justify-between"
-                    style={{
-                      backgroundColor: theme.semantic.card.background,
-                      border: `1px solid ${theme.semantic.card.border}`
-                    }}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div
-                        className={`w-3 h-3 rounded-full ${item.priority === 'high' ? 'task-priority-high' :
-                          item.priority === 'medium' ? 'task-priority-medium' : 'task-priority-low'
-                          }`}
-                      />
-                      <div>
-                        <p
-                          className="font-medium text-sm"
-                          style={{ color: theme.semantic.text.primary }}
-                        >
-                          {item.task}
-                        </p>
-                        <p
-                          className="text-xs"
-                          style={{ color: theme.semantic.text.secondary }}
-                        >
-                          {item.dueDate}
-                        </p>
-                      </div>
-                    </div>
-
-                    <Icon
-                      name="chevronDown"
-                      size="sm"
-                      className="-rotate-90"
-                      style={{ color: theme.semantic.text.tertiary }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="px-4">
-              <div className="grid grid-cols-2 gap-4">
-                <Button
-                  onClick={() => navigate('/user/vendors')}
-                  className="py-3 text-sm font-bold"
-                  style={{
-                    backgroundColor: theme.semantic.button.outline.background,
-                    color: theme.colors.primary[500],
-                    border: `2px solid ${theme.colors.primary[200]}`
-                  }}
-                >
-                  Browse Vendors
-                </Button>
-
-                <Button
-                  onClick={() => navigate('/user/inspirations')}
-                  className="py-3 text-sm font-bold"
-                  style={{
-                    background: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
-                    color: 'white'
-                  }}
-                >
-                  Get Inspired
-                </Button>
-              </div>
-            </div>
-
+        {/* Quick Actions Buttons */}
+        <div className="flex gap-3 px-2 pt-2">
+          <button
+            onClick={() => navigate('/user/vendors')}
+            className="flex-1 py-3 rounded-full text-[12px] font-bold text-[#BE185D] bg-[#FDF4F7] border border-[#BE185D]/20 active:scale-95 transition-transform"
+          >
+            Browse Vendors
+          </button>
+          <button
+            onClick={() => navigate('/user/inspirations')}
+            className="flex-1 py-3 rounded-full text-[12px] font-bold text-white bg-[#BE185D] shadow-md shadow-[#BE185D]/30 active:scale-95 transition-transform"
+          >
+            Get Inspired
+          </button>
         </div>
       </div>
+      
       {/* Sticky Check List Button */}
-      <div
-        className="fixed bottom-20 left-0 right-0 p-4 z-50"
-        style={{
-          backgroundColor: `${theme.semantic.background.primary}CC`,
-          backdropFilter: 'blur(8px)',
-          borderTop: `1px solid ${theme.semantic.border.light}`
-        }}
-      >
+      <div className="fixed bottom-6 left-0 right-0 flex justify-center z-50 pointer-events-none">
         <button
           onClick={() => navigate('/user/tools/checklist')}
-          className="mx-auto py-2.5 px-8 rounded-full font-bold flex items-center justify-center space-x-2 shadow-lg transition-transform active:scale-95"
-          style={{
-            backgroundColor: theme.colors.primary[500],
-            color: 'white',
-            boxShadow: `0 4px 12px -2px ${theme.colors.primary[500]}40`
-          }}
+          className="py-3 px-10 rounded-full font-bold flex items-center gap-2 shadow-lg active:scale-95 transition-transform pointer-events-auto bg-[#641A3D] text-white"
         >
-          <Icon name="checkList" size="sm" />
-          <span className="text-sm">CHECK LIST</span>
+          <Icon name="checkList" size="xs" />
+          <span className="text-[13px] tracking-widest uppercase">CHECK LIST</span>
         </button>
       </div>
+
 
       {/* Ceremony Detail Modal */}
       {(selectedCeremony === 'roka' || selectedCeremony === 'engagement' || selectedCeremony === 'mehendi' || selectedCeremony === 'sangeet' || selectedCeremony === 'haldi') && (

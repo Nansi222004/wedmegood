@@ -160,6 +160,10 @@ const eInviteSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  enableContact: {
+    type: Boolean,
+    default: false
+  },
   views: {
     type: Number,
     default: 0,

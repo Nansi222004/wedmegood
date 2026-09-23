@@ -40,30 +40,17 @@ const Signup = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden" style={{ backgroundColor: '#BE9B9B' }}>
-      
-      {/* EDGE-TO-EDGE LEAF DECORATION */}
-      <div className="absolute top-0 left-0 w-full h-40 opacity-90 pointer-events-none" style={{ mixBlendMode: 'multiply' }}>
-         <img src="/assets/vendor/straight_leaves.png" alt="straight leaves top" className="w-full h-full object-cover scale-x-125 origin-top" />
-      </div>
-
-      <div className="absolute bottom-0 left-0 w-full h-40 opacity-90 pointer-events-none rotate-180 -mb-16" style={{ mixBlendMode: 'multiply' }}>
-         <img src="/assets/vendor/straight_leaves.png" alt="straight leaves bottom" className="w-full h-full object-cover scale-x-125 origin-top" />
-      </div>
-
-      <div className="w-full max-w-sm relative z-10 flex flex-col items-center">
-        {/* LOGO SECTION - COMPACTED & LIFTED */}
-        <div className="mb-0 text-center mt-12">
-            <h2 className="text-[#5D3E3E] text-5xl font-normal mb-2" style={{ fontFamily: '"Great Vibes", cursive' }}>Join Us</h2>
-            <p className="text-[#5D3E3E]/80 text-[10px] font-bold tracking-[0.2em] uppercase" style={{ fontFamily: '"Outfit", sans-serif' }}>
-               Create your dream wedding account
-            </p>
-            <div className="mt-2 flex justify-center">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="#5D3E3E">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-              </svg>
-            </div>
-        </div>
+    <div 
+      className="min-h-screen relative flex flex-col justify-end overflow-hidden font-['Outfit']"
+      style={{ 
+        backgroundImage: "url('/login%20page%20bg.png')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'top center',
+        backgroundRepeat: 'no-repeat'
+      }}
+    >
+      <div className="relative w-full pt-[15vh] pb-6 px-6 flex flex-col items-center z-10 bg-transparent">
+        {/* LOGO SECTION REMOVED AS REQUESTED */}
 
         {/* INPUT FIELDS - MAX COMPACTED SPACING */}
         <form onSubmit={handleSubmit} className="w-full space-y-1.5">

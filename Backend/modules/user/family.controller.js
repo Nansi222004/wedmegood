@@ -16,19 +16,56 @@ exports.getFamilyGroups = async (req, res) => {
     const userId = req.user._id;
     const userEmail = req.user.email ? req.user.email.toLowerCase() : '';
 
-    const groups = await FamilyGroup.find({
+    const allGroups = await FamilyGroup.find({
       $or: [
         { userId },
-        { 'members.userId': userId, 'members.status': 'accepted' },
-        ...(userEmail ? [{ 'members.email': userEmail, 'members.status': 'accepted' }] : [])
+        { 'members.userId': userId },
+        ...(userEmail ? [{ 'members.email': userEmail }] : [])
       ]
     }).sort({ createdAt: -1 });
+
+    const activeGroups = [];
+    const pendingInvitations = [];
+
+    for (const group of allGroups) {
+      const isOwner = group.userId && group.userId.equals(userId);
+      if (isOwner) {
+        activeGroups.push(group);
+        continue;
+      }
+
+      const myMembership = group.members.find(m =>
+        (m.userId && m.userId.equals(userId)) ||
+        (userEmail && m.email && m.email.toLowerCase() === userEmail)
+      );
+
+      if (myMembership) {
+        if (myMembership.status === 'accepted') {
+          activeGroups.push(group);
+        } else if (myMembership.status === 'pending') {
+          pendingInvitations.push({
+            _id: group._id,
+            id: group._id,
+            name: group.name,
+            description: group.description,
+            avatar: group.avatar,
+            role: myMembership.role,
+            relation: myMembership.relation,
+            invitedAt: myMembership.invitedAt,
+            memberId: myMembership._id,
+            createdAt: group.createdAt
+          });
+        }
+      }
+    }
 
     res.status(200).json({
       success: true,
       data: {
-        groups,
-        totalGroups: groups.length
+        groups: activeGroups,
+        pendingInvitations,
+        totalGroups: activeGroups.length,
+        totalPending: pendingInvitations.length
       }
     });
   } catch (error) {
@@ -36,6 +73,62 @@ exports.getFamilyGroups = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve family groups',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Get pending family group invitations for authenticated user
+// @route   GET /api/user/family-groups/invitations/pending
+// @access  Private (User)
+exports.getPendingInvitations = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const userEmail = req.user.email ? req.user.email.toLowerCase() : '';
+
+    const groups = await FamilyGroup.find({
+      userId: { $ne: userId },
+      members: {
+        $elemMatch: {
+          $or: [
+            { userId: userId, status: 'pending' },
+            ...(userEmail ? [{ email: userEmail, status: 'pending' }] : [])
+          ]
+        }
+      }
+    }).sort({ createdAt: -1 });
+
+    const invitations = groups.map(group => {
+      const myMembership = group.members.find(m =>
+        (m.userId && m.userId.equals(userId) && m.status === 'pending') ||
+        (userEmail && m.email && m.email.toLowerCase() === userEmail && m.status === 'pending')
+      );
+      return {
+        _id: group._id,
+        id: group._id,
+        name: group.name,
+        description: group.description,
+        avatar: group.avatar,
+        role: myMembership?.role || 'member',
+        relation: myMembership?.relation || 'Family',
+        invitedAt: myMembership?.invitedAt || group.createdAt,
+        memberId: myMembership?._id,
+        createdAt: group.createdAt
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        invitations,
+        totalPending: invitations.length
+      }
+    });
+  } catch (error) {
+    console.error('getPendingInvitations error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve pending invitations',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
@@ -301,7 +394,6 @@ exports.respondInvitation = async (req, res) => {
     const userId = req.user._id;
     const userEmail = req.user.email ? req.user.email.toLowerCase() : '';
     const { id } = req.params;
-    const { accept } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, message: 'Invalid group ID format' });
@@ -322,17 +414,66 @@ exports.respondInvitation = async (req, res) => {
     }
 
     const isAccepted = req.body.accept === true || req.body.action === 'accept' || req.body.status === 'accepted';
-    member.status = isAccepted ? 'accepted' : 'declined';
-    member.respondedAt = new Date();
-    if (!member.userId) member.userId = userId;
 
-    await group.save();
+    // Requirement: Ensure a declined or already accepted invitation cannot be accepted again improperly
+    if (member.status === 'declined') {
+      return res.status(400).json({
+        success: false,
+        message: 'This invitation was declined and cannot be re-accepted'
+      });
+    }
+
+    if (member.status === 'accepted') {
+      if (isAccepted) {
+        return res.status(400).json({
+          success: false,
+          message: 'This invitation has already been accepted'
+        });
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'Active members cannot decline an accepted group membership'
+        });
+      }
+    }
+
+    const newStatus = isAccepted ? 'accepted' : 'declined';
+
+    // Concurrency-safe atomic transition: only update if status is still 'pending'
+    const updatedGroup = await FamilyGroup.findOneAndUpdate(
+      {
+        _id: id,
+        members: {
+          $elemMatch: {
+            _id: member._id,
+            status: 'pending'
+          }
+        }
+      },
+      {
+        $set: {
+          'members.$.status': newStatus,
+          'members.$.userId': userId,
+          'members.$.respondedAt': new Date()
+        }
+      },
+      { new: true }
+    );
+
+    if (!updatedGroup) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invitation has already been processed or status has changed'
+      });
+    }
+
+    const updatedMember = updatedGroup.members.id(member._id);
 
     res.status(200).json({
       success: true,
       message: isAccepted ? 'Invitation accepted successfully' : 'Invitation declined',
-      data: { status: member.status, member },
-      membership: { status: member.status }
+      data: { status: updatedMember.status, member: updatedMember },
+      membership: { status: updatedMember.status }
     });
   } catch (error) {
     console.error('respondInvitation error:', error);
