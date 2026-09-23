@@ -322,18 +322,29 @@ const Account = () => {
   };
 
   return (
-    <div className="min-h-screen pb-32 px-6" style={{ backgroundColor: '#EAE1D8' }}>
+    <div className="min-h-screen pb-32 relative bg-transparent">
+      {/* Background Image for the whole page */}
+      <div className="fixed inset-0 pointer-events-none z-[-1]" style={{ backgroundImage: "url('/uservendorre%20page%20bg.png')", backgroundSize: 'cover', backgroundPosition: 'center', opacity: 1 }} />
       
-      {/* Editorial Profile Section - Compact */}
-      <div className="py-4">
+      {/* Editorial Profile Section */}
+      <div className="px-4 mb-8 pt-8 relative z-10">
         <div 
-          className="p-5 rounded-[2rem] shadow-md border border-white relative overflow-hidden"
-          style={{ backgroundColor: 'white' }}
+          className="p-5 rounded-[2.5rem] shadow-sm border border-white relative overflow-hidden bg-white/90 backdrop-blur-sm"
         >
-          <div className="flex flex-col items-center text-center space-y-3">
-            {/* High-End Profile Image - Slimmed */}
-            <div className="relative group">
-              <div className="w-20 h-20 rounded-full overflow-hidden border-[4px] border-[#EAE1D8]/20 shadow-lg bg-gray-100 flex items-center justify-center">
+          {/* Floral background accents inside profile card */}
+          <div className="absolute inset-0 opacity-40 pointer-events-none" style={{ backgroundImage: "url('/uservendorre%20page%20bg.png')", backgroundSize: '150%', backgroundPosition: 'center' }}></div>
+          
+          <div className="relative flex flex-col items-center text-center">
+            {/* Cursive Text Top Right */}
+            <div className="absolute top-0 right-2 text-right">
+              <span className="font-[Caveat] text-[#BE185D]/60 text-xl leading-tight block -rotate-6">Planning</span>
+              <span className="font-[Caveat] text-[#BE185D]/60 text-xl leading-tight block -rotate-6 ml-2">Beautiful</span>
+              <span className="font-[Caveat] text-[#BE185D]/60 text-xl leading-tight block -rotate-6 ml-4">Moments ♥</span>
+            </div>
+
+            {/* High-End Profile Image */}
+            <div className="relative group mt-2 mb-4">
+              <div className="w-20 h-20 rounded-full overflow-hidden shadow-md flex items-center justify-center relative">
                 {userData.profileImage && !imageError ? (
                   <img
                     src={formatImageUrl(userData.profileImage)}
@@ -342,43 +353,39 @@ const Account = () => {
                     onError={() => setImageError(true)}
                   />
                 ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center text-white text-2xl font-bold shadow-inner">
+                  <div className="w-full h-full bg-[#E10079] flex items-center justify-center text-white text-3xl font-bold">
                     {userData.name ? userData.name.charAt(0).toUpperCase() : 'U'}
                   </div>
                 )}
               </div>
               <button 
                 onClick={() => handleNavigation('/user/profile/edit')}
-                title="Edit Profile"
-                aria-label="Edit Profile"
-                className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-white shadow-md flex items-center justify-center text-[#3D2B2B] active:scale-90 transition-all border border-gray-100 hover:bg-gray-50"
+                className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-white shadow-md flex items-center justify-center text-[#BE185D] active:scale-90 transition-all border border-gray-100"
               >
-                 <Icon name="plan" size="xs" />
+                 <Icon name="camera" size="xs" />
               </button>
             </div>
 
-            {/* Structured User Details - High Density */}
-            <div className="space-y-2 w-full">
-              <div>
-                <h1 
-                  className="text-xl font-bold leading-tight"
-                  style={{ color: '#3D2B2B', fontFamily: '"Playfair Display", serif' }}
-                >
-                  {userData.name}
-                </h1>
-              </div>
+            {/* Structured User Details */}
+            <div className="space-y-1 w-full">
+              <h1 
+                className="text-[22px] font-bold leading-tight"
+                style={{ color: '#301024', fontFamily: '"Playfair Display", serif' }}
+              >
+                {userData.name}
+              </h1>
               
               <div className="flex flex-col items-center gap-1">
-                 <div className="text-[9px] font-black uppercase tracking-[0.2em] text-[#3D2B2B]/40" style={{ fontFamily: '"Outfit", sans-serif' }}>
+                 <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#8E95A4]">
                     {userData.phone}
                  </div>
-                 <div className="text-[9px] font-black uppercase tracking-[0.15em] text-[#3D2B2B]/40 truncate max-w-[200px]" style={{ fontFamily: '"Outfit", sans-serif' }}>
+                 <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#8E95A4] truncate max-w-[200px]">
                     {userData.email}
                  </div>
               </div>
 
-              <div className="pt-1">
-                <span className="inline-block px-3 py-1 rounded-full bg-[#EAE1D8]/20 text-[8px] font-black uppercase tracking-widest text-[#3D2B2B]/60 border border-white/50">
+              <div className="pt-3">
+                <span className="inline-block px-4 py-1.5 rounded-full bg-[#FDF4F7] text-[9px] font-bold uppercase tracking-widest text-[#BE185D] border border-white">
                   Monthly: ₹{userData.monthlyIncome.toLocaleString()}
                 </span>
               </div>
@@ -387,66 +394,64 @@ const Account = () => {
         </div>
       </div>
 
-      {/* Boutique Summary Sections - Compact */}
-      <div className="space-y-8">
-        <div className="text-center py-2">
-           <h4 className="text-[#3D2B2B]/30 text-[9px] font-black uppercase tracking-[0.3em] flex items-center gap-3 justify-center">
-              <span className="w-6 h-[1px] bg-[#3D2B2B]/10" />
+      {/* Boutique Summary Sections */}
+      <div className="px-4 space-y-4 relative z-10">
+        <div className="text-center py-2 mb-2">
+           <h4 className="text-[#8E95A4] text-[9px] font-bold uppercase tracking-[0.3em] flex items-center gap-3 justify-center">
+              <span className="w-8 h-[1px] bg-[#8E95A4]/30" />
               Planning Details
-              <span className="w-6 h-[1px] bg-[#3D2B2B]/10" />
+              <span className="w-8 h-[1px] bg-[#8E95A4]/30" />
            </h4>
         </div>
 
-        {/* Wedding Budget Overview - Compact */}
+        {/* Wedding Budget Overview */}
         {userData.hasSetBudget ? (
-          <div 
-            className="p-5 rounded-[2rem] bg-white shadow-sm border border-white"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 
-                className="text-sm font-bold"
-                style={{ color: '#3D2B2B', fontFamily: '"Playfair Display", serif' }}
-              >
-                Wedding Budget
-              </h3>
+          <div className="p-5 rounded-[2rem] bg-white/95 backdrop-blur-sm shadow-sm border border-white">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-[#FDF4F7] flex items-center justify-center">
+                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#BE185D" strokeWidth="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+                </div>
+                <h3 className="text-[16px] font-bold" style={{ color: '#301024', fontFamily: '"Playfair Display", serif' }}>
+                  Wedding Budget
+                </h3>
+              </div>
               <button
                 onClick={() => handleNavigation('/user/budget')}
-                className="text-[9px] font-black uppercase tracking-widest text-[#3D2B2B]/40 hover:text-[#3D2B2B]"
+                className="text-[11px] font-bold text-[#301024] hover:text-[#BE185D] flex items-center gap-1"
               >
-                Manage
+                Manage <Icon name="chevronRight" size="xs" />
               </button>
             </div>
             
-            <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="grid grid-cols-3 gap-2 mb-5 divide-x divide-gray-100">
                {[
-                 { label: 'Total', val: formatCurrency(budgetData.totalBudget), color: '#3D2B2B' },
-                 { label: 'Spent', val: formatCurrency(budgetData.spent), color: '#BE185D' },
-                 { label: 'Left', val: formatCurrency(budgetData.remaining), color: '#15803D' }
+                 { label: 'Total', val: formatCurrency(budgetData.totalBudget), color: '#301024' },
+                 { label: 'Spent', val: formatCurrency(budgetData.spent), color: '#E10079' },
+                 { label: 'Left', val: formatCurrency(budgetData.remaining), color: '#10B981' }
                ].map((item, i) => (
                  <div key={i} className="text-center">
-                    <div className="text-[8px] font-black uppercase text-[#3D2B2B]/30 mb-0.5 tracking-tighter">{item.label}</div>
-                    <div className="text-sm font-black tracking-tight" style={{ color: item.color }}>{item.val}</div>
+                    <div className="text-[11px] text-[#8E95A4] mb-0.5">{item.label}</div>
+                    <div className="text-[15px] font-black tracking-tight" style={{ color: item.color }}>{item.val}</div>
                  </div>
                ))}
             </div>
 
-            {/* Progress Bar - Slim */}
+            {/* Progress Bar */}
             <div className="relative pt-1">
-              <div 
-                className="w-full h-1 bg-[#EAE1D8] rounded-full overflow-hidden"
-              >
+              <div className="w-full h-2 bg-[#FDF4F7] rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-[#3D2B2B] rounded-full transition-all duration-500"
+                  className="h-full bg-[#E10079] rounded-full transition-all duration-500"
                   style={{ width: `${getBudgetProgress()}%` }}
                 />
               </div>
-              <p className="text-[8px] font-black text-[#3D2B2B]/20 text-right mt-1 uppercase tracking-widest">
+              <p className="text-[9px] font-bold text-[#8E95A4] text-right mt-2 uppercase tracking-widest">
                 {getBudgetProgress().toFixed(0)}% used
               </p>
             </div>
           </div>
         ) : (
-          <Card className="p-4 mb-4">
+          <Card className="p-4 mb-4 rounded-[2rem] bg-white/95 backdrop-blur-sm border border-white">
             <EmptyState
               icon="sparkles"
               title="Set Your Wedding Budget"
@@ -458,712 +463,221 @@ const Account = () => {
         )}
 
         {/* Wedding Details Card */}
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 
-              className="font-semibold text-base"
-              style={{ color: theme.semantic.text.primary }}
-            >
-              Wedding Details
-            </h3>
-            <Button
-              variant="outline"
-              size="sm"
+        <div className="p-5 rounded-[2rem] bg-white/95 backdrop-blur-sm shadow-sm border border-white">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-[#FDF4F7] flex items-center justify-center">
+                 <Icon name="calendar" size="xs" style={{ color: '#BE185D' }} />
+              </div>
+              <h3 className="text-[16px] font-bold" style={{ color: '#301024', fontFamily: '"Playfair Display", serif' }}>
+                Wedding Details
+              </h3>
+            </div>
+            <button
               onClick={() => handleNavigation('/user/wedding/details')}
+              className="px-3 py-1 rounded-full border border-gray-200 text-[11px] font-bold text-[#BE185D] flex items-center gap-1 bg-white hover:bg-gray-50"
             >
-              Edit
-            </Button>
+              <Icon name="edit" size="xs" /> Edit
+            </button>
           </div>
           
-          <div className="space-y-3">
-            <div className="flex items-center space-x-3">
-              <div 
-                className="w-8 h-8 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: theme.colors.primary[100] }}
-              >
-                <Icon name="rings" size="xs" style={{ color: theme.colors.primary[600] }} />
+          <div className="grid grid-cols-3 gap-2 divide-x divide-gray-100">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-8 h-8 rounded-full bg-[#F5F3FF] flex items-center justify-center mb-2">
+                <Icon name="calendar" size="xs" style={{ color: '#8B5CF6' }} />
               </div>
-              <div>
-                <p 
-                  className="text-sm font-medium"
-                  style={{ color: theme.semantic.text.primary }}
-                >
-                  {formatWeddingDate(userData.weddingDate)}
-                </p>
-                <p 
-                  className="text-xs"
-                  style={{ color: theme.semantic.text.secondary }}
-                >
-                  Wedding Date
-                </p>
-              </div>
+              <p className="text-[11px] font-bold text-[#301024] leading-tight mb-0.5">
+                {formatWeddingDate(userData.weddingDate)}
+              </p>
+              <p className="text-[9px] text-[#8E95A4]">Wedding Date</p>
             </div>
 
-            <div className="flex items-center space-x-3">
-              <div 
-                className="w-8 h-8 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: theme.colors.secondary[100] }}
-              >
-                <Icon name="location" size="xs" style={{ color: theme.colors.secondary[600] }} />
+            <div className="flex flex-col items-center text-center">
+              <div className="w-8 h-8 rounded-full bg-[#FEF3C7] flex items-center justify-center mb-2">
+                <Icon name="location" size="xs" style={{ color: '#D97706' }} />
               </div>
-              <div>
-                <p 
-                  className="text-sm font-medium"
-                  style={{ color: theme.semantic.text.primary }}
-                >
-                  {userData.city}
-                </p>
-                <p 
-                  className="text-xs"
-                  style={{ color: theme.semantic.text.secondary }}
-                >
-                  City
-                </p>
-              </div>
+              <p className="text-[11px] font-bold text-[#301024] leading-tight mb-0.5">
+                {userData.city}
+              </p>
+              <p className="text-[9px] text-[#8E95A4]">City</p>
             </div>
 
-            <div className="flex items-center space-x-3">
-              <div 
-                className="w-8 h-8 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: theme.colors.accent[100] }}
-              >
-                <Icon name="sparkles" size="xs" style={{ color: theme.colors.accent[600] }} />
+            <div className="flex flex-col items-center text-center">
+              <div className="w-8 h-8 rounded-full bg-[#F3F4F6] flex items-center justify-center mb-2">
+                <Icon name="users" size="xs" style={{ color: '#6B7280' }} />
               </div>
-              <div>
-                <p 
-                  className="text-sm font-medium"
-                  style={{ color: theme.semantic.text.primary }}
-                >
-                  {userData.functionsCount} Functions
-                </p>
-                <p 
-                  className="text-xs"
-                  style={{ color: theme.semantic.text.secondary }}
-                >
-                  Haldi, Mehndi, Wedding, Reception
-                </p>
-              </div>
+              <p className="text-[11px] font-bold text-[#301024] leading-tight mb-0.5">
+                {userData.functionsCount} Functions
+              </p>
+              <p className="text-[9px] text-[#8E95A4]">Functions</p>
             </div>
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* My Activity Section */}
-      <div className="px-4 py-6">
-        <div className="flex items-center space-x-2 mb-4">
-          <div 
-            className="w-2 h-2 rounded-full"
-            style={{ backgroundColor: theme.colors.accent[500] }}
-          />
-          <span 
-            className="text-base"
-            style={{ color: theme.semantic.text.primary }}
-          >
+      <div className="px-4 py-8 relative z-10">
+        <div className="flex items-center gap-2 mb-5 px-2">
+          <Icon name="heart" size="sm" style={{ color: '#E10079' }} />
+          <h2 className="text-[20px] font-bold text-[#301024]" style={{ fontFamily: '"Playfair Display", serif' }}>
             My Wedding Tools
-          </span>
+          </h2>
         </div>
         
         <div className="space-y-3">
           {/* My Cart */}
-          <Card 
-            className="p-4 cursor-pointer transition-all duration-200 hover:shadow-lg"
+          <div 
+            className="p-4 rounded-[1.5rem] bg-white/95 backdrop-blur-sm shadow-sm border border-white cursor-pointer active:scale-95 transition-transform flex items-center justify-between"
             onClick={() => handleNavigation('/user/cart')}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: theme.colors.primary[100] }}
-                >
-                  <Icon name="cart" size="sm" style={{ color: theme.colors.primary[600] }} />
-                </div>
-                <div>
-                  <h3 
-                    className="font-medium text-base"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    My Cart
-                  </h3>
-                  <p 
-                    className="text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    {activityData.cartItems} items
-                  </p>
-                </div>
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-[#FDF4F7] flex items-center justify-center shrink-0">
+                <Icon name="cart" size="sm" style={{ color: '#E10079' }} />
               </div>
-              <Icon name="chevronRight" size="sm" style={{ color: theme.semantic.text.secondary }} />
+              <div>
+                <h3 className="font-bold text-[14px] text-[#301024] mb-0.5">My Cart</h3>
+                <p className="text-[11px] text-[#8E95A4]">{activityData.cartItems} items</p>
+              </div>
             </div>
-          </Card>
+            <Icon name="chevronRight" size="sm" style={{ color: '#8E95A4' }} />
+          </div>
 
           {/* Completed Work */}
-          <Card 
-            className="p-4 cursor-pointer transition-all duration-200 hover:shadow-lg"
+          <div 
+            className="p-4 rounded-[1.5rem] bg-white/95 backdrop-blur-sm shadow-sm border border-white cursor-pointer active:scale-95 transition-transform flex items-center justify-between"
             onClick={() => handleNavigation('/user/bookings')}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: theme.colors.secondary[100] }}
-                >
-                  <Icon name="check" size="sm" style={{ color: theme.colors.secondary[600] }} />
-                </div>
-                <div>
-                  <h3 
-                    className="font-medium text-base"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    Completed Work
-                  </h3>
-                  <p 
-                    className="text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    {activityData.bookings} active bookings
-                  </p>
-                </div>
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-[#FEF9C3] flex items-center justify-center shrink-0">
+                <Icon name="check" size="sm" style={{ color: '#CA8A04' }} />
               </div>
-              <Icon name="chevronRight" size="sm" style={{ color: theme.semantic.text.secondary }} />
+              <div>
+                <h3 className="font-bold text-[14px] text-[#301024] mb-0.5">Completed Work</h3>
+                <p className="text-[11px] text-[#8E95A4]">{activityData.bookings} active bookings</p>
+              </div>
             </div>
-          </Card>
+            <Icon name="chevronRight" size="sm" style={{ color: '#8E95A4' }} />
+          </div>
 
           {/* Shortlisted Vendors */}
-          <Card 
-            className="p-4 cursor-pointer transition-all duration-200 hover:shadow-lg"
+          <div 
+            className="p-4 rounded-[1.5rem] bg-white/95 backdrop-blur-sm shadow-sm border border-white cursor-pointer active:scale-95 transition-transform flex items-center justify-between"
             onClick={() => handleNavigation('/user/shortlisted')}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: theme.colors.accent[100] }}
-                >
-                  <Icon name="heart" size="sm" style={{ color: theme.colors.accent[600] }} />
-                </div>
-                <div>
-                  <h3 
-                    className="font-medium text-base"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    Shortlisted Vendors
-                  </h3>
-                  <p 
-                    className="text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    {activityData.shortlistedVendors} vendors
-                  </p>
-                </div>
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-[#CCFBF1] flex items-center justify-center shrink-0">
+                <Icon name="heart" size="sm" style={{ color: '#0F766E' }} />
               </div>
-              <Icon name="chevronRight" size="sm" style={{ color: theme.semantic.text.secondary }} />
+              <div>
+                <h3 className="font-bold text-[14px] text-[#301024] mb-0.5">Shortlisted Vendors</h3>
+                <p className="text-[11px] text-[#8E95A4]">{activityData.shortlistedVendors} vendors</p>
+              </div>
             </div>
-          </Card>
+            <Icon name="chevronRight" size="sm" style={{ color: '#8E95A4' }} />
+          </div>
 
           {/* Favourite Vendors */}
-          <Card 
-            className="p-4 cursor-pointer transition-all duration-200 hover:shadow-lg"
+          <div 
+            className="p-4 rounded-[1.5rem] bg-white/95 backdrop-blur-sm shadow-sm border border-white cursor-pointer active:scale-95 transition-transform flex items-center justify-between"
             onClick={() => handleNavigation('/user/favourites')}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: theme.semantic.background.accent }}
-                >
-                  <Icon name="star" size="sm" style={{ color: theme.semantic.text.secondary }} />
-                </div>
-                <div>
-                  <h3 
-                    className="font-medium text-base"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    Favourite Vendors
-                  </h3>
-                  <p 
-                    className="text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    {activityData.favouriteVendors} vendors
-                  </p>
-                </div>
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-[#F3E8FF] flex items-center justify-center shrink-0">
+                <Icon name="star" size="sm" style={{ color: '#7E22CE' }} />
               </div>
-              <Icon name="chevronRight" size="sm" style={{ color: theme.semantic.text.secondary }} />
+              <div>
+                <h3 className="font-bold text-[14px] text-[#301024] mb-0.5">Favourite Vendors</h3>
+                <p className="text-[11px] text-[#8E95A4]">{activityData.favouriteVendors} vendors</p>
+              </div>
             </div>
-          </Card>
+            <Icon name="chevronRight" size="sm" style={{ color: '#8E95A4' }} />
+          </div>
 
           {/* Messages with Vendors */}
-          <Card 
-            className="p-4 cursor-pointer transition-all duration-200 hover:shadow-lg"
+          <div 
+            className="p-4 rounded-[1.5rem] bg-white/95 backdrop-blur-sm shadow-sm border border-white cursor-pointer active:scale-95 transition-transform flex items-center justify-between"
             onClick={() => handleNavigation('/user/chats')}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center relative"
-                  style={{ backgroundColor: theme.colors.primary[100] }}
-                >
-                  <Icon name="chat" size="sm" style={{ color: theme.colors.primary[600] }} />
-                  {activityData.unreadMessages > 0 && (
-                    <div 
-                      className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                      style={{ backgroundColor: '#ef4444' }}
-                    >
-                      {activityData.unreadMessages}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <h3 
-                    className="font-medium text-base"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    Messages with Vendors
-                  </h3>
-                  <p 
-                    className="text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    {activityData.unreadMessages} unread messages
-                  </p>
-                </div>
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-[#F3E8FF] flex items-center justify-center shrink-0 relative">
+                <Icon name="chat" size="sm" style={{ color: '#7E22CE' }} />
+                {activityData.unreadMessages > 0 && (
+                  <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#EF4444] border-2 border-white flex items-center justify-center text-[8px] font-bold text-white">
+                    {activityData.unreadMessages}
+                  </div>
+                )}
               </div>
-              <Icon name="chevronRight" size="sm" style={{ color: theme.semantic.text.secondary }} />
+              <div>
+                <h3 className="font-bold text-[14px] text-[#301024] mb-0.5">Messages with Vendors</h3>
+                <p className="text-[11px] text-[#8E95A4]">{activityData.unreadMessages} unread messages</p>
+              </div>
             </div>
-          </Card>
+            <Icon name="chevronRight" size="sm" style={{ color: '#8E95A4' }} />
+          </div>
 
           {/* Reviews Given */}
-          <Card 
-            className="p-4 cursor-pointer transition-all duration-200 hover:shadow-lg"
+          <div 
+            className="p-4 rounded-[1.5rem] bg-white/95 backdrop-blur-sm shadow-sm border border-white cursor-pointer active:scale-95 transition-transform flex items-center justify-between"
             onClick={() => handleNavigation('/user/reviews')}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: theme.colors.secondary[100] }}
-                >
-                  <Icon name="star" size="sm" style={{ color: theme.colors.secondary[600] }} />
-                </div>
-                <div>
-                  <h3 
-                    className="font-medium text-base"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    Reviews Given
-                  </h3>
-                  <p 
-                    className="text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    {activityData.reviewsGiven} review{activityData.reviewsGiven !== 1 ? 's' : ''}
-                  </p>
-                </div>
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-[#FEF9C3] flex items-center justify-center shrink-0">
+                <Icon name="star" size="sm" style={{ color: '#CA8A04' }} />
               </div>
-              <Icon name="chevronRight" size="sm" style={{ color: theme.semantic.text.secondary }} />
-            </div>
-          </Card>
-        </div>
-      </div>
-
-      {/* Payments & Budget Management */}
-      <div className="px-4 py-6">
-        <div className="flex items-center space-x-2 mb-4">
-          <div 
-            className="w-2 h-2 rounded-full"
-            style={{ backgroundColor: theme.colors.secondary[500] }}
-          />
-          <span 
-            className="text-base"
-            style={{ color: theme.semantic.text.primary }}
-          >
-            Payments & Spending
-          </span>
-        </div>
-        
-        <div className="space-y-3">
-          {/* My Payments */}
-          <Card 
-            className="p-4 cursor-pointer transition-all duration-200 hover:shadow-lg"
-            onClick={() => handleNavigation('/user/payments')}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: theme.colors.accent[100] }}
-                >
-                  <Icon name="money" size="sm" style={{ color: theme.colors.accent[600] }} />
-                </div>
-                <div>
-                  <h3 
-                    className="font-medium text-base"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    My Payments
-                  </h3>
-                  <p 
-                    className="text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    {paymentsData.totalPayments} payments made
-                  </p>
-                </div>
+              <div>
+                <h3 className="font-bold text-[14px] text-[#301024] mb-0.5">Reviews Given</h3>
+                <p className="text-[11px] text-[#8E95A4]">{activityData.reviewsGiven} reviews</p>
               </div>
-              <Icon name="chevronRight" size="sm" style={{ color: theme.semantic.text.secondary }} />
             </div>
-          </Card>
-
-          {/* Payment History */}
-          <Card 
-            className="p-4 cursor-pointer transition-all duration-200 hover:shadow-lg"
-            onClick={() => handleNavigation('/user/payments/history')}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: theme.semantic.background.accent }}
-                >
-                  <Icon name="book" size="sm" style={{ color: theme.semantic.text.secondary }} />
-                </div>
-                <div>
-                  <h3 
-                    className="font-medium text-base"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    Payment History
-                  </h3>
-                  <p 
-                    className="text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    Last payment: {formatCurrency(paymentsData.lastPaymentAmount)}
-                  </p>
-                </div>
-              </div>
-              <Icon name="chevronRight" size="sm" style={{ color: theme.semantic.text.secondary }} />
-            </div>
-          </Card>
-
-          {/* Pending Payments */}
-          <Card 
-            className="p-4 cursor-pointer transition-all duration-200 hover:shadow-lg"
-            onClick={() => handleNavigation('/user/payments/pending')}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center relative"
-                  style={{ backgroundColor: theme.colors.primary[100] }}
-                >
-                  <Icon name="clock" size="sm" style={{ color: theme.colors.primary[600] }} />
-                  {paymentsData.pendingPayments > 0 && (
-                    <div 
-                      className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                      style={{ backgroundColor: '#f59e0b' }}
-                    >
-                      {paymentsData.pendingPayments}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <h3 
-                    className="font-medium text-base"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    Pending Payments
-                  </h3>
-                  <p 
-                    className="text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    {paymentsData.pendingPayments} payments due
-                  </p>
-                </div>
-              </div>
-              <Icon name="chevronRight" size="sm" style={{ color: theme.semantic.text.secondary }} />
-            </div>
-          </Card>
-
-          {/* Budget Planner */}
-          <Card 
-            className="p-4 cursor-pointer transition-all duration-200 hover:shadow-lg"
-            onClick={() => handleNavigation('/user/budget/planner')}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: theme.colors.secondary[100] }}
-                >
-                  <Icon name="plan" size="sm" style={{ color: theme.colors.secondary[600] }} />
-                </div>
-                <div>
-                  <h3 
-                    className="font-medium text-base"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    Budget Planner
-                  </h3>
-                  <p 
-                    className="text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    Plan your wedding expenses
-                  </p>
-                </div>
-              </div>
-              <Icon name="chevronRight" size="sm" style={{ color: theme.semantic.text.secondary }} />
-            </div>
-          </Card>
+            <Icon name="chevronRight" size="sm" style={{ color: '#8E95A4' }} />
+          </div>
         </div>
       </div>
 
       {/* Account & Settings */}
-      <div className="px-4 py-6">
-        <div className="flex items-center space-x-2 mb-4">
-          <div 
-            className="w-2 h-2 rounded-full"
-            style={{ backgroundColor: theme.colors.primary[400] }}
-          />
-          <span 
-            className="text-base"
-            style={{ color: theme.semantic.text.primary }}
-          >
+      <div className="px-4 py-2 relative z-10">
+        <div className="flex items-center gap-2 mb-5 px-2">
+          <h2 className="text-[20px] font-bold text-[#301024]" style={{ fontFamily: '"Playfair Display", serif' }}>
             Account & Settings
-          </span>
+          </h2>
         </div>
         
         <div className="space-y-3">
           {/* Edit Profile */}
-          <Card 
-            className="p-4 cursor-pointer transition-all duration-200 hover:shadow-lg"
+          <div 
+            className="p-4 rounded-[1.5rem] bg-white/95 backdrop-blur-sm shadow-sm border border-white cursor-pointer active:scale-95 transition-transform flex items-center justify-between"
             onClick={() => handleNavigation('/user/profile/edit')}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: theme.semantic.background.accent }}
-                >
-                  <Icon name="account" size="sm" style={{ color: theme.semantic.text.secondary }} />
-                </div>
-                <div>
-                  <h3 
-                    className="font-medium text-base"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    Edit Profile
-                  </h3>
-                  <p 
-                    className="text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    Update your personal information
-                  </p>
-                </div>
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                <Icon name="account" size="sm" style={{ color: '#6B7280' }} />
               </div>
-              <Icon name="chevronRight" size="sm" style={{ color: theme.semantic.text.secondary }} />
-            </div>
-          </Card>
-
-          {/* Change Phone / Email */}
-          <Card 
-            className="p-4 cursor-pointer transition-all duration-200 hover:shadow-lg"
-            onClick={() => handleNavigation('/user/profile/contact')}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: theme.semantic.background.accent }}
-                >
-                  <Icon name="envelope" size="sm" style={{ color: theme.semantic.text.secondary }} />
-                </div>
-                <div>
-                  <h3 
-                    className="font-medium text-base"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    Change Phone / Email
-                  </h3>
-                  <p 
-                    className="text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    Update contact information
-                  </p>
-                </div>
+              <div>
+                <h3 className="font-bold text-[14px] text-[#301024] mb-0.5">Edit Profile</h3>
+                <p className="text-[11px] text-[#8E95A4]">Update your personal information</p>
               </div>
-              <Icon name="chevronRight" size="sm" style={{ color: theme.semantic.text.secondary }} />
             </div>
-          </Card>
-
-          {/* Notification Settings */}
-          <Card 
-            className="p-4 cursor-pointer transition-all duration-200 hover:shadow-lg"
-            onClick={() => handleNavigation('/user/settings/notifications')}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: theme.semantic.background.accent }}
-                >
-                  <Icon name="settings" size="sm" style={{ color: theme.semantic.text.secondary }} />
-                </div>
-                <div>
-                  <h3 
-                    className="font-medium text-base"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    Notification Settings
-                  </h3>
-                  <p 
-                    className="text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    Manage your notifications
-                  </p>
-                </div>
-              </div>
-              <Icon name="chevronRight" size="sm" style={{ color: theme.semantic.text.secondary }} />
-            </div>
-          </Card>
-
-          {/* Language */}
-          <Card 
-            className="p-4 cursor-pointer transition-all duration-200 hover:shadow-lg"
-            onClick={() => handleNavigation('/user/settings/language')}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: theme.semantic.background.accent }}
-                >
-                  <Icon name="globe" size="sm" style={{ color: theme.semantic.text.secondary }} />
-                </div>
-                <div>
-                  <h3 
-                    className="font-medium text-base"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    Language
-                  </h3>
-                  <p 
-                    className="text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    English (India)
-                  </p>
-                </div>
-              </div>
-              <Icon name="chevronRight" size="sm" style={{ color: theme.semantic.text.secondary }} />
-            </div>
-          </Card>
-
-          {/* Help & Support */}
-          <Card 
-            className="p-4 cursor-pointer transition-all duration-200 hover:shadow-lg"
-            onClick={() => handleNavigation('/user/help')}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: theme.semantic.background.accent }}
-                >
-                  <Icon name="help" size="sm" style={{ color: theme.semantic.text.secondary }} />
-                </div>
-                <div>
-                  <h3 
-                    className="font-medium text-base"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    Help & Support
-                  </h3>
-                  <p 
-                    className="text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    Get help and contact support
-                  </p>
-                </div>
-              </div>
-              <Icon name="chevronRight" size="sm" style={{ color: theme.semantic.text.secondary }} />
-            </div>
-          </Card>
-
-          {/* Terms & Privacy */}
-          <Card 
-            className="p-4 cursor-pointer transition-all duration-200 hover:shadow-lg"
-            onClick={() => handleNavigation('/user/terms')}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: theme.semantic.background.accent }}
-                >
-                  <Icon name="shield" size="sm" style={{ color: theme.semantic.text.secondary }} />
-                </div>
-                <div>
-                  <h3 
-                    className="font-medium text-base"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    Terms & Privacy
-                  </h3>
-                  <p 
-                    className="text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    Terms of service and privacy policy
-                  </p>
-                </div>
-              </div>
-              <Icon name="chevronRight" size="sm" style={{ color: theme.semantic.text.secondary }} />
-            </div>
-          </Card>
-
+            <Icon name="chevronRight" size="sm" style={{ color: '#8E95A4' }} />
+          </div>
+          
           {/* Logout */}
-          <Card 
-            className="p-4 cursor-pointer transition-all duration-200 hover:shadow-lg"
+          <div 
+            className="p-4 rounded-[1.5rem] bg-white/95 backdrop-blur-sm shadow-sm border border-white cursor-pointer active:scale-95 transition-transform flex items-center justify-between"
             onClick={handleLogout}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: '#fee2e2' }}
-                >
-                  <Icon name="logout" size="sm" style={{ color: '#dc2626' }} />
-                </div>
-                <div>
-                  <h3 
-                    className="font-medium text-base"
-                    style={{ color: '#dc2626' }}
-                  >
-                    Logout
-                  </h3>
-                  <p 
-                    className="text-sm"
-                    style={{ color: theme.semantic.text.secondary }}
-                  >
-                    Sign out of your account
-                  </p>
-                </div>
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                <Icon name="logout" size="sm" style={{ color: '#EF4444' }} />
               </div>
-              <Icon name="chevronRight" size="sm" style={{ color: theme.semantic.text.secondary }} />
+              <div>
+                <h3 className="font-bold text-[14px] text-red-500 mb-0.5">Logout</h3>
+                <p className="text-[11px] text-[#8E95A4]">Sign out of your account</p>
+              </div>
             </div>
-          </Card>
+            <Icon name="chevronRight" size="sm" style={{ color: '#8E95A4' }} />
+          </div>
         </div>
       </div>
-
-      {/* Bottom spacing for navigation */}
-      <div className="h-4"></div>
     </div>
   );
 };

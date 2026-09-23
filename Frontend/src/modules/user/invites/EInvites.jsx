@@ -215,108 +215,80 @@ const EInvites = () => {
   ];
 
   return (
-    <div 
-      className="min-h-screen pb-32"
-      style={{ backgroundColor: '#EAE1D8' }}
-    >
-      {/* 1. Editorial Header */}
-      <div 
-        className="sticky top-0 z-20 px-6 py-10 rounded-b-[3rem] shadow-sm bg-white border-b border-[#3D2B2B]/5"
-      >
-        <div className="flex items-center justify-between">
+    <div className="min-h-screen pb-32 relative bg-transparent">
+      {/* Background Image for the whole page */}
+      <div className="fixed inset-0 pointer-events-none z-[-1]" style={{ backgroundImage: "url('/uservendorre%20page%20bg.png')", backgroundSize: 'cover', backgroundPosition: 'center', opacity: 1 }} />
+
+      {/* Header Container */}
+      <div className="relative z-10 px-6 py-6 mb-8 mt-6 rounded-[3rem] bg-white/80 backdrop-blur-md shadow-sm border border-white mx-2 overflow-hidden">
+        {/* Background floral accent for header */}
+        <div className="absolute inset-0 opacity-40 pointer-events-none" style={{ backgroundImage: "url('/uservendorre%20page%20bg.png')", backgroundSize: 'cover', backgroundPosition: 'center -100px' }}></div>
+        
+        <div className="relative flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate(-1)}
-              className="w-12 h-12 rounded-full flex items-center justify-center bg-[#EAE1D8]/30 border border-[#EAE1D8]"
+              className="w-11 h-11 rounded-full flex items-center justify-center bg-[#FDF4F7] shadow-sm border border-white shrink-0 active:scale-95 transition-transform"
             >
-              <Icon name="arrowLeft" size="sm" style={{ color: '#3D2B2B' }} />
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B3C56" strokeWidth="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
             </button>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-[#3D2B2B]" style={{ fontFamily: '"Playfair Display", serif' }}>
+              <h1 className="text-[26px] font-bold text-[#301024] leading-tight" style={{ fontFamily: '"Playfair Display", serif' }}>
                 Digital E-Invites
               </h1>
-              <p className="text-[10px] font-black uppercase tracking-widest text-[#3D2B2B]/30" style={{ fontFamily: '"Outfit", sans-serif' }}>
-                 Craft Your Legacy
+              <p className="text-[9px] font-bold uppercase tracking-widest text-[#8E95A4]">
+                Craft Your Legacy
               </p>
             </div>
           </div>
+          
           <button
             onClick={() => handleCreateNewInvite(templates[0])}
             disabled={isCreating}
-            className="w-12 h-12 rounded-full bg-[#3D2B2B] flex items-center justify-center shadow-xl active:scale-95 transition-all text-white"
+            className="w-11 h-11 rounded-full bg-[#4A1637] flex items-center justify-center shadow-lg shrink-0 active:scale-95 transition-transform"
           >
             {isCreating ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent animate-spin rounded-full" />
+              <div className="w-5 h-5 border-2 border-white/50 border-t-white animate-spin rounded-full" />
             ) : (
-              <Icon name="plus" size="sm" color="white" />
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             )}
           </button>
         </div>
       </div>
 
-      <div className="px-6 py-10 space-y-12">
-        {/* 2. My Invitations - Arched Cards */}
+      <div className="px-4 space-y-10 relative z-10">
+        
+        {/* My Invitations (Kept functionality) */}
         {myInvites.length > 0 && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-[#3D2B2B]" style={{ fontFamily: '"Playfair Display", serif' }}>Recent Works</h2>
-              <span className="text-[10px] font-black uppercase tracking-widest text-[#3D2B2B]/30">Manage Invites</span>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-2">
+              <h2 className="text-[26px] font-bold text-[#301024]" style={{ fontFamily: '"Playfair Display", serif' }}>Recent Works</h2>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-[#8E95A4]">Manage</span>
             </div>
             
-            <div className="space-y-6">
+            <div className="space-y-4">
               {myInvites.map((invite) => {
                 const inviteId = invite._id || invite.id;
-                const rsvpCount = invite.rsvpCount ?? (Array.isArray(invite.rsvps) ? invite.rsvps.length : 0);
                 const thumb = invite.design?.thumbnail || invite.thumbnail || templates[0].image;
-                const evDate = invite.eventDetails?.eventDate || invite.date || 'TBD';
 
                 return (
-                  <div key={inviteId} className="bg-white rounded-[3rem] overflow-hidden shadow-sm ring-1 ring-black/5 flex flex-col sm:flex-row">
-                    <div className="sm:w-48 h-48 sm:h-auto relative">
-                      <img
-                        src={thumb}
-                        alt={invite.title || invite.name}
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute top-4 left-4">
-                         <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${invite.status === 'Published' ? 'bg-[#25D366] text-white' : 'bg-[#EAE1D8] text-[#3D2B2B]'}`}>
-                           {invite.status || 'Draft'}
-                         </span>
-                      </div>
+                  <div key={inviteId} className="bg-white/90 backdrop-blur-sm rounded-[2rem] overflow-hidden shadow-sm border border-white flex flex-col sm:flex-row p-3 gap-4">
+                    <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0 relative">
+                      <img src={thumb} alt={invite.title || invite.name} className="w-full h-full object-cover" />
                     </div>
-                    <div className="p-8 flex-1 flex flex-col justify-center space-y-4">
-                      <div>
-                        <h3 className="text-xl font-bold text-[#3D2B2B] mb-1" style={{ fontFamily: '"Playfair Display", serif' }}>
-                          {invite.title || invite.name}
-                        </h3>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-[#3D2B2B]/30">
-                          {invite.template} • {evDate}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-2">
-                          <Icon name="eye" size="xs" style={{ color: '#BE185D' }} />
-                          <span className="text-[11px] font-bold text-[#3D2B2B]">{invite.views || 0}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Icon name="users" size="xs" style={{ color: '#BE185D' }} />
-                          <span className="text-[11px] font-bold text-[#3D2B2B]">{rsvpCount} RSVPs</span>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-3 pt-2">
-                        <button
-                          onClick={() => navigate(`/user/e-invites/edit/${inviteId}`)}
-                          className="flex-1 py-3 rounded-full bg-[#EAE1D8]/30 border border-[#EAE1D8] text-[9px] font-black uppercase tracking-widest text-[#3D2B2B] hover:bg-[#EAE1D8]/50 transition-colors"
-                        >
-                          Edit & Publish
+                    <div className="flex-1 py-1 flex flex-col justify-center">
+                      <h3 className="text-lg font-bold text-[#301024] mb-1" style={{ fontFamily: '"Playfair Display", serif' }}>
+                        {invite.title || invite.name}
+                      </h3>
+                      <p className="text-[10px] font-bold text-[#8E95A4] uppercase tracking-wider mb-3">
+                        {invite.status || 'Draft'}
+                      </p>
+                      <div className="flex gap-2">
+                        <button onClick={() => navigate(`/user/e-invites/edit/${inviteId}`)} className="flex-1 py-2 bg-[#FDF4F7] rounded-xl text-[10px] font-bold text-[#BE185D]">
+                          Edit
                         </button>
-                        <button
-                          onClick={() => navigate(`/user/e-invites/preview/${inviteId}`)}
-                          className="flex-1 py-3 rounded-full bg-[#3D2B2B] text-white text-[9px] font-black uppercase tracking-widest shadow-lg hover:bg-black transition-colors"
-                        >
-                          Preview & Share
+                        <button onClick={() => navigate(`/user/e-invites/preview/${inviteId}`)} className="flex-1 py-2 bg-[#4A1637] rounded-xl text-[10px] font-bold text-white">
+                          Preview
                         </button>
                       </div>
                     </div>
@@ -327,16 +299,16 @@ const EInvites = () => {
           </div>
         )}
 
-        {/* 3. Browse Templates - Editorial Search */}
-        <div className="space-y-8">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-[#3D2B2B]" style={{ fontFamily: '"Playfair Display", serif' }}>Discovery</h2>
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+        {/* Discovery Section */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between px-2">
+            <h2 className="text-[26px] font-bold text-[#301024]" style={{ fontFamily: '"Playfair Display", serif' }}>Discovery</h2>
+            <div className="flex gap-2">
               {categories.slice(0, 3).map(c => (
                 <button 
                   key={c.id}
                   onClick={() => setSelectedCategory(c.id)}
-                  className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${selectedCategory === c.id ? 'bg-[#3D2B2B] text-white shadow-lg' : 'bg-white text-[#3D2B2B]/40 border border-black/5'}`}
+                  className={`px-4 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-widest transition-all ${selectedCategory === c.id ? 'bg-[#4A1637] text-white shadow-md' : 'bg-white text-[#8E95A4] border border-white shadow-sm'}`}
                 >
                   {c.name.split(' ')[0]}
                 </button>
@@ -348,31 +320,29 @@ const EInvites = () => {
             {filteredTemplates.map((template) => (
               <div 
                 key={template.id} 
-                className="bg-white rounded-[2.5rem] overflow-hidden shadow-sm group active:scale-95 transition-all cursor-pointer"
+                className="bg-white/95 backdrop-blur-sm rounded-[2rem] overflow-hidden shadow-sm hover:shadow-md active:scale-95 transition-all cursor-pointer border border-white"
                 onClick={() => handleCreateNewInvite(template)}
               >
-                <div className="relative aspect-[3/4] overflow-hidden">
+                <div className="relative aspect-[4/5] overflow-hidden">
                   <img
                     src={template.image}
                     alt={template.name}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
                   />
-                  {template.isPremium && (
-                    <div className="absolute top-4 left-4">
-                       <span className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center shadow-lg">
-                          <Icon name="crown" size="xs" style={{ color: '#F59E0B' }} />
-                       </span>
-                    </div>
-                  )}
+                  <div className="absolute top-3 right-3">
+                     <button className="w-7 h-7 rounded-full bg-white flex items-center justify-center shadow-sm text-[#6B3C56]">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                     </button>
+                  </div>
                 </div>
-                <div className="p-5 space-y-2">
-                  <h3 className="text-sm font-bold text-[#3D2B2B] truncate" style={{ fontFamily: '"Playfair Display", serif' }}>
+                <div className="px-4 py-4">
+                  <h3 className="text-[15px] font-bold text-[#301024] mb-1.5 truncate" style={{ fontFamily: '"Playfair Display", serif' }}>
                     {template.name}
                   </h3>
                   <div className="flex items-center justify-between">
-                     <span className="text-[10px] font-black text-[#BE185D] underline">{template.price}</span>
-                     <div className="flex gap-1">
-                        {template.colors.slice(0, 2).map((c, i) => (
+                     <span className="text-[11px] font-bold text-[#BE185D] tracking-wide">{template.price}</span>
+                     <div className="flex gap-1.5">
+                        {template.colors.slice(0, 3).map((c, i) => (
                           <div key={i} className="w-2.5 h-2.5 rounded-full border border-black/5" style={{ backgroundColor: c }} />
                         ))}
                      </div>

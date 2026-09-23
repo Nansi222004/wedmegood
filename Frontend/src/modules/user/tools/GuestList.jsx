@@ -193,11 +193,10 @@ const GuestList = () => {
 
           <button
             onClick={() => handleOpenAddModal(null)}
-            className="relative overflow-hidden flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-full text-white text-[12px] font-bold shadow-md active:scale-95 transition-all bg-gradient-to-r from-[#4A2B42] to-[#69395D] border border-[#EAC397]/50"
+            className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-full text-white text-[12px] font-bold shadow-md active:scale-95 transition-all bg-gradient-to-r from-[#4A2B42] to-[#69395D] border border-[#EAC397]/50"
           >
-            <div className="absolute right-0 top-0 bottom-0 w-12 bg-no-repeat bg-cover opacity-40" style={{ backgroundImage: "url('/invitation%20bg.png')" }} />
-            <Icon name="plus" size="xs" className="relative z-10" />
-            <span className="relative z-10">Add Guest</span>
+            <Icon name="plus" size="xs" />
+            <span>Add Guest</span>
           </button>
         </div>
 
