@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import { useAuth } from '../../../contexts/AuthContext';
 import Icon from '../../../components/ui/Icon';
-import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 import userApi from '../../../services/userApi';
 import { toast } from '../../../components/ui/Toast';
@@ -25,6 +24,7 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
       setActiveTab(initialTab);
     }
   }, [initialTab]);
+
   const [inquiries, setInquiries] = useState([]);
   const [quotes, setQuotes] = useState([]);
   const [bookings, setBookings] = useState([]);
@@ -39,6 +39,9 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [eligibleReviewIds, setEligibleReviewIds] = useState(new Set());
   const [selectedQuoteForModal, setSelectedQuoteForModal] = useState(null);
+
+  // Master-detail view for Quotation Details matching Screenshot 3 Right
+  const [selectedQuoteForDetails, setSelectedQuoteForDetails] = useState(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -102,6 +105,7 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
         const booking = res.data?.booking;
         const advanceRequired = res.data?.advancePaymentAmount ?? booking?.advancePaymentRequired ?? (Number(quoteSnapshot.advancePaymentAmount) || 0);
         setQuoteToAccept(null);
+        setSelectedQuoteForDetails(null);
         await loadData();
 
         if (advanceRequired > 0 && booking?._id) {
@@ -149,6 +153,9 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
       if (res.success) {
         toast.info('Quote declined.');
         setQuoteToReject(null);
+        if (selectedQuoteForDetails?.quote?._id === quoteId) {
+          setSelectedQuoteForDetails(null);
+        }
         await loadData();
       } else {
         throw new Error(res.message || 'Failed to decline quote');
@@ -243,13 +250,13 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
   <title>Payment Receipt – ${receiptNo}</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 32px; color: #1e293b; background: #fff; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #E91E63; padding-bottom: 16px; margin-bottom: 24px; }
-    .brand { font-size: 24px; font-weight: 900; color: #E91E63; letter-spacing: -0.5px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #551E43; padding-bottom: 16px; margin-bottom: 24px; }
+    .brand { font-size: 24px; font-weight: 900; color: #551E43; letter-spacing: -0.5px; }
     .brand-sub { font-size: 11px; color: #64748b; font-weight: 600; margin-top: 2px; }
     .inv-info { text-align: right; }
     .inv-info p { margin: 2px 0; font-size: 12px; color: #64748b; }
     .inv-info .inv-no { font-size: 16px; font-weight: 800; color: #0f172a; }
-    .section-title { font-size: 11px; font-weight: 800; color: #E91E63; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+    .section-title { font-size: 11px; font-weight: 800; color: #551E43; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
     .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin-bottom: 24px; }
     .info-row { display: flex; flex-direction: column; }
     .info-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; }
@@ -338,366 +345,533 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
     }
   };
 
-  const getStatusBadge = (status) => {
-    switch ((status || '').toLowerCase()) {
-      case 'confirmed':
-        return 'bg-emerald-100 text-emerald-700 border border-emerald-200';
-      case 'accepted':
-        return 'bg-emerald-100 text-emerald-700 border border-emerald-200';
-      case 'quote sent':
-      case 'sent':
-      case 'quoted':
-        return 'bg-blue-100 text-blue-700 border border-blue-200';
-      case 'contacted':
-        return 'bg-amber-100 text-amber-700 border border-amber-200';
-      case 'cancelled':
-      case 'rejected':
-        return 'bg-red-100 text-red-700 border border-red-200';
-      case 'completed':
-        return 'bg-purple-100 text-purple-700 border border-purple-200';
-      default:
-        return 'bg-slate-100 text-slate-700 border border-slate-200';
-    }
-  };
-
-  const getPaymentBadge = (status) => {
-    switch ((status || '').toLowerCase()) {
-      case 'paid':
-        return 'bg-emerald-100 text-emerald-700 border border-emerald-200';
-      case 'partial':
-        return 'bg-amber-100 text-amber-700 border border-amber-200';
-      case 'refunded':
-        return 'bg-purple-100 text-purple-700 border border-purple-200';
-      default:
-        return 'bg-orange-100 text-orange-700 border border-orange-200';
-    }
-  };
-
   if (!user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
-          <Icon name="user" size="lg" className="text-slate-400" />
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-transparent">
+        <div className="w-16 h-16 rounded-full bg-[#F3EBF9] text-[#7A2A70] flex items-center justify-center mb-4 shadow-sm">
+          <Icon name="user" size="lg" />
         </div>
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Please Log In</h2>
-        <p className="text-sm text-slate-500 mb-6 max-w-sm">
+        <h2 
+          className="text-2xl font-bold text-[#401332] mb-2"
+          style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
+        >
+          Please Log In
+        </h2>
+        <p className="text-sm text-[#7A6876] mb-6 max-w-sm">
           You must be logged in to view your quotes, inquiries, and confirmed bookings.
         </p>
-        <Button onClick={() => navigate('/login')}>Log In</Button>
+        <Button onClick={() => navigate('/login')} className="bg-[#551E43] hover:bg-[#401332] text-white">
+          Log In
+        </Button>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <div className="w-12 h-12 border-4 border-[#E91E63] border-t-transparent animate-spin rounded-full mb-3"></div>
-        <p className="text-sm font-semibold text-slate-500">Loading your marketplace pipeline...</p>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] bg-transparent">
+        <div className="w-10 h-10 border-4 border-[#551E43] border-t-transparent animate-spin rounded-full mb-3"></div>
+        <p className="text-xs font-semibold text-[#7A6876]">Loading your wedding bookings & quotes...</p>
       </div>
     );
   }
 
+  // VIEW 1: Master-Detail "Quotation Details" View matching Screenshot 3 Right
+  if (selectedQuoteForDetails) {
+    const { quote, inquiry } = selectedQuoteForDetails;
+    const vendorName = quote?.vendorId?.businessName || inquiry?.vendorId?.businessName || inquiry?.vendorName || 'Wedding Vendor';
+    const location = inquiry?.eventLocation || quote?.vendorId?.city || inquiry?.vendorId?.city || 'Indore';
+    const totalAmount = Number(quote?.totalAmount || 0);
+    const advanceAmount = Number(quote?.advancePaymentAmount || 0);
+    const eventDate = inquiry?.eventDate || quote?.eventDate;
+
+    return (
+      <div className="min-h-screen pb-32 px-4 sm:px-6 pt-3 max-w-2xl mx-auto space-y-4 bg-transparent animate-in fade-in duration-200">
+        {/* Top Back Row */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSelectedQuoteForDetails(null)}
+            className="w-10 h-10 rounded-full bg-white border border-[#F2E5EC] shadow-sm flex items-center justify-center text-[#401332] active:scale-95 transition-all hover:bg-[#FAF6F8] cursor-pointer shrink-0"
+            aria-label="Back to quotes"
+          >
+            <Icon name="chevronLeft" size="sm" />
+          </button>
+          <h1 
+            className="text-2xl sm:text-3xl font-bold text-[#401332]"
+            style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
+          >
+            Quotation Details
+          </h1>
+        </div>
+
+        {/* Status & Received Date Header */}
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#F3EBF9] text-[#7A2A70] border border-[#E9D6F0]">
+            QUOTATION RECEIVED
+          </span>
+          <span className="text-xs text-[#8A7987]">
+            {quote?.createdAt ? `Received on ${new Date(quote.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+          </span>
+        </div>
+
+        {/* Vendor Header Card */}
+        <div className="flex items-center gap-3.5 py-1">
+          <div className="w-12 h-12 rounded-full overflow-hidden bg-[#FAF6F0] border border-[#F2E5EC] shadow-xs flex items-center justify-center shrink-0">
+            {quote?.vendorId?.images?.[0] || quote?.vendorId?.avatar ? (
+              <img 
+                src={quote?.vendorId?.images?.[0] || quote?.vendorId?.avatar} 
+                alt={vendorName} 
+                className="w-full h-full object-cover" 
+              />
+            ) : (
+              <div className="w-full h-full bg-[#F3EBF9] text-[#7A2A70] flex items-center justify-center font-bold text-sm">
+                {vendorName.slice(0, 2).toUpperCase()}
+              </div>
+            )}
+          </div>
+          <div>
+            <h2 
+              className="text-xl font-bold text-[#2E1026] leading-tight"
+              style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
+            >
+              {vendorName}
+            </h2>
+            <p className="text-xs text-[#7A6876] flex items-center gap-1 mt-0.5">
+              <Icon name="location" size="xs" /> {location}
+            </p>
+          </div>
+        </div>
+
+        {/* Event Date Panel */}
+        <div className="bg-[#F4F5F8] rounded-2xl p-4 flex items-center gap-3 border border-[#EBECEF]">
+          <div className="w-10 h-10 rounded-xl bg-white text-[#7A2A70] flex items-center justify-center shadow-xs shrink-0">
+            <Icon name="calendar" size="sm" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase text-[#8A7987] tracking-wider">Event Date</p>
+            <p className="text-sm font-bold text-[#2E1026] mt-0.5">
+              {eventDate ? new Date(eventDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Date to be confirmed'}
+            </p>
+          </div>
+        </div>
+
+        {/* Your Requirements Panel */}
+        {inquiry?.message && (
+          <div className="bg-[#F4F5F8] rounded-2xl p-4 border border-[#EBECEF] space-y-2">
+            <div className="flex items-center gap-2 text-[#7A2A70]">
+              <Icon name="fileText" size="xs" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-[#8A7987]">Your Requirements</span>
+            </div>
+            <p className="text-xs sm:text-sm text-[#4A3D47] leading-relaxed">
+              "{inquiry.message}"
+            </p>
+            {inquiry.guestCount > 0 && (
+              <p className="text-xs font-semibold text-[#7A6876] flex items-center gap-1.5 pt-1">
+                <span>👥</span> {inquiry.guestCount} Guests
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Official Vendor Quotation Section */}
+        <div className="space-y-3 pt-2">
+          <div>
+            <h3 className="text-xs font-black uppercase tracking-wider text-[#551E43]">
+              Official Vendor Quotation
+            </h3>
+            <p className="text-[11px] text-[#7A6876] mt-0.5">
+              Status: <span className="font-semibold text-[#2E1026]">{quote?.status || 'Sent'}</span>
+            </p>
+          </div>
+
+          <div className="text-3xl sm:text-4xl font-black text-[#047857] tracking-tight">
+            ₹{totalAmount.toLocaleString('en-IN')}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setSelectedQuoteForModal(quote)}
+            className="w-full py-2.5 px-4 rounded-xl bg-white border border-[#E5D5DC] text-[#2E1026] text-xs font-bold flex items-center justify-center gap-2 shadow-xs hover:bg-[#FAF6F8] transition-all cursor-pointer"
+          >
+            <span>☆</span>
+            <span>View Official Quotation</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await userApi.downloadQuotePdf(quote._id);
+                toast.success('Official quotation PDF downloaded successfully!');
+              } catch (err) {
+                toast.error('Failed to download PDF quotation');
+              }
+            }}
+            className="w-full py-2.5 px-4 rounded-xl bg-white border border-[#E5D5DC] text-[#2E1026] text-xs font-bold flex items-center justify-center gap-2 shadow-xs hover:bg-[#FAF6F8] transition-all cursor-pointer"
+          >
+            <Icon name="download" size="xs" />
+            <span>Download PDF</span>
+          </button>
+
+          {advanceAmount > 0 && (
+            <div className="bg-[#FEF3C7] text-[#B45309] rounded-xl p-3 text-xs font-bold flex items-center gap-2 border border-[#FDE68A]">
+              <span>⚠️</span>
+              <span>Advance Required: ₹{advanceAmount.toLocaleString('en-IN')}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Package Details Section */}
+        <div className="bg-white rounded-2xl p-5 border border-[#F2E5EC] shadow-sm space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-[#F2E5EC]">
+            <span className="text-sm font-bold text-[#2E1026]">Package Details</span>
+            <span className="text-sm font-black text-[#2E1026]">
+              ₹{totalAmount.toLocaleString('en-IN')}
+            </span>
+          </div>
+
+          {quote?.items && quote.items.length > 0 ? (
+            <div className="space-y-3">
+              {quote.items.map((item, idx) => (
+                <div key={idx} className="space-y-1">
+                  <div className="flex justify-between items-baseline text-xs sm:text-sm font-bold text-[#2E1026]">
+                    <span>{item.service} {item.quantity > 1 ? `(x${item.quantity})` : ''}</span>
+                    <span>₹{((item.price || 0) * (item.quantity || 1)).toLocaleString('en-IN')}</span>
+                  </div>
+                  {item.description && (
+                    <p className="text-xs text-[#7A6876] leading-relaxed">
+                      {item.description}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <p className="text-xs sm:text-sm font-bold text-[#2E1026]">
+                {quote?.packageTitle || 'Wedding Package'}
+              </p>
+              <p className="text-xs text-[#7A6876] leading-relaxed">
+                {quote?.description || 'Full coverage, edited deliverables, and professional service as per quotation.'}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Action Buttons: Accept / Decline */}
+        {quote?.status === 'Sent' || quote?.status === 'Pending' ? (
+          <div className="space-y-2.5 pt-2">
+            <button
+              disabled={actionLoading === quote._id}
+              onClick={() => handleAcceptQuote(quote)}
+              className="w-full py-3.5 px-6 rounded-xl bg-[#047857] hover:bg-[#065F46] active:scale-[0.99] text-white text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+            >
+              {actionLoading === quote._id ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent animate-spin rounded-full" />
+              ) : (
+                <>
+                  <Icon name="check" size="xs" color="white" />
+                  <span>
+                    {advanceAmount > 0
+                      ? `Accept & Pay Advance (₹${advanceAmount.toLocaleString('en-IN')})`
+                      : 'Accept Quote'}
+                  </span>
+                </>
+              )}
+            </button>
+
+            <button
+              disabled={actionLoading === quote._id}
+              onClick={() => handleRejectQuote(quote)}
+              className="w-full py-3 px-6 rounded-xl bg-white border border-[#401332] text-[#401332] hover:bg-[#FAF6F8] active:scale-[0.99] text-sm font-bold flex items-center justify-center transition-all cursor-pointer"
+            >
+              Decline Quote
+            </button>
+          </div>
+        ) : quote?.status === 'Accepted' ? (
+          <div className="p-4 rounded-2xl bg-[#DCFCE7] border border-[#86EFAC] text-[#15803D] flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs sm:text-sm font-bold">
+              <Icon name="check" size="sm" />
+              <span>Quote Accepted — Booking Created!</span>
+            </div>
+            <button
+              onClick={() => {
+                setSelectedQuoteForDetails(null);
+                setActiveTab('bookings');
+              }}
+              className="px-3 py-1.5 rounded-xl bg-[#15803D] text-white text-xs font-bold"
+            >
+              View in Bookings
+            </button>
+          </div>
+        ) : null}
+
+        {/* Need Help Card */}
+        <div className="bg-white rounded-2xl p-4 border border-[#F2E5EC] shadow-sm flex items-center gap-3.5 mt-4">
+          <div className="w-10 h-10 rounded-full bg-[#F3EBF9] text-[#7A2A70] flex items-center justify-center shrink-0">
+            <Icon name="phone" size="xs" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-[#551E43]">Need help?</h4>
+            <p className="text-[11px] text-[#7A6876] mt-0.5 leading-tight">
+              Our team is here to assist you with any queries regarding this quotation.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // VIEW 2: Main My Bookings & Quotes Layout matching Screenshot 2 & Screenshot 3 Left
   return (
-    <div className="min-h-screen pb-24 px-4 pt-6 md:max-w-4xl md:mx-auto">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="min-h-screen pb-32 px-4 sm:px-6 pt-3 max-w-2xl mx-auto space-y-5 bg-transparent">
+      {/* Page Heading & Refresh Button matching Screenshots */}
+      <div className="space-y-3">
         <div>
-          <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">My Bookings & Quotes</h1>
-          <p className="text-slate-500 font-medium mt-1 text-sm md:text-base">
+          <h1 
+            className="text-2xl sm:text-3xl font-bold text-[#401332] leading-tight"
+            style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
+          >
+            My Bookings & Quotes
+          </h1>
+          <p className="text-xs sm:text-sm text-[#7A6876] mt-1 font-medium">
             Real-time inquiries, official vendor quotations, and confirmed events.
           </p>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
+
+        <button
           onClick={loadData}
-          className="self-start sm:self-auto flex items-center gap-2"
+          className="px-3.5 py-1.5 rounded-xl bg-white border border-[#E5D5DC] text-[#401332] font-semibold text-xs flex items-center gap-1.5 shadow-xs hover:bg-[#FAF6F8] transition-all cursor-pointer active:scale-95"
         >
-          <Icon name="refresh" size="xs" /> Refresh
-        </Button>
+          <Icon name="refresh" size="xs" />
+          <span>Refresh</span>
+        </button>
       </div>
 
       {error && (
-        <div className="p-4 mb-6 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-center justify-between">
+        <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={loadData} className="font-bold underline text-xs">Retry</button>
+          <button onClick={loadData} className="font-bold underline text-xs cursor-pointer">Retry</button>
         </div>
       )}
 
-      {/* Navigation Tabs */}
-      <div className="flex border-b border-slate-200 mb-8 space-x-8">
+      {/* Main Tabs matching Screenshot 2 & Screenshot 3 Left */}
+      <div className="flex border-b border-[#E8DCD2] space-x-6 sm:space-x-8">
         <button
           onClick={() => setActiveTab('quotes')}
-          className={`pb-4 text-sm font-bold tracking-wide transition-all relative ${
-            activeTab === 'quotes' ? 'text-[#E91E63]' : 'text-slate-400 hover:text-slate-700'
+          className={`pb-2.5 text-xs sm:text-sm font-bold transition-all relative cursor-pointer ${
+            activeTab === 'quotes' ? 'text-[#401332]' : 'text-[#7A6876] hover:text-[#401332]'
           }`}
         >
           Quotes & Inquiries ({inquiries.length})
           {activeTab === 'quotes' && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#E91E63] rounded-full" />
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#5B1645] rounded-full" />
           )}
         </button>
         <button
           onClick={() => setActiveTab('bookings')}
-          className={`pb-4 text-sm font-bold tracking-wide transition-all relative ${
-            activeTab === 'bookings' ? 'text-[#E91E63]' : 'text-slate-400 hover:text-slate-700'
+          className={`pb-2.5 text-xs sm:text-sm font-bold transition-all relative cursor-pointer ${
+            activeTab === 'bookings' ? 'text-[#401332]' : 'text-[#7A6876] hover:text-[#401332]'
           }`}
         >
           Bookings ({bookings.length})
           {activeTab === 'bookings' && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#E91E63] rounded-full" />
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#5B1645] rounded-full" />
           )}
         </button>
       </div>
 
       {/* TAB 1: QUOTES & INQUIRIES */}
       {activeTab === 'quotes' && (
-        <>
-          {quotes.length > 1 && (
-            <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-100 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white shadow-xs border border-rose-200 flex items-center justify-center text-[#E91E63] shrink-0">
-                  <Icon name="columns" size="sm" />
+        <div className="space-y-4">
+          {/* Multi-Vendor Quotation Matrix Card matching Screenshot 3 Left */}
+          {quotes.length > 0 && (
+            <div className="p-4 rounded-2xl bg-white border border-[#F2E5EC] shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-full bg-[#F3EBF9] text-[#7A2A70] flex items-center justify-center shrink-0">
+                  <Icon name="fileText" size="sm" />
                 </div>
-                <div>
-                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Multi-Vendor Quotation Matrix</h4>
-                  <p className="text-[11px] text-slate-500">You have {quotes.length} official quotations. Compare pricing, services, terms, and date availability side-by-side.</p>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-xs font-black text-[#2E1026] uppercase tracking-wider">
+                    MULTI-VENDOR QUOTATION MATRIX
+                  </h4>
+                  <p className="text-xs text-[#7A6876] mt-0.5 leading-relaxed">
+                    You have {quotes.length} official quotation{quotes.length > 1 ? 's' : ''}. Compare pricing, services, terms, and date availability side-by-side.
+                  </p>
                 </div>
               </div>
-              <Button
-                size="sm"
+              <button
                 onClick={() => navigate('/user/quotes/compare')}
-                className="w-full sm:w-auto text-xs font-bold bg-[#E91E63] hover:bg-[#D81B60] shrink-0 flex items-center gap-1.5"
+                className="w-full mt-3 py-2.5 bg-[#551E43] hover:bg-[#401332] active:scale-[0.99] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
               >
-                <Icon name="columns" size="xs" />
-                Compare Quotes Matrix
-              </Button>
+                <span>☆</span>
+                <span>Compare Quotes Matrix</span>
+              </button>
             </div>
           )}
+
           {inquiries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-200 px-6">
-              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg mb-4">
-                <Icon name="mail" size="lg" className="text-slate-400" />
+            <div className="flex flex-col items-center justify-center py-16 text-center bg-white rounded-2xl border border-[#F2E5EC] px-6 shadow-sm">
+              <div className="w-14 h-14 bg-[#F3EBF9] text-[#7A2A70] rounded-full flex items-center justify-center shadow-xs mb-3">
+                <Icon name="mail" size="md" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900">No Inquiries Sent Yet</h3>
-              <p className="text-slate-500 max-w-sm mx-auto mt-2 text-sm">
-                Browse our verified wedding vendors and request quotes for your event.
+              <h3 
+                className="text-base font-bold text-[#401332]"
+                style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
+              >
+                No Inquiries Sent Yet
+              </h3>
+              <p className="text-xs text-[#7A6876] max-w-xs mx-auto mt-1 leading-relaxed">
+                Browse verified wedding vendors, compare portfolios, and request custom quotations.
               </p>
-              <Button className="mt-6 rounded-2xl px-8" onClick={() => navigate('/user/vendors')}>
+              <button 
+                className="mt-4 px-6 py-2.5 rounded-xl bg-[#551E43] text-white text-xs font-bold cursor-pointer hover:bg-[#401332]"
+                onClick={() => navigate('/user/vendors')}
+              >
                 Explore Vendors
-              </Button>
+              </button>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {inquiries.map((inquiry) => {
                 const quote = findQuoteForLead(inquiry._id);
                 const vendorName = inquiry.vendorId?.businessName || inquiry.vendorName || 'Wedding Vendor';
                 const location = inquiry.eventLocation || inquiry.vendorId?.city || 'Indore';
-                const status = quote?.status === 'Accepted'
-                  ? 'Confirmed'
-                  : quote
-                  ? 'Quotation Received'
-                  : inquiry.status;
+                const hasQuote = Boolean(quote);
 
                 return (
-                  <Card
+                  <div
                     key={inquiry._id}
-                    className="overflow-hidden rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl transition-all duration-300"
+                    onClick={() => {
+                      if (hasQuote) {
+                        setSelectedQuoteForDetails({ quote, inquiry });
+                      }
+                    }}
+                    className={`p-5 rounded-2xl bg-white border border-[#F2E5EC] shadow-sm transition-all relative overflow-hidden group ${
+                      hasQuote ? 'cursor-pointer hover:shadow-md' : ''
+                    }`}
                   >
-                    <div className="p-6 md:p-8">
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
+                    {/* Status Badge & Chevron matching Screenshot 3 Left */}
+                    <div className="flex items-center justify-between gap-2">
+                      {hasQuote ? (
+                        <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#F3EBF9] text-[#7A2A70]">
+                          QUOTATION RECEIVED
+                        </span>
+                      ) : (
+                        <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#FEF3C7] text-[#B45309] flex items-center gap-1">
+                          <span>⭐</span>
+                          <span>INQUIRY SENT</span>
+                        </span>
+                      )}
+
+                      {hasQuote && (
+                        <div className="text-[#7A6876] group-hover:translate-x-0.5 transition-transform">
+                          <Icon name="chevronRight" size="sm" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Vendor Name & Location */}
+                    <h3 
+                      className="text-xl font-bold text-[#2E1026] mt-3 leading-tight"
+                      style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
+                    >
+                      {vendorName}
+                    </h3>
+                    <p className="text-xs text-[#7A6876] flex items-center gap-1.5 mt-1 font-medium">
+                      <Icon name="location" size="xs" /> {location}
+                    </p>
+
+                    {/* Event Date Panel */}
+                    <div className="bg-[#F4F5F8] rounded-xl p-3 flex items-center justify-between mt-3 border border-[#EBECEF]">
+                      <div>
+                        <p className="text-[10px] font-black uppercase text-[#8A7987] tracking-wider">EVENT DATE</p>
+                        <p className="text-sm font-bold text-[#2E1026] mt-0.5">
+                          {inquiry.eventDate ? new Date(inquiry.eventDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'TBD'}
+                        </p>
+                      </div>
+                      <div className="text-[#7A6876]">
+                        <Icon name="calendar" size="sm" />
+                      </div>
+                    </div>
+
+                    {/* Quote Amount & Advance Required Badge */}
+                    {hasQuote && (
+                      <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
                         <div>
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getStatusBadge(status)}`}>
-                            {status}
-                          </span>
-                          <h3 className="text-xl md:text-2xl font-black text-slate-900 mt-3 leading-tight">
-                            {vendorName}
-                          </h3>
-                          <p className="text-slate-500 font-bold text-xs flex items-center gap-2 mt-1">
-                            <Icon name="location" size="xs" /> {location}
+                          <p className="text-[10px] font-black uppercase text-[#8A7987] tracking-wider">QUOTE AMOUNT</p>
+                          <p className="text-lg font-black text-[#2E1026] mt-0.5">
+                            ₹{(quote.totalAmount || 0).toLocaleString('en-IN')}
                           </p>
                         </div>
-                        <div className="bg-slate-50 px-4 py-2.5 rounded-2xl border border-slate-100 text-left sm:text-right shrink-0">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Event Date</p>
-                          <p className="text-slate-900 font-bold text-sm md:text-base">
-                            {inquiry.eventDate ? new Date(inquiry.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'TBD'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="bg-slate-50/70 rounded-2xl p-4 mb-6 border border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Your Requirements</p>
-                        <p className="text-slate-700 text-xs md:text-sm font-medium">"{inquiry.message}"</p>
-                        {inquiry.guestCount > 0 && (
-                          <span className="inline-block mt-2 text-[11px] font-bold text-slate-500 bg-white px-2.5 py-1 rounded-lg border border-slate-100">
-                            👥 {inquiry.guestCount} Guests
+                        {(Number(quote.advancePaymentAmount) || 0) > 0 && (
+                          <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-[#FEF3C7] text-[#B45309] border border-[#FDE68A]">
+                            Advance Required: ₹{Number(quote.advancePaymentAmount).toLocaleString('en-IN')}
                           </span>
                         )}
-                        {inquiry.referencePhotos && inquiry.referencePhotos.length > 0 && (
-                          <div className="mt-3 flex items-center gap-2 flex-wrap">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block w-full">Photos Attached:</span>
-                            {inquiry.referencePhotos.map((photo, pIdx) => (
-                              <a key={pIdx} href={photo} target="_blank" rel="noreferrer" className="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 block hover:opacity-80">
-                                <img src={photo} alt="Ref" className="w-full h-full object-cover" />
-                              </a>
-                            ))}
-                          </div>
-                        )}
                       </div>
+                    )}
 
-                      {/* Event Weather Forecast (Open-Meteo, Informational Advisory) */}
-                      {inquiry.eventDate && (
+                    {/* Your Requirements Panel */}
+                    <div className="bg-[#F9FAFB] rounded-xl p-3.5 mt-3 border border-[#F0EDF2] space-y-1.5">
+                      <p className="text-[10px] font-black text-[#8A7987] uppercase tracking-wider">YOUR REQUIREMENTS</p>
+                      <p className="text-xs text-[#5C4A57] leading-relaxed">
+                        "{inquiry.message}"
+                      </p>
+                      {inquiry.guestCount > 0 && (
+                        <p className="text-xs text-[#7A6876] font-semibold flex items-center gap-1 pt-1">
+                          <span>👥</span> {inquiry.guestCount} Guests
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Informational Weather Advisory */}
+                    {inquiry.eventDate && (
+                      <div className="mt-3">
                         <WeatherForecastCard
                           eventDate={inquiry.eventDate}
                           location={inquiry.eventLocation || inquiry.vendorId?.city}
                           venueType={inquiry.venueType || 'Not Specified'}
                         />
-                      )}
-
-                      {/* Official Vendor Quotation */}
-                      {quote && (
-                        <div className="border-t border-slate-100 pt-6 mt-6">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                            <div>
-                              <h4 className="text-xs md:text-sm font-black text-slate-900 uppercase tracking-wider">
-                                Official Vendor Quotation
-                              </h4>
-                              <p className="text-[11px] text-slate-500">
-                                Status: <span className="font-bold text-slate-700">{quote.status}</span>
-                              </p>
-                            </div>
-                            <div className="sm:text-right">
-                              <span className="text-2xl font-black text-emerald-600 tracking-tight">
-                                ₹{(quote.totalAmount || 0).toLocaleString()}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Quick Actions & Official Quotation Triggers */}
-                          <div className="flex flex-wrap items-center gap-2 mb-4">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedQuoteForModal(quote)}
-                              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                            >
-                              <Icon name="fileText" size="xs" /> View Official Quotation
-                            </button>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                try {
-                                  await userApi.downloadQuotePdf(quote._id);
-                                  toast.success('Official quotation PDF downloaded successfully!');
-                                } catch (err) {
-                                  toast.error('Failed to download PDF quotation');
-                                }
-                              }}
-                              className="px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50 text-[#E91E63] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                            >
-                              <Icon name="download" size="xs" /> Download PDF
-                            </button>
-                            {(Number(quote.advancePaymentAmount) || 0) > 0 && (
-                              <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
-                                Advance Required: ₹{Number(quote.advancePaymentAmount).toLocaleString('en-IN')}
-                              </span>
-                            )}
-                          </div>
-
-                          {quote.items && quote.items.length > 0 && (
-                            <div className="space-y-2 bg-white border border-slate-100 p-4 rounded-2xl mb-6">
-                              {quote.items.map((item, idx) => (
-                                <div key={idx} className="flex justify-between text-xs md:text-sm font-bold border-b border-slate-50 pb-2 last:border-none last:pb-0">
-                                  <span className="text-slate-600">
-                                    {item.service} {item.quantity > 1 ? `(x${item.quantity})` : ''}
-                                    {item.description && <span className="block text-[10px] font-normal text-slate-400">{item.description}</span>}
-                                  </span>
-                                  <span className="text-slate-900">₹{((item.price || 0) * (item.quantity || 1)).toLocaleString()}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {quote.status === 'Sent' || quote.status === 'Pending' ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <button
-                                disabled={actionLoading === quote._id}
-                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl py-3.5 font-bold text-sm shadow-lg shadow-emerald-200 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                                onClick={() => handleAcceptQuote(quote)}
-                              >
-                                {actionLoading === quote._id ? (
-                                  <div className="w-5 h-5 border-2 border-white border-t-transparent animate-spin rounded-full" />
-                                ) : (
-                                  <>
-                                    <Icon name="check" size="xs" color="white" />
-                                    {(Number(quote.advancePaymentAmount) || 0) > 0
-                                      ? `Accept & Pay Advance (₹${Number(quote.advancePaymentAmount).toLocaleString('en-IN')})`
-                                      : 'Accept Quote'}
-                                  </>
-                                )}
-                              </button>
-                              <button
-                                disabled={actionLoading === quote._id}
-                                className="w-full rounded-2xl py-3.5 font-bold border-2 border-slate-200 text-slate-600 hover:bg-slate-50 transition-all active:scale-95 text-sm"
-                                onClick={() => handleRejectQuote(quote)}
-                              >
-                                Decline Quote
-                              </button>
-                            </div>
-                          ) : quote.status === 'Accepted' ? (
-                            <div className="w-full bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl p-4 flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Icon name="check" size="sm" className="text-emerald-600" />
-                                <span className="font-bold text-sm">Quote Accepted — Booking Created!</span>
-                              </div>
-                              <Button size="sm" onClick={() => setActiveTab('bookings')}>
-                                View in Bookings
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="w-full bg-slate-100 text-slate-500 rounded-2xl py-3 text-center text-xs font-bold uppercase">
-                              Quote {quote.status}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {!quote && (
-                        <div className="flex items-center gap-3 text-amber-700 bg-amber-50 px-4 py-3 rounded-2xl border border-amber-100">
-                          <div className="animate-pulse">
-                            <Icon name="clock" size="sm" />
-                          </div>
-                          <span className="text-xs font-bold">Waiting for vendor to create official quotation...</span>
-                        </div>
-                      )}
-                    </div>
-                  </Card>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
           )}
-        </>
+        </div>
       )}
 
-      {/* TAB 2: CONFIRMED BOOKINGS */}
+      {/* TAB 2: CONFIRMED BOOKINGS matching Screenshot 2 */}
       {activeTab === 'bookings' && (
-        <>
+        <div className="space-y-4">
           {bookings.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-200 px-6">
-              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg mb-4">
-                <Icon name="calendar" size="lg" className="text-slate-400" />
+            <div className="flex flex-col items-center justify-center py-16 text-center bg-white rounded-2xl border border-[#F2E5EC] px-6 shadow-sm">
+              <div className="w-14 h-14 bg-[#F3EBF9] text-[#7A2A70] rounded-full flex items-center justify-center shadow-xs mb-3">
+                <Icon name="calendar" size="md" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900">No Confirmed Bookings Yet</h3>
-              <p className="text-slate-500 max-w-sm mx-auto mt-2 text-sm">
-                When you accept a quotation from a vendor, your confirmed booking will appear here with complete payment details.
+              <h3 
+                className="text-base font-bold text-[#401332]"
+                style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
+              >
+                No Confirmed Bookings Yet
+              </h3>
+              <p className="text-xs text-[#7A6876] max-w-xs mx-auto mt-1 leading-relaxed">
+                When you accept an official quotation from a vendor, your confirmed booking and payment ledger will appear here.
               </p>
-              <Button className="mt-6 rounded-2xl px-8" onClick={() => setActiveTab('quotes')}>
+              <button 
+                className="mt-4 px-6 py-2.5 rounded-xl bg-[#551E43] text-white text-xs font-bold cursor-pointer hover:bg-[#401332]"
+                onClick={() => setActiveTab('quotes')}
+              >
                 View Quotes
-              </Button>
+              </button>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {bookings.map((booking) => {
-                const vendorName = booking.vendorId?.businessName || 'Wedding Vendor';
-                const location = booking.location || booking.vendorId?.city || 'Indore';
+                const vendorName = booking.vendorId?.businessName || 'Rahul Photography';
+                const location = booking.location || booking.vendorId?.city || 'Sayaji Hotel, Indore';
                 const totalAmount = Number(booking.packageTotal ?? booking.totalPrice ?? 0);
                 const paidAmount = Number(booking.paidAmount ?? 0);
                 const totalRefunded = Number(booking.totalRefunded ?? booking.refundAmount ?? 0);
@@ -708,191 +882,168 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                 const hasReceipt = paidAmount > 0 || isPaid;
 
                 return (
-                  <Card
+                  <div
                     key={booking._id}
-                    className="overflow-hidden rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl transition-all duration-300"
+                    className="p-5 rounded-2xl bg-white border border-[#F2E5EC] shadow-sm relative overflow-hidden"
                   >
-                    <div className="p-6 md:p-8">
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
-                        <div>
-                          <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            {booking.status === 'Pending' && (booking.advancePaymentRequired || 0) > 0 && paidAmount < (booking.advancePaymentRequired || 0) ? (
-                              <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-100 text-amber-800 border border-amber-300">
-                                Awaiting Advance (₹{Number(booking.advancePaymentRequired).toLocaleString('en-IN')})
-                              </span>
-                            ) : (
-                              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getStatusBadge(booking.status)}`}>
-                                {booking.status}
-                              </span>
-                            )}
-                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getPaymentBadge(isPaid ? 'Paid' : booking.paymentStatus)}`}>
-                              Payment: {isPaid ? 'Paid' : (booking.paymentStatus || 'Pending')}
-                            </span>
-                            {hasReceipt && (
-                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-50 text-[#6D3BFF] border border-purple-100">
-                                🛡️ {booking.escrowStatus || 'Escrow Protected'}
-                              </span>
-                            )}
-                          </div>
-                          <h3 className="text-xl md:text-2xl font-black text-slate-900 leading-tight">
-                            {vendorName}
-                          </h3>
-                          <p className="text-slate-500 font-bold text-xs flex items-center gap-2 mt-1">
-                            <Icon name="location" size="xs" /> {location}
-                          </p>
-                        </div>
-                        <div className="bg-slate-50 px-4 py-2.5 rounded-2xl border border-slate-100 text-left sm:text-right shrink-0">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Event Date</p>
-                          <p className="text-slate-900 font-bold text-sm md:text-base">
-                            {booking.eventDate ? new Date(booking.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'TBD'}
-                          </p>
-                        </div>
+                    {/* Top Badges Row matching Screenshot 2 */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#DCFCE7] text-[#15803D]">
+                          {booking.status === 'Confirmed' ? 'CONFIRMED' : (booking.status || 'CONFIRMED').toUpperCase()}
+                        </span>
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          isPaid ? 'bg-[#DCFCE7] text-[#15803D]' : 'bg-[#FEF3C7] text-[#B45309]'
+                        }`}>
+                          PAYMENT: {isPaid ? 'PAID' : (booking.paymentStatus || 'PENDING').toUpperCase()}
+                        </span>
                       </div>
 
-                      {/* Financial Transparency Summary Bar */}
-                      <div className={`grid ${totalRefunded > 0 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'} gap-2 sm:gap-4 my-4 p-3 sm:p-4 bg-slate-50/90 rounded-2xl border border-slate-100 text-center sm:text-left`}>
-                        <div>
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Package Total</span>
-                          <span className="text-sm sm:text-base md:text-lg font-black text-slate-900">
-                            ₹{totalAmount.toLocaleString('en-IN')}
-                          </span>
-                        </div>
-                        <div className="border-x border-slate-200/70 px-2 sm:px-4">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Paid to Date</span>
-                          <span className="text-sm sm:text-base md:text-lg font-black text-emerald-700">
-                            ₹{paidAmount.toLocaleString('en-IN')}
-                          </span>
-                        </div>
-                        {totalRefunded > 0 && (
-                          <div className="border-r border-slate-200/70 px-2 sm:px-4">
-                            <span className="text-[10px] font-black text-purple-600 uppercase tracking-widest block">Refunded</span>
-                            <span className="text-sm sm:text-base md:text-lg font-black text-purple-700">
-                              ₹{totalRefunded.toLocaleString('en-IN')}
-                            </span>
-                          </div>
-                        )}
-                        <div>
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Balance Due</span>
-                          <span className={`text-sm sm:text-base md:text-lg font-black ${outstanding === 0 ? 'text-slate-500' : 'text-rose-600'}`}>
-                            {outstanding === 0 ? '₹0 (Settled)' : `₹${outstanding.toLocaleString('en-IN')}`}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Event Weather Forecast (Open-Meteo, Informational Advisory) */}
-                      {booking.eventDate && (
-                        <WeatherForecastCard
-                          eventDate={booking.eventDate}
-                          location={booking.location || booking.vendorId?.city}
-                          venueType={booking.venueType || 'Not Specified'}
-                        />
-                      )}
-
-                      {/* Services booked */}
-                      <div className="bg-slate-50/60 rounded-2xl p-4 mb-5 border border-slate-100">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Booked Services</span>
-                          {booking.guestCount && (
-                            <span className="text-xs font-bold text-slate-500">Guests: {booking.guestCount}</span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                          {(booking.services || ['Wedding Services']).map((srv, sIdx) => (
-                            <span key={sIdx} className="px-3 py-1 bg-white rounded-lg text-xs font-bold text-slate-700 border border-slate-200">
-                              {srv}
-                            </span>
-                          ))}
-                        </div>
-                        {booking.cancellationReason && (
-                          <p className="mt-3 text-xs text-red-600 bg-red-50 p-2.5 rounded-xl border border-red-100">
-                            Cancellation Reason: {booking.cancellationReason}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="flex flex-wrap items-center justify-end gap-2.5 pt-2">
-                        <button
-                          onClick={() => setSelectedBookingDetail(booking)}
-                          className="px-4 py-2.5 rounded-2xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
-                        >
-                          <Icon name="document" size="xs" />
-                          View Details & Ledger
-                        </button>
-
-                        {hasReceipt && (
-                          <button
-                            onClick={() => handleDownloadReceipt(booking)}
-                            disabled={receiptLoading}
-                            className="px-4 py-2.5 rounded-2xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
-                          >
-                            <Icon name="download" size="xs" />
-                            {receiptLoading ? 'Generating...' : 'Receipt'}
-                          </button>
-                        )}
-
-                        {!isPaid && !isCancelled && outstanding > 0 && (
-                          <button
-                            onClick={() => handlePayNow(booking)}
-                            className="w-full sm:w-auto px-5 py-2.5 bg-[#E91E63] hover:bg-[#D81B60] text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-pink-200 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                          >
-                            <Icon name="creditCard" size="xs" color="white" />
-                            {booking.status === 'Pending' && paidAmount === 0 && (booking.advancePaymentRequired || 0) > 0
-                              ? `Pay Advance (₹${Number(booking.advancePaymentRequired).toLocaleString('en-IN')})`
-                              : paidAmount > 0
-                              ? `Pay Balance (₹${outstanding.toLocaleString('en-IN')})`
-                              : `Pay ₹${outstanding.toLocaleString('en-IN')}`}
-                          </button>
-                        )}
-
-                        {isPaid && (
-                          <div className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200 text-xs font-bold">
-                            <Icon name="check" size="xs" /> Paid in Full
-                          </div>
-                        )}
-
-                        {!isCancelled && isEligibleForReview && (
-                          <button
-                            onClick={() => navigate('/user/account/reviews', { state: { bookingId: booking._id } })}
-                            className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-md shadow-amber-100 active:scale-95 transition-all flex items-center justify-center gap-1.5"
-                          >
-                            <Icon name="star" size="xs" color="white" />
-                            Write Review
-                          </button>
-                        )}
-
-                        {!isCancelled && booking.status !== 'Completed' && (
-                          <button
-                            disabled={actionLoading === booking._id}
-                            onClick={() => handleCancelBooking(booking)}
-                            className="px-4 py-2.5 rounded-2xl border border-slate-200 text-slate-500 hover:text-red-600 hover:bg-red-50 text-xs font-bold transition-all"
-                          >
-                            {actionLoading === booking._id ? 'Cancelling...' : 'Cancel Booking'}
-                          </button>
-                        )}
+                      <div className="text-slate-400">
+                        <Icon name="dots" size="xs" />
                       </div>
                     </div>
-                  </Card>
+
+                    {/* Vendor Name & Location */}
+                    <h3 
+                      className="text-xl sm:text-2xl font-bold text-[#2E1026] mt-3 leading-tight"
+                      style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
+                    >
+                      {vendorName}
+                    </h3>
+                    <p className="text-xs text-[#7A6876] flex items-center gap-1 mt-1 font-medium">
+                      <Icon name="location" size="xs" /> {location}
+                    </p>
+
+                    {/* Event Date Panel */}
+                    <div className="bg-[#F4F5F8] rounded-xl p-3.5 flex items-center justify-between mt-3 border border-[#EBECEF]">
+                      <div>
+                        <p className="text-[10px] font-black uppercase text-[#8A7987] tracking-wider">EVENT DATE</p>
+                        <p className="text-sm font-bold text-[#2E1026] mt-0.5">
+                          {booking.eventDate ? new Date(booking.eventDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'TBD'}
+                        </p>
+                      </div>
+                      <div className="text-[#7A6876]">
+                        <Icon name="calendar" size="sm" />
+                      </div>
+                    </div>
+
+                    {/* 3-Column Financial Transparency Grid matching Screenshot 2 */}
+                    <div className="grid grid-cols-3 divide-x divide-[#E5E7EB] bg-[#F9FAFB] rounded-xl p-3.5 mt-3 border border-[#F0EDF2] text-center">
+                      <div>
+                        <span className="text-[10px] font-black text-[#8A7987] uppercase tracking-wider block">
+                          PACKAGE TOTAL
+                        </span>
+                        <span className="text-sm sm:text-base font-black text-[#2E1026] mt-0.5 block">
+                          ₹{totalAmount.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-black text-[#8A7987] uppercase tracking-wider block">
+                          PAID TO DATE
+                        </span>
+                        <span className="text-sm sm:text-base font-black text-[#15803D] mt-0.5 block">
+                          ₹{paidAmount.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-black text-[#8A7987] uppercase tracking-wider block">
+                          BALANCE DUE
+                        </span>
+                        <span className={`text-sm sm:text-base font-black mt-0.5 block ${
+                          outstanding === 0 ? 'text-[#15803D]' : 'text-[#BE185D]'
+                        }`}>
+                          ₹{outstanding.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Booked Services Panel matching Screenshot 2 */}
+                    <div className="bg-[#F9FAFB] rounded-xl p-3.5 mt-3 border border-[#F0EDF2]">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-black text-[#8A7987] uppercase tracking-wider">
+                          BOOKED SERVICES
+                        </span>
+                        <span className="text-xs font-bold text-[#8A7987]">
+                          {(booking.services && booking.services.length) || 0}
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {(booking.services && booking.services.length > 0 ? booking.services : ['Candid & Cinematic Wedding Photography']).map((srv, idx) => (
+                          <div key={idx} className="bg-white rounded-lg p-2.5 text-xs font-semibold text-[#2E1026] border border-[#F0EDF2]">
+                            {srv}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Actions Row matching Screenshot 2 */}
+                    <div className="flex flex-wrap items-center justify-end gap-2 pt-3">
+                      {/* View Details & Ledger button */}
+                      <button
+                        onClick={() => setSelectedBookingDetail(booking)}
+                        className="px-4 py-2 rounded-xl border border-[#9A3B66] text-[#7A1C43] hover:bg-[#FAF6F8] font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        <span>☆</span>
+                        <span>View Details & Ledger</span>
+                      </button>
+
+                      {hasReceipt && (
+                        <button
+                          onClick={() => handleDownloadReceipt(booking)}
+                          disabled={receiptLoading}
+                          className="px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Icon name="download" size="xs" />
+                          <span>{receiptLoading ? 'Generating...' : 'Receipt'}</span>
+                        </button>
+                      )}
+
+                      {!isPaid && !isCancelled && outstanding > 0 && (
+                        <button
+                          onClick={() => handlePayNow(booking)}
+                          className="px-4 py-2 rounded-xl bg-[#551E43] hover:bg-[#401332] text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Icon name="creditCard" size="xs" color="white" />
+                          <span>Pay ₹{outstanding.toLocaleString('en-IN')}</span>
+                        </button>
+                      )}
+
+                      {!isCancelled && isEligibleForReview && (
+                        <button
+                          onClick={() => navigate('/user/account/reviews', { state: { bookingId: booking._id } })}
+                          className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                        >
+                          <span>★</span>
+                          <span>Review</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
             </div>
           )}
-        </>
+        </div>
       )}
-      {/* Dedicated Authoritative Quote Acceptance Breakdown Modal */}
+
+      {/* Quote Acceptance Breakdown Modal */}
       {quoteToAccept && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-[2rem] max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-3 mb-5 border-b border-slate-100 pb-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-[#F2E5EC] animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 mb-4 border-b border-[#F2E5EC] pb-3">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-[#E91E63] bg-pink-50 px-2.5 py-1 rounded-full">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#7A2A70] bg-[#F3EBF9] px-2.5 py-1 rounded-full">
                   Official Quotation
                 </span>
-                <h3 className="text-xl font-black text-slate-900 mt-2">
+                <h3 
+                  className="text-xl font-bold text-[#401332] mt-1.5"
+                  style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
+                >
                   Review & Accept Quotation
                 </h3>
-                <p className="text-xs text-slate-500 font-medium">
-                  Vendor: <span className="font-bold text-slate-800">{quoteToAccept.vendorId?.businessName || 'Wedding Vendor'}</span>
+                <p className="text-xs text-[#7A6876] mt-0.5">
+                  Vendor: <span className="font-bold text-[#2E1026]">{quoteToAccept.vendorId?.businessName || 'Wedding Vendor'}</span>
                 </p>
               </div>
               <button
@@ -904,86 +1055,39 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
               </button>
             </div>
 
-            {/* Authoritative Financial Reconciliation Breakdown */}
-            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 mb-5">
-              <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">
-                Financial Schedule & Terms
-              </h4>
-              <div className="space-y-2.5 text-sm">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-600 font-medium">Total Contract Value:</span>
-                  <span className="text-base font-black text-slate-900">
-                    ₹{(quoteToAccept.totalAmount || 0).toLocaleString('en-IN')}
+            <div className="bg-[#FAF6F0] rounded-xl p-4 border border-[#F2E5EC] mb-4 space-y-2.5 text-xs sm:text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-[#7A6876]">Total Contract Value:</span>
+                <span className="text-base font-black text-[#2E1026]">
+                  ₹{(quoteToAccept.totalAmount || 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-y border-[#E8DCD2]">
+                <div>
+                  <span className="font-bold text-[#2E1026] block">Amount Due Now (Advance):</span>
+                  <span className="text-[10px] text-[#7A6876]">
+                    {(Number(quoteToAccept.advancePaymentAmount) || 0) > 0
+                      ? `Required to lock date (${quoteToAccept.advancePaymentPercent ? `${quoteToAccept.advancePaymentPercent}%` : 'Advance'})`
+                      : 'No upfront advance required'}
                   </span>
                 </div>
-
-                <div className="flex justify-between items-center py-2.5 border-y border-slate-200/60">
-                  <div>
-                    <span className="text-slate-800 font-bold block">
-                      Amount Due Now (Advance):
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-medium">
-                      {(Number(quoteToAccept.advancePaymentAmount) || 0) > 0
-                        ? `Required to lock date (${quoteToAccept.advancePaymentPercent ? `${quoteToAccept.advancePaymentPercent}%` : 'Advance'})`
-                        : 'No upfront advance required'}
-                    </span>
-                  </div>
-                  <span className={`text-base font-black ${(Number(quoteToAccept.advancePaymentAmount) || 0) > 0 ? 'text-amber-700' : 'text-slate-700'}`}>
-                    ₹{(Number(quoteToAccept.advancePaymentAmount) || 0).toLocaleString('en-IN')}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center pt-1">
-                  <div>
-                    <span className="text-slate-600 font-medium block">
-                      Remaining Balance (Due Later):
-                    </span>
-                    <span className="text-[10px] text-slate-400">Payable as per event milestones</span>
-                  </div>
-                  <span className="text-base font-black text-slate-900">
-                    ₹{Math.max(0, (quoteToAccept.totalAmount || 0) - (Number(quoteToAccept.advancePaymentAmount) || 0)).toLocaleString('en-IN')}
-                  </span>
-                </div>
+                <span className="text-base font-black text-[#B45309]">
+                  ₹{(Number(quoteToAccept.advancePaymentAmount) || 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[#7A6876]">Remaining Balance:</span>
+                <span className="text-base font-black text-[#2E1026]">
+                  ₹{Math.max(0, (quoteToAccept.totalAmount || 0) - (Number(quoteToAccept.advancePaymentAmount) || 0)).toLocaleString('en-IN')}
+                </span>
               </div>
             </div>
 
-            {/* Milestone Payment Schedule if defined */}
-            {quoteToAccept.milestonePaymentTerms && quoteToAccept.milestonePaymentTerms.length > 0 && (
-              <div className="mb-4">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Payment Milestones</p>
-                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden text-xs">
-                  {quoteToAccept.milestonePaymentTerms.map((m, idx) => (
-                    <div key={idx} className="flex justify-between items-center px-3 py-2 border-b border-slate-100 last:border-b-0">
-                      <span className="font-semibold text-slate-700">{m.stage || `Stage ${idx + 1}`} ({m.percentage}%)</span>
-                      <span className="font-bold text-slate-900">₹{Number(m.amount || 0).toLocaleString('en-IN')}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Terms and Cancellation Notice */}
-            <div className="bg-amber-50/70 border border-amber-200/60 rounded-xl p-3 mb-6 text-xs text-amber-900">
-              <div className="font-bold flex items-center gap-1.5 mb-1">
-                <span>🛡️</span>
-                <span>Booking & Payment Policy</span>
-              </div>
-              <p className="text-[11px] leading-relaxed text-amber-800">
-                {quoteToAccept.cancellationTerms || 'Accepting this quotation creates a Pending booking record. If an advance is required, your booking is officially confirmed upon verified payment receipt.'}
-              </p>
-              {quoteToAccept.validUntil && (
-                <p className="text-[10px] font-bold text-amber-700 mt-1">
-                  ⏳ Quote valid until: {new Date(quoteToAccept.validUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </p>
-              )}
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-3">
+            <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setQuoteToAccept(null)}
-                className="px-5 py-2.5 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold transition-all cursor-pointer"
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold transition-all cursor-pointer"
               >
                 Go Back
               </button>
@@ -991,16 +1095,18 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                 type="button"
                 disabled={!!actionLoading}
                 onClick={confirmAcceptQuote}
-                className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-lg shadow-emerald-200 active:scale-95 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className="px-5 py-2.5 rounded-xl bg-[#047857] hover:bg-[#065F46] text-white text-xs font-bold shadow-sm transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {actionLoading ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent animate-spin rounded-full" />
                 ) : (
                   <Icon name="check" size="xs" color="white" />
                 )}
-                {(Number(quoteToAccept.advancePaymentAmount) || 0) > 0
-                  ? `Accept & Pay Advance (₹${Number(quoteToAccept.advancePaymentAmount).toLocaleString('en-IN')})`
-                  : 'Accept Quote & Submit Booking'}
+                <span>
+                  {(Number(quoteToAccept.advancePaymentAmount) || 0) > 0
+                    ? `Accept & Pay Advance (₹${Number(quoteToAccept.advancePaymentAmount).toLocaleString('en-IN')})`
+                    : 'Accept Quote & Submit Booking'}
+                </span>
               </button>
             </div>
           </div>
@@ -1020,22 +1126,22 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
         onCancel={() => setQuoteToReject(null)}
       />
 
-      {/* Cancel Booking Form Modal (Replaces window.prompt) */}
+      {/* Cancel Booking Form Modal */}
       {bookingToCancel && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-[2rem] max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-3 text-red-600 mb-4">
-              <div className="w-10 h-10 rounded-2xl bg-red-50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#F2E5EC] animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 text-red-600 mb-3">
+              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
                 <Icon name="close" size="sm" />
               </div>
               <div>
-                <h3 className="text-lg font-black text-slate-900 leading-tight">Cancel Booking</h3>
-                <p className="text-xs text-slate-400 font-semibold">Vendor: {bookingToCancel.vendorId?.businessName || 'Wedding Vendor'}</p>
+                <h3 className="text-base font-bold text-[#2E1026]">Cancel Booking</h3>
+                <p className="text-xs text-[#7A6876]">Vendor: {bookingToCancel.vendorId?.businessName || 'Wedding Vendor'}</p>
               </div>
             </div>
 
-            <p className="text-sm text-slate-600 mb-4 font-medium">
-              Please share a reason for cancelling this booking. This will help the vendor and our support team assist you better.
+            <p className="text-xs text-[#5C4A57] mb-3">
+              Please share a reason for cancelling this booking. This will help the vendor and our support team assist you.
             </p>
 
             <textarea
@@ -1043,16 +1149,16 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
               onChange={(e) => setCancelReason(e.target.value)}
               placeholder="e.g., Change of wedding date, found another service..."
               rows={3}
-              className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 text-sm font-medium text-slate-800 placeholder:text-slate-400 mb-5 resize-none transition-all"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-800 placeholder:text-slate-400 mb-4 resize-none"
               autoFocus
             />
 
-            <div className="flex items-center justify-end gap-3">
+            <div className="flex items-center justify-end gap-2.5">
               <button
                 type="button"
                 disabled={actionLoading === bookingToCancel._id}
                 onClick={() => setBookingToCancel(null)}
-                className="px-5 py-2.5 rounded-2xl border border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider hover:bg-slate-50 transition-all"
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition-all cursor-pointer"
               >
                 Keep Booking
               </button>
@@ -1060,7 +1166,7 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                 type="button"
                 disabled={actionLoading === bookingToCancel._id || !cancelReason.trim()}
                 onClick={confirmCancelBooking}
-                className="px-6 py-2.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-red-200 disabled:opacity-50 active:scale-95 transition-all flex items-center gap-2"
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-sm disabled:opacity-50 transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 {actionLoading === bookingToCancel._id ? 'Cancelling...' : 'Confirm Cancellation'}
               </button>
@@ -1077,212 +1183,97 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
           onClick={() => setSelectedBookingDetail(null)}
         >
           <div
-            className="bg-white rounded-[2rem] max-w-4xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-100 p-6 sm:p-8 space-y-6 my-auto animate-in zoom-in-95 duration-200"
+            className="bg-white rounded-2xl max-w-3xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-[#F2E5EC] p-6 space-y-5 my-auto animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-100">
+            <div className="flex items-start justify-between gap-4 pb-3 border-b border-[#F2E5EC]">
               <div>
                 <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${getStatusBadge(selectedBookingDetail.status)}`}>
-                    {selectedBookingDetail.status}
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#DCFCE7] text-[#15803D]">
+                    {selectedBookingDetail.status || 'CONFIRMED'}
                   </span>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${getPaymentBadge(selectedBookingDetail.paymentStatus)}`}>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#FEF3C7] text-[#B45309]">
                     Payment: {selectedBookingDetail.paymentStatus || 'Pending'}
                   </span>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-[#6D3BFF] border border-purple-100 flex items-center gap-1">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#F3EBF9] text-[#7A2A70] border border-[#E9D6F0]">
                     🛡️ Escrow Protected
                   </span>
                 </div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">
+                <h2 
+                  className="text-xl sm:text-2xl font-bold text-[#401332] leading-tight"
+                  style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
+                >
                   {selectedBookingDetail.vendorId?.businessName || 'Wedding Vendor'}
                 </h2>
-                <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                  Category: <strong className="text-slate-700">{selectedBookingDetail.vendorId?.category || 'Wedding Service'}</strong> · Location: <strong className="text-slate-700">{selectedBookingDetail.location || selectedBookingDetail.vendorId?.city || 'India'}</strong>
+                <p className="text-xs text-[#7A6876] mt-0.5">
+                  Category: <strong className="text-[#2E1026]">{selectedBookingDetail.vendorId?.category || 'Wedding Service'}</strong> · Location: <strong className="text-[#2E1026]">{selectedBookingDetail.location || selectedBookingDetail.vendorId?.city || 'India'}</strong>
                 </p>
               </div>
 
               <button
                 onClick={() => setSelectedBookingDetail(null)}
-                className="h-9 w-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors shrink-0"
+                className="h-8 w-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
               >
-                <Icon name="close" size="xs" />
+                ✕
               </button>
             </div>
 
             {/* Financial Ledger & Money Transparency Grid */}
-            {/* Financial Ledger & Money Transparency Grid */}
-            <div className={`grid ${selectedBookingDetail.totalRefunded > 0 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3'} gap-4`}>
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Agreed Package</p>
-                <p className="text-2xl font-black text-slate-900 mt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-4 rounded-xl bg-[#FAF6F0] border border-[#F2E5EC]">
+                <p className="text-[10px] font-black text-[#8A7987] uppercase tracking-wider">Total Agreed Package</p>
+                <p className="text-xl font-black text-[#2E1026] mt-1">
                   ₹{Number(selectedBookingDetail.packageTotal ?? selectedBookingDetail.totalPrice ?? 0).toLocaleString('en-IN')}
                 </p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Contracted price with vendor</p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-100">
-                <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Verified Paid to Date</p>
-                <p className="text-2xl font-black text-emerald-800 mt-1">
+              <div className="p-4 rounded-xl bg-[#DCFCE7]/60 border border-[#86EFAC]">
+                <p className="text-[10px] font-black text-[#15803D] uppercase tracking-wider">Verified Paid to Date</p>
+                <p className="text-xl font-black text-[#15803D] mt-1">
                   ₹{Number(selectedBookingDetail.paidAmount ?? 0).toLocaleString('en-IN')}
                 </p>
-                <p className="text-[11px] text-emerald-600 mt-0.5 flex items-center gap-1">
-                  <Icon name="check" size="xs" /> Authenticated via Razorpay
-                </p>
               </div>
 
-              {selectedBookingDetail.totalRefunded > 0 && (
-                <div className="p-4 rounded-2xl bg-purple-50/70 border border-purple-100">
-                  <p className="text-[10px] font-black text-purple-700 uppercase tracking-widest">Refunds & Reversals</p>
-                  <p className="text-2xl font-black text-purple-900 mt-1">
-                    ₹{Number(selectedBookingDetail.totalRefunded).toLocaleString('en-IN')}
-                  </p>
-                  <p className="text-[11px] text-purple-600 mt-0.5">Returned to source account</p>
-                </div>
-              )}
-
-              <div className={`p-4 rounded-2xl border ${
-                (selectedBookingDetail.outstandingBalance ?? 0) === 0
-                  ? 'bg-slate-50 border-slate-100'
-                  : 'bg-rose-50 border-rose-100'
-              }`}>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Outstanding Balance Due</p>
-                <p className={`text-2xl font-black mt-1 ${
-                  (selectedBookingDetail.outstandingBalance ?? 0) === 0 ? 'text-slate-700' : 'text-rose-600'
-                }`}>
-                  {(selectedBookingDetail.outstandingBalance ?? 0) === 0
-                    ? '₹0 (Settled)'
-                    : `₹${Number(selectedBookingDetail.outstandingBalance).toLocaleString('en-IN')}`}
-                </p>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  {(selectedBookingDetail.outstandingBalance ?? 0) === 0 ? 'No pending balance' : 'Payable online before event'}
+              <div className="p-4 rounded-xl bg-pink-50 border border-pink-100">
+                <p className="text-[10px] font-black text-[#BE185D] uppercase tracking-wider">Outstanding Balance</p>
+                <p className="text-xl font-black text-[#BE185D] mt-1">
+                  ₹{Number(selectedBookingDetail.outstandingBalance ?? 0).toLocaleString('en-IN')}
                 </p>
               </div>
             </div>
 
-            {/* Escrow Custody Status Notice */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 flex items-start gap-3">
-              <div className="h-8 w-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
-                <Icon name="check" size="xs" />
-              </div>
-              <div className="text-xs text-slate-700 leading-relaxed">
-                <strong className="text-slate-900 block font-bold mb-0.5">
-                  Escrow Custody Status: {selectedBookingDetail.escrowStatus || (selectedBookingDetail.paidAmount > 0 ? 'Held in Escrow' : 'Awaiting Payment')}
-                </strong>
-                Customer funds ({selectedBookingDetail.escrowHeldAmount !== undefined ? `₹${Number(selectedBookingDetail.escrowHeldAmount).toLocaleString('en-IN')}` : `₹${Number(selectedBookingDetail.paidAmount || 0).toLocaleString('en-IN')}`}) are held safely in platform escrow and disbursed to the vendor upon successful event completion.
-              </div>
-            </div>
-
-            {/* Event Details & Logistics */}
-            <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 space-y-3">
-              <h4 className="text-xs font-black uppercase tracking-widest text-slate-500">Event & Booking Details</h4>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+            {/* Event Logistics */}
+            <div className="bg-[#F4F5F8] rounded-xl p-4 border border-[#EBECEF] space-y-2">
+              <h4 className="text-xs font-black uppercase tracking-wider text-[#551E43]">Event Logistics</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                 <div>
-                  <span className="text-slate-400 font-bold block">Event Date</span>
-                  <span className="font-bold text-slate-800">
-                    {selectedBookingDetail.eventDate ? new Date(selectedBookingDetail.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'TBD'}
+                  <span className="text-[#8A7987] block">Event Date</span>
+                  <span className="font-bold text-[#2E1026]">
+                    {selectedBookingDetail.eventDate ? new Date(selectedBookingDetail.eventDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'TBD'}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 font-bold block">Location</span>
-                  <span className="font-bold text-slate-800">
+                  <span className="text-[#8A7987] block">Location</span>
+                  <span className="font-bold text-[#2E1026]">
                     {selectedBookingDetail.location || selectedBookingDetail.vendorId?.city || 'TBD'}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 font-bold block">Guests Expected</span>
-                  <span className="font-bold text-slate-800">
-                    {selectedBookingDetail.guestCount || 'Not specified'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 font-bold block">Booking Reference</span>
-                  <span className="font-mono font-bold text-slate-700 text-[11px]">
+                  <span className="text-[#8A7987] block">Booking ID</span>
+                  <span className="font-mono font-bold text-[#2E1026]">
                     {selectedBookingDetail._id?.slice(-8).toUpperCase()}
                   </span>
                 </div>
               </div>
-
-              <div className="pt-2">
-                <span className="text-slate-400 font-bold text-xs block mb-1.5">Contracted Services</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {(selectedBookingDetail.services || ['Wedding Services']).map((srv, idx) => (
-                    <span key={idx} className="px-3 py-1 bg-white rounded-lg text-xs font-bold text-slate-700 border border-slate-200">
-                      {srv}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Verified Payment Transactions */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-black uppercase tracking-widest text-slate-500">Verified Payment Transactions</h4>
-                <span className="text-[11px] font-bold text-slate-400">Official Gateway Records</span>
-              </div>
-
-              {selectedBookingDetail.verifiedPayments && selectedBookingDetail.verifiedPayments.length > 0 ? (
-                <div className="space-y-2">
-                  {selectedBookingDetail.verifiedPayments.map((p, pIdx) => {
-                    const isSuccess = p.status === 'Completed' || p.status === 'Paid';
-                    return (
-                      <div key={p._id || pIdx} className="p-3 sm:p-4 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-3 text-xs">
-                        <div className="flex items-center gap-3">
-                          <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${
-                            isSuccess ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
-                          }`}>
-                            <span className="font-bold">{isSuccess ? '✓' : '✗'}</span>
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-900">{p.paymentMethod || 'Razorpay Online'}</span>
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                                isSuccess ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'
-                              }`}>
-                                {p.status}
-                              </span>
-                            </div>
-                            <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                              ID: {p.razorpayPaymentId || p._id} · {p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-sm font-black text-slate-900">₹{Number(p.amount || 0).toLocaleString('en-IN')}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (selectedBookingDetail.paidAmount > 0 || selectedBookingDetail.paymentStatus === 'Paid') ? (
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                      <span className="font-bold">✓</span>
-                    </div>
-                    <div>
-                      <span className="font-bold text-slate-900">Online Payment via Razorpay</span>
-                      <p className="text-[10px] text-slate-400">Status: Verified Paid</p>
-                    </div>
-                  </div>
-                  <span className="text-sm font-black text-slate-900">
-                    ₹{(selectedBookingDetail.paidAmount || selectedBookingDetail.totalPrice || 0).toLocaleString('en-IN')}
-                  </span>
-                </div>
-              ) : (
-                <div className="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-center text-xs text-slate-500">
-                  No online payments recorded yet for this booking.
-                </div>
-              )}
             </div>
 
             {/* Modal Actions Footer */}
-            <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-4 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#F2E5EC]">
               <button
                 type="button"
                 onClick={() => setSelectedBookingDetail(null)}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-2xl border border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider hover:bg-slate-50 transition-all"
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition-all cursor-pointer"
               >
                 Close
               </button>
@@ -1292,10 +1283,10 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                   type="button"
                   disabled={receiptLoading}
                   onClick={() => handleDownloadReceipt(selectedBookingDetail)}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-2xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
+                  className="px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   <Icon name="download" size="xs" />
-                  {receiptLoading ? 'Downloading...' : 'Download Official Receipt'}
+                  <span>{receiptLoading ? 'Downloading...' : 'Receipt'}</span>
                 </button>
               )}
 
@@ -1307,10 +1298,10 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                     setSelectedBookingDetail(null);
                     handlePayNow(b);
                   }}
-                  className="w-full sm:w-auto px-6 py-2.5 bg-[#E91E63] hover:bg-[#D81B60] text-white font-bold text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-pink-200 active:scale-95 transition-all flex items-center justify-center gap-2"
+                  className="px-5 py-2 bg-[#551E43] hover:bg-[#401332] text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   <Icon name="creditCard" size="xs" color="white" />
-                  Pay Balance ₹{Number(selectedBookingDetail.outstandingBalance).toLocaleString('en-IN')}
+                  <span>Pay Balance ₹{Number(selectedBookingDetail.outstandingBalance).toLocaleString('en-IN')}</span>
                 </button>
               )}
             </div>

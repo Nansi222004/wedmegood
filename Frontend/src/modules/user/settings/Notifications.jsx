@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
-import Card from '../../../components/ui/Card';
-import Button from '../../../components/ui/Button';
 import { useToast } from '../../../components/ui/Toast';
 import { userApi } from '../../../services/userApi';
 
@@ -31,7 +29,6 @@ const Notifications = () => {
     paymentReminders: true,
     weddingReminders: true
   });
-  const [prefLoading, setPrefLoading] = useState(false);
 
   // Fetch Notifications
   const loadNotifications = async () => {
@@ -122,69 +119,93 @@ const Notifications = () => {
     }
   };
 
-  return (
-    <div className="min-h-screen px-4 sm:px-6 py-6 pb-28" style={{ backgroundColor: '#EAE1D8' }}>
-      <div className="max-w-2xl mx-auto space-y-6">
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'booking':
+        return 'calendar';
+      case 'payment':
+        return 'money';
+      case 'quote':
+        return 'fileText';
+      case 'family':
+        return 'users';
+      default:
+        return 'bell';
+    }
+  };
 
-        {/* Top Bar */}
-        <div className="flex items-center justify-between">
+  return (
+    <div className="min-h-screen px-4 sm:px-6 pt-3 pb-32 bg-transparent">
+      <div className="max-w-2xl mx-auto space-y-5">
+
+        {/* Top Bar matching Screenshot 1 */}
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate(-1)}
-              className="p-2.5 rounded-xl bg-white shadow-sm border border-white active:scale-95 transition-all text-[#3D2B2B]"
+              className="w-10 h-10 rounded-full bg-white border border-[#F2E5EC] shadow-sm flex items-center justify-center text-[#401332] active:scale-95 transition-all hover:bg-[#FAF6F8] cursor-pointer shrink-0"
+              aria-label="Go back"
             >
               <Icon name="chevronLeft" size="sm" />
             </button>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-[#3D2B2B]" style={{ fontFamily: '"Playfair Display", serif' }}>
+              <h1 
+                className="text-2xl sm:text-3xl font-bold text-[#401332] leading-tight" 
+                style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
+              >
                 Notifications
               </h1>
-              <p className="text-[10px] font-black uppercase text-[#3D2B2B]/40 tracking-wider">
-                {unreadCount > 0 ? `${unreadCount} unread message${unreadCount > 1 ? 's' : ''}` : 'All caught up'}
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#7A6876] mt-0.5">
+                {unreadCount > 0 ? `${unreadCount} UNREAD MESSAGE${unreadCount > 1 ? 'S' : ''}` : 'ALL CAUGHT UP'}
               </p>
             </div>
           </div>
 
-          {activeTab === 'inbox' && unreadCount > 0 && (
+          {activeTab === 'inbox' && (
             <button
               onClick={handleMarkAllRead}
-              className="text-xs font-bold text-[#BE185D] hover:underline"
+              className="text-xs font-bold text-[#7A1C43] hover:underline cursor-pointer active:scale-95 transition-transform"
             >
               Mark all as read
             </button>
           )}
         </div>
 
-        {/* Tab Switcher */}
-        <div className="grid grid-cols-2 p-1 bg-white/70 backdrop-blur-md rounded-2xl border border-white shadow-sm">
+        {/* Segmented Navigation Switcher matching Screenshot 1 */}
+        <div className="grid grid-cols-2 p-1.5 bg-white/90 backdrop-blur-md rounded-full border border-[#F2E5EC] shadow-sm">
           <button
             onClick={() => setActiveTab('inbox')}
-            className={`py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${
+            className={`py-2.5 px-4 text-xs font-bold rounded-full transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activeTab === 'inbox'
-                ? 'bg-[#3D2B2B] text-white shadow-sm'
-                : 'text-[#3D2B2B]/60 hover:text-[#3D2B2B]'
+                ? 'bg-[#551E43] text-white shadow-sm'
+                : 'text-[#5C4A57] hover:text-[#401332]'
             }`}
           >
             <Icon name="bell" size="xs" />
-            Inbox {unreadCount > 0 && <span className="px-1.5 py-0.2 bg-pink-500 text-white rounded-full text-[10px]">{unreadCount}</span>}
+            <span>Inbox</span>
+            {unreadCount > 0 && (
+              <span className="w-5 h-5 rounded-full bg-[#E11D48] text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setActiveTab('preferences')}
-            className={`py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${
+            className={`py-2.5 px-4 text-xs font-bold rounded-full transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activeTab === 'preferences'
-                ? 'bg-[#3D2B2B] text-white shadow-sm'
-                : 'text-[#3D2B2B]/60 hover:text-[#3D2B2B]'
+                ? 'bg-[#551E43] text-white shadow-sm'
+                : 'text-[#5C4A57] hover:text-[#401332]'
             }`}
           >
             <Icon name="settings" size="xs" />
-            Preferences
+            <span>Preferences</span>
           </button>
         </div>
 
         {/* Tab 1: Inbox */}
         {activeTab === 'inbox' && (
           <div className="space-y-4">
-            {/* Filter Pills */}
+            {/* Category Filter Pills matching Screenshot 1 */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
               {[
                 { id: 'all', label: 'All' },
@@ -197,10 +218,10 @@ const Notifications = () => {
                 <button
                   key={f.id}
                   onClick={() => setFilterType(f.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all border ${
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold shrink-0 transition-all cursor-pointer ${
                     filterType === f.id
-                      ? 'bg-white text-[#3D2B2B] border-white shadow-sm'
-                      : 'bg-white/40 text-[#3D2B2B]/60 border-transparent hover:bg-white/70'
+                      ? 'bg-[#EBE0E7] text-[#401332] shadow-none'
+                      : 'bg-white/90 text-[#7A6876] border border-[#F2E5EC] hover:bg-white hover:text-[#401332]'
                   }`}
                 >
                   {f.label}
@@ -208,61 +229,59 @@ const Notifications = () => {
               ))}
             </div>
 
-            {/* Notification List */}
+            {/* Notification List matching Screenshot 1 */}
             {inboxLoading ? (
-              <div className="p-8 text-center text-xs font-bold text-[#3D2B2B]/40">
+              <div className="p-12 text-center text-xs font-bold text-[#7A6876]">
+                <div className="w-8 h-8 border-2 border-[#551E43] border-t-transparent animate-spin rounded-full mx-auto mb-2" />
                 Loading notifications...
               </div>
             ) : notifications.length === 0 ? (
-              <div className="p-12 text-center bg-white rounded-3xl shadow-sm border border-white space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-[#EAE1D8] flex items-center justify-center mx-auto text-[#3D2B2B]">
+              <div className="p-10 text-center bg-white rounded-2xl shadow-sm border border-[#F2E5EC] space-y-3">
+                <div className="w-12 h-12 rounded-full bg-[#F3EBF9] flex items-center justify-center mx-auto text-[#7A2A70]">
                   <Icon name="bell" size="md" />
                 </div>
-                <h3 className="text-sm font-bold text-[#3D2B2B]">No Notifications Found</h3>
-                <p className="text-xs text-[#3D2B2B]/50 max-w-xs mx-auto">
-                  You'll receive updates on your quotes, bookings, payments, and wedding reminders here.
+                <h3 
+                  className="text-base font-bold text-[#401332]"
+                  style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
+                >
+                  No Notifications Found
+                </h3>
+                <p className="text-xs text-[#7A6876] max-w-xs mx-auto leading-relaxed">
+                  You'll receive updates on your wedding quotes, bookings, payments, and timeline reminders here.
                 </p>
               </div>
             ) : (
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {notifications.map((notif) => (
                   <div
                     key={notif._id}
                     onClick={() => handleMarkOneRead(notif)}
-                    className={`p-4 rounded-3xl bg-white shadow-sm border transition-all cursor-pointer hover:shadow-md active:scale-[0.99] flex items-start gap-3.5 relative overflow-hidden ${
-                      !notif.isRead ? 'border-pink-300 ring-1 ring-pink-200' : 'border-white'
-                    }`}
+                    className="p-4 sm:p-5 rounded-2xl bg-white shadow-sm border border-[#F2E5EC] transition-all cursor-pointer hover:shadow-md active:scale-[0.99] flex items-start gap-3.5 relative overflow-hidden group"
                   >
+                    {/* Slim Plum Accent along Left Edge for Unread */}
                     {!notif.isRead && (
-                      <div className="absolute top-0 left-0 bottom-0 w-1 bg-pink-500" />
+                      <div className="absolute top-0 left-0 bottom-0 w-1.5 bg-[#551E43] rounded-l-2xl" />
                     )}
-                    <div className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${
-                      notif.type === 'booking' ? 'bg-pink-100 text-pink-600' :
-                      notif.type === 'payment' ? 'bg-emerald-100 text-emerald-600' :
-                      notif.type === 'quote' ? 'bg-amber-100 text-amber-600' :
-                      'bg-purple-100 text-purple-600'
-                    }`}>
-                      <Icon name={
-                        notif.type === 'booking' ? 'calendar' :
-                        notif.type === 'payment' ? 'money' :
-                        notif.type === 'quote' ? 'money' : 'bell'
-                      } size="xs" />
+
+                    {/* Circular Notification Icon with Soft Lavender Background */}
+                    <div className="w-11 h-11 rounded-full bg-[#F3EBF9] text-[#7A2A70] flex items-center justify-center shrink-0">
+                      <Icon name={getNotificationIcon(notif.type)} size="sm" />
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-baseline gap-2">
-                        <h4 className="text-xs font-bold text-[#3D2B2B] leading-tight truncate">
+                        <h4 className="text-sm font-bold text-[#2E1026] leading-tight truncate">
                           {notif.title}
                         </h4>
-                        <span className="text-[9px] text-[#3D2B2B]/40 whitespace-nowrap">
-                          {new Date(notif.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                        <span className="text-xs text-[#8A7987] font-medium whitespace-nowrap">
+                          {notif.createdAt ? new Date(notif.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}
                         </span>
                       </div>
-                      <p className="text-xs text-[#3D2B2B]/70 mt-1 leading-relaxed">
+                      <p className="text-xs sm:text-sm text-[#5C4A57] mt-1 leading-relaxed">
                         {notif.message}
                       </p>
                       {notif.link && (
-                        <div className="flex items-center gap-1 text-[10px] font-bold text-[#BE185D] mt-2">
+                        <div className="flex items-center gap-1 text-xs font-bold text-[#7A1C43] mt-2 group-hover:underline">
                           <span>View Details</span>
                           <Icon name="chevronRight" size="xs" />
                         </div>
@@ -278,8 +297,8 @@ const Notifications = () => {
         {/* Tab 2: Preferences */}
         {activeTab === 'preferences' && (
           <div className="space-y-4 animate-in fade-in duration-300">
-            <div className="p-5 rounded-3xl bg-white shadow-sm border border-white space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-wider text-[#3D2B2B]/60">
+            <div className="p-5 rounded-2xl bg-white shadow-sm border border-[#F2E5EC] space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[#401332]">
                 Delivery Channels
               </h3>
               <div className="space-y-3">
@@ -289,15 +308,15 @@ const Notifications = () => {
                   { key: 'smsEnabled', label: 'SMS Notifications', desc: 'Receive critical booking updates via text' },
                   { key: 'inAppEnabled', label: 'In-App Alerts', desc: 'Show toast notifications while using the portal' }
                 ].map(item => (
-                  <div key={item.key} className="flex items-center justify-between py-2 border-b border-[#3D2B2B]/5 last:border-0">
+                  <div key={item.key} className="flex items-center justify-between py-2 border-b border-[#F2E5EC] last:border-0">
                     <div>
-                      <div className="text-xs font-bold text-[#3D2B2B]">{item.label}</div>
-                      <div className="text-[11px] text-[#3D2B2B]/50">{item.desc}</div>
+                      <div className="text-xs font-bold text-[#2E1026]">{item.label}</div>
+                      <div className="text-[11px] text-[#7A6876]">{item.desc}</div>
                     </div>
                     <button
                       onClick={() => handleTogglePreference(item.key, item.label)}
-                      className={`w-11 h-6 rounded-full transition-colors relative ${
-                        settings[item.key] ? 'bg-[#BE185D]' : 'bg-[#EAE1D8]'
+                      className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                        settings[item.key] ? 'bg-[#551E43]' : 'bg-[#E5D7DE]'
                       }`}
                     >
                       <div className={`w-4 h-4 rounded-full bg-white transition-transform absolute top-1 ${
@@ -309,8 +328,8 @@ const Notifications = () => {
               </div>
             </div>
 
-            <div className="p-5 rounded-3xl bg-white shadow-sm border border-white space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-wider text-[#3D2B2B]/60">
+            <div className="p-5 rounded-2xl bg-white shadow-sm border border-[#F2E5EC] space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[#401332]">
                 Event Subscriptions
               </h3>
               <div className="space-y-3">
@@ -320,15 +339,15 @@ const Notifications = () => {
                   { key: 'paymentReminders', label: 'Payment Reminders', desc: 'Advance payment notices and refund confirmations' },
                   { key: 'weddingReminders', label: 'Planning Milestones', desc: 'Upcoming checklist tasks and timeline alarms' }
                 ].map(item => (
-                  <div key={item.key} className="flex items-center justify-between py-2 border-b border-[#3D2B2B]/5 last:border-0">
+                  <div key={item.key} className="flex items-center justify-between py-2 border-b border-[#F2E5EC] last:border-0">
                     <div>
-                      <div className="text-xs font-bold text-[#3D2B2B]">{item.label}</div>
-                      <div className="text-[11px] text-[#3D2B2B]/50">{item.desc}</div>
+                      <div className="text-xs font-bold text-[#2E1026]">{item.label}</div>
+                      <div className="text-[11px] text-[#7A6876]">{item.desc}</div>
                     </div>
                     <button
                       onClick={() => handleTogglePreference(item.key, item.label)}
-                      className={`w-11 h-6 rounded-full transition-colors relative ${
-                        settings[item.key] ? 'bg-[#BE185D]' : 'bg-[#EAE1D8]'
+                      className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                        settings[item.key] ? 'bg-[#551E43]' : 'bg-[#E5D7DE]'
                       }`}
                     >
                       <div className={`w-4 h-4 rounded-full bg-white transition-transform absolute top-1 ${

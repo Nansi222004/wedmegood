@@ -156,7 +156,7 @@ const AppRouter = () => {
                     backgroundPosition: location.pathname === '/user/dashboard' ? 'center 10%' : 'center', 
                     backgroundColor: location.pathname.startsWith('/user/family/group/') || location.pathname.startsWith('/user/chats/')
                       ? '#ffffff'
-                      : location.pathname.startsWith('/user/family')
+                      : (location.pathname.startsWith('/user/family') || location.pathname.startsWith('/user/notifications') || location.pathname.startsWith('/user/bookings') || location.pathname.startsWith('/user/quotes'))
                         ? '#FAF6F0'
                         : '#EAE1D8',
                     backgroundRepeat: 'no-repeat'
