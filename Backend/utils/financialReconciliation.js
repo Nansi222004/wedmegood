@@ -276,6 +276,11 @@ function reconcileBookingPayments(booking, paymentsList = [], options = {}) {
         vendorAmountSettled,
         allocatedFundsAmount,
         escrowHeldAmount,
+        advanceRequired: Number(booking.advancePaymentRequired) || 0,
+        advancePaid: (Number(booking.advancePaymentRequired) || 0) > 0 && customerPaidAmount >= (Number(booking.advancePaymentRequired) || 0),
+        advancePending: (Number(booking.advancePaymentRequired) || 0) > 0 && customerPaidAmount < (Number(booking.advancePaymentRequired) || 0),
+        paymentStatus: isFullyPaid ? 'Paid' : (customerPaidAmount > 0 ? 'Partial' : 'Pending'),
+        bookingStatus: ((Number(booking.advancePaymentRequired) || 0) > 0 && customerPaidAmount < (Number(booking.advancePaymentRequired) || 0) && (booking.status === 'Confirmed')) ? 'Pending' : (booking.status || 'Pending'),
         custodyType: 'Calculated / Allocated Platform Custody',
         custodyStatus: escrowStatus,
         escrowStatus,
@@ -289,6 +294,7 @@ function reconcileBookingPayments(booking, paymentsList = [], options = {}) {
             amount: p.amount,
             currency: p.currency || 'INR',
             status: p.status,
+            paymentType: p.paymentType || null,
             refundAmount: p.refundAmount || 0,
             refundedAt: p.refundedAt || null,
             paymentMethod: p.paymentMethod || 'Razorpay',
@@ -302,6 +308,98 @@ function reconcileBookingPayments(booking, paymentsList = [], options = {}) {
     };
 }
 
+/**
+ * Reconcile financial state for a quotation (used by vendor quotation list, quote details, and quotation modals)
+ *
+ * @param {Object} quote - Quotation document
+ * @param {Object} [booking] - Associated Booking document if accepted
+ * @param {Array<Object>} [paymentsList] - Associated Payment documents
+ * @returns {Object} Comprehensive canonical financial details for the quote
+ */
+function reconcileQuoteFinancials(quote, booking = null, paymentsList = []) {
+    if (!quote) return null;
+
+    const totalContractValue = Number(quote.totalAmount || quote.subtotal || 0);
+    const advanceRequired = Number(quote.advancePaymentAmount) || (booking ? Number(booking.advancePaymentRequired) || 0 : 0);
+
+    if (quote.status !== 'Accepted') {
+        return {
+            quoteId: quote._id,
+            quotationNumber: quote.quotationNumber,
+            quoteStatus: quote.status,
+            totalContractValue,
+            advanceRequired,
+            advancePaid: false,
+            advanceStatus: 'Not Applicable',
+            amountReceived: 0,
+            outstandingBalance: totalContractValue,
+            paymentStatus: 'Unpaid',
+            bookingId: null,
+            bookingStatus: null,
+            latestPaymentDate: null,
+            payments: []
+        };
+    }
+
+    if (!booking) {
+        return {
+            quoteId: quote._id,
+            quotationNumber: quote.quotationNumber,
+            quoteStatus: quote.status,
+            totalContractValue,
+            advanceRequired,
+            advancePaid: false,
+            advanceStatus: advanceRequired > 0 ? 'Pending' : 'Zero Advance',
+            amountReceived: 0,
+            outstandingBalance: totalContractValue,
+            paymentStatus: 'Pending',
+            bookingId: quote.bookingId || null,
+            bookingStatus: 'Pending',
+            latestPaymentDate: null,
+            payments: []
+        };
+    }
+
+    const rec = reconcileBookingPayments(booking, paymentsList);
+    const amountReceived = rec.paidAmount;
+    const isAdvPaid = advanceRequired > 0 ? amountReceived >= advanceRequired : false;
+    const advanceStatus = advanceRequired === 0
+        ? 'Zero Advance'
+        : (isAdvPaid ? 'Paid' : 'Pending');
+
+    const sortedPayments = (rec.payments || []).filter(
+        p => p.status === 'Completed' || p.status === 'Paid'
+    );
+    const latestPaymentDate = sortedPayments.length > 0 ? sortedPayments[0].createdAt : null;
+
+    return {
+        quoteId: quote._id,
+        quotationNumber: quote.quotationNumber,
+        quoteStatus: quote.status,
+        totalContractValue: rec.packageTotal || totalContractValue,
+        advanceRequired,
+        advancePaid: isAdvPaid,
+        advanceStatus,
+        amountReceived,
+        outstandingBalance: rec.outstandingBalance,
+        paymentStatus: rec.paymentStatus,
+        bookingId: booking._id,
+        bookingStatus: booking.status,
+        latestPaymentDate,
+        payments: sortedPayments.map(p => ({
+            _id: p._id,
+            amount: p.amount,
+            currency: p.currency,
+            status: p.status,
+            paymentType: p.paymentType,
+            paymentMethod: p.paymentMethod,
+            createdAt: p.createdAt
+        }))
+    };
+}
+
 module.exports = {
-    reconcileBookingPayments
+    reconcileBookingPayments,
+    reconcileQuoteFinancials
 };
+

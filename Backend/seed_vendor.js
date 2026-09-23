@@ -234,7 +234,9 @@ const seedData = async () => {
                 location: 'Sayaji Hotel, Indore',
                 services: ['Candid & Cinematic Wedding Photography'],
                 totalPrice: 55000,
-                status: 'Confirmed'
+                advancePaymentRequired: 15000,
+                status: 'Pending',
+                paymentStatus: 'Pending'
             }
         ]);
 

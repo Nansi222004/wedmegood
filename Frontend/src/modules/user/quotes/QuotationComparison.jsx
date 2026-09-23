@@ -5,6 +5,7 @@ import Button from '../../../components/ui/Button';
 import { userApi } from '../../../services/userApi';
 import { toast } from '../../../components/ui/Toast';
 import QuotationModal from '../../common/QuotationModal';
+import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
 
 const QuotationComparison = () => {
   const navigate = useNavigate();
@@ -96,11 +97,35 @@ const QuotationComparison = () => {
     try {
       const res = await userApi.acceptQuote(quote._id);
       if (res.success) {
-        toast.success(res.message || 'Quote accepted successfully!');
-        navigate('/user/bookings', { state: { tab: 'bookings' } });
+        const booking = res.data?.booking;
+        const advanceRequired = res.data?.advancePaymentAmount ?? booking?.advancePaymentRequired ?? (Number(quote.advancePaymentAmount) || 0);
+
+        if (advanceRequired > 0 && booking?._id) {
+          toast.info(`Quote accepted! Redirecting to complete advance payment of ₹${advanceRequired.toLocaleString('en-IN')}.`);
+          navigate('/user/checkout', {
+            state: {
+              bookingId: booking._id,
+              booking,
+              payableAmount: advanceRequired,
+              items: [{
+                id: `${booking._id}-advance`,
+                name: `Advance Payment for ${quote.vendorId?.businessName || 'Wedding Vendor'}`,
+                category: 'Booking Advance',
+                price: `₹${advanceRequired.toLocaleString('en-IN')}`,
+                quantity: 1,
+                whatsappNumber: quote.vendorId?.phone || ''
+              }]
+            }
+          });
+        } else {
+          toast.success(res.message || 'Quote accepted successfully! Awaiting vendor schedule confirmation.');
+          navigate('/user/bookings', { state: { tab: 'bookings' } });
+        }
+      } else {
+        throw new Error(res.message || 'Failed to accept quote');
       }
     } catch (err) {
-      toast.error(err.message || 'Failed to accept quote');
+      toast.error(getFriendlyErrorMessage(err, 'Failed to accept quote'));
     } finally {
       setActionLoading(null);
     }

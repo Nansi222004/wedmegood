@@ -5,6 +5,7 @@ import Button from '../../components/ui/Button';
 import { userApi } from '../../services/userApi';
 import { vendorApi } from '../vendor/vendorApi';
 import { toast } from '../../components/ui/Toast';
+import { useDragToScroll } from '../../hooks/useDragToScroll';
 
 const QuotationModal = ({
   quote,
@@ -17,8 +18,9 @@ const QuotationModal = ({
 }) => {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
+  const scrollRef = useDragToScroll(isOpen);
 
-  // Lock background scroll and listen for Escape key
+  // Lock background scroll, pause Lenis, and listen for Escape key
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && isOpen) {
@@ -28,10 +30,16 @@ const QuotationModal = ({
     if (isOpen) {
       document.addEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'hidden';
+      if (window.lenis && typeof window.lenis.stop === 'function') {
+        window.lenis.stop();
+      }
     }
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
+      if (window.lenis && typeof window.lenis.start === 'function') {
+        window.lenis.start();
+      }
     };
   }, [isOpen, onClose]);
 
@@ -85,6 +93,7 @@ const QuotationModal = ({
       className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-6 overflow-y-auto print:p-0 print:bg-white animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
+      data-lenis-prevent="true"
     >
       {/* Clickable Backdrop overlay covering entire window */}
       <div 
@@ -97,6 +106,7 @@ const QuotationModal = ({
       <div 
         className="relative z-10 bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[90vh] my-auto flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 print:border-none print:shadow-none print:max-w-none print:max-h-none print:overflow-visible"
         onClick={(e) => e.stopPropagation()}
+        data-lenis-prevent="true"
       >
         {/* Modal Topbar Actions (hidden on print) */}
         <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-slate-50/90 shrink-0 print:hidden">
@@ -141,7 +151,12 @@ const QuotationModal = ({
         </div>
 
         {/* Printable Quotation Document Container */}
-        <div className="flex-1 p-6 sm:p-8 space-y-6 overflow-y-auto print:overflow-visible print:p-0">
+        <div 
+          ref={scrollRef}
+          data-lenis-prevent="true"
+          style={{ overscrollBehavior: 'contain' }}
+          className="flex-1 p-6 sm:p-8 space-y-6 overflow-y-auto custom-scrollbar print:overflow-visible print:p-0 select-text"
+        >
           {/* Document Header */}
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-slate-200">
             <div>
@@ -279,7 +294,35 @@ const QuotationModal = ({
                 <span className="text-[#E91E63]">₹{totalAmount.toLocaleString('en-IN')}</span>
               </div>
 
-              {advanceAmount > 0 && (
+              {/* Server-reconciled financial details or quotation advance terms */}
+              {quote.financial ? (
+                <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                  <div className="flex justify-between text-xs font-bold">
+                    <span className="text-slate-500">Advance Status:</span>
+                    <span className={quote.financial.advancePaid ? 'text-emerald-700 font-extrabold' : quote.financial.advanceRequired > 0 ? 'text-amber-700 font-extrabold' : 'text-slate-700'}>
+                      {quote.financial.advancePaid ? `Advance Paid (₹${(quote.financial.advanceRequired || 0).toLocaleString('en-IN')})` : quote.financial.advanceRequired > 0 ? `Advance Pending (₹${(quote.financial.advanceRequired || 0).toLocaleString('en-IN')})` : 'Zero Advance'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs font-bold text-slate-700">
+                    <span>Verified Received:</span>
+                    <span className="text-emerald-700">₹{(quote.financial.amountReceived || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between text-xs font-bold text-slate-700">
+                    <span>Outstanding Balance:</span>
+                    <span className={quote.financial.outstandingBalance === 0 ? 'text-slate-500' : 'text-rose-600'}>
+                      ₹{(quote.financial.outstandingBalance || 0).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  {quote.financial.bookingStatus && (
+                    <div className="flex justify-between text-[11px] font-bold text-slate-500 pt-1 border-t border-slate-100">
+                      <span>Booking Status:</span>
+                      <span className={quote.financial.bookingStatus === 'Confirmed' ? 'text-emerald-700' : 'text-amber-700'}>
+                        {quote.financial.bookingStatus}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : advanceAmount > 0 ? (
                 <div className="space-y-1.5 pt-2 border-t border-slate-200">
                   <div className="flex justify-between text-amber-700 font-bold">
                     <span>Advance Required:</span>
@@ -290,7 +333,7 @@ const QuotationModal = ({
                     <span className="text-slate-900">₹{remainingBalance.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
 
