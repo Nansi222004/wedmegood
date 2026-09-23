@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Welcome from '../components/welcome/Welcome';
 import ProtectedRoute from '../components/auth/ProtectedRoute';
@@ -82,6 +82,7 @@ import AdminRoutes from '../modules/admin/routes';
 
 const AppRouter = () => {
   const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
 
   // Show loading while checking authentication
   if (isLoading) {
@@ -131,9 +132,9 @@ const AppRouter = () => {
                 <div 
                   className="fixed inset-0 z-[-1]" 
                   style={{ 
-                    backgroundImage: "url('/background.png')", 
-                    backgroundSize: '100% 100%', 
-                    backgroundPosition: 'center', 
+                    backgroundImage: location.pathname === '/user/dashboard' ? "url('/dashboardbackgroundimage.png')" : "url('/background.png')", 
+                    backgroundSize: location.pathname === '/user/dashboard' ? 'cover' : '100% 100%', 
+                    backgroundPosition: location.pathname === '/user/dashboard' ? 'center 10%' : 'center', 
                     backgroundColor: '#EAE1D8',
                     backgroundRepeat: 'no-repeat'
                   }} 

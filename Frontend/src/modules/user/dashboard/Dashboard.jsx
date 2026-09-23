@@ -87,8 +87,7 @@ const Dashboard = () => {
 
   return (
     <div
-      className="min-h-screen px-4 sm:px-6 py-4 pb-32"
-      style={{ backgroundColor: '#EAE1D8' }}
+      className="min-h-screen px-4 sm:px-6 py-4 pb-32 bg-transparent"
     >
       <div className="w-full max-w-lg mx-auto space-y-6">
 
@@ -135,6 +134,41 @@ const Dashboard = () => {
           </div>
         </div>
 
+        {/* Quick Action Cards */}
+        <div className="space-y-3">
+          <div
+            onClick={() => navigate('/user/bookings')}
+            className="bg-white/95 backdrop-blur-sm rounded-3xl p-4 flex items-center justify-between cursor-pointer shadow-sm border border-white hover:shadow-md transition-all active:scale-[0.98]"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-[#F5EBE6] flex items-center justify-center text-[#5C4D4D]">
+                <Icon name="calendar" size="sm" />
+              </div>
+              <div>
+                <h4 className="text-[15px] font-bold text-[#2A2B4A] leading-tight mb-0.5">Upcoming Booking</h4>
+                <p className="text-[12px] text-[#6B6C80]">Your next event details and venue info</p>
+              </div>
+            </div>
+            <Icon name="chevronRight" size="sm" className="text-[#2A2B4A]" />
+          </div>
+
+          <div
+            onClick={() => navigate('/user/tools/checklist')}
+            className="bg-white/95 backdrop-blur-sm rounded-3xl p-4 flex items-center justify-between cursor-pointer shadow-sm border border-white hover:shadow-md transition-all active:scale-[0.98]"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-[#F5EBE6] flex items-center justify-center text-[#5C4D4D]">
+                <Icon name="money" size="sm" />
+              </div>
+              <div>
+                <h4 className="text-[15px] font-bold text-[#2A2B4A] leading-tight mb-0.5">Checklist / Task Pending</h4>
+                <p className="text-[12px] text-[#6B6C80]">Important tasks to complete</p>
+              </div>
+            </div>
+            <Icon name="chevronRight" size="sm" className="text-[#2A2B4A]" />
+          </div>
+        </div>
+
         {/* Actionable Urgent Alerts Banner (Rule 20) */}
         {summary.upcomingActions && summary.upcomingActions.length > 0 && (
           <div className="space-y-2">
@@ -166,26 +200,27 @@ const Dashboard = () => {
         )}
 
         {/* High-Density Quick Stats */}
-        <div className="grid grid-cols-4 gap-2.5 py-3 border-y border-[#3D2B2B]/10">
+        <div className="bg-white/60 backdrop-blur-md rounded-3xl p-4 flex justify-between items-center shadow-sm border border-white/50">
           {[
-            { val: bookings.total ?? 0, label: 'Bookings', color: '#BE185D', route: '/user/bookings' },
-            { val: quotes.pending ?? 0, label: 'Quotes', color: '#B45309', route: '/user/dashboard' },
-            { val: planning.checklist?.total ?? 0, label: 'Tasks', color: '#047857', route: '/user/tools/checklist' },
-            {
-              val: wedding.daysRemaining !== null && wedding.daysRemaining !== undefined ? wedding.daysRemaining : '--',
-              label: 'Days Left',
-              color: '#4338CA',
-              route: '/user/calendar'
-            }
+            { val: bookings.total ?? 0, label: 'BOOKINGS', route: '/user/bookings' },
+            { val: quotes.pending ?? 0, label: 'QUOTES', route: '/user/dashboard' },
+            { val: planning.checklist?.total ?? 0, label: 'TASKS', route: '/user/tools/checklist' },
+            { val: '...', label: 'MORE', route: '/user/dashboard' }
           ].map((stat, i) => (
-            <button
-              key={i}
-              onClick={() => navigate(stat.route)}
-              className="text-center space-y-0.5 p-2 rounded-xl hover:bg-white/40 transition-colors"
-            >
-              <div className="text-lg sm:text-xl font-black text-[#3D2B2B] tracking-tight">{stat.val}</div>
-              <div className="text-[9px] font-black uppercase text-[#3D2B2B]/40 tracking-wider whitespace-nowrap">{stat.label}</div>
-            </button>
+            <div key={i} className="flex-1 relative flex flex-col items-center">
+              <button
+                onClick={() => navigate(stat.route)}
+                className="text-center space-y-1 w-full hover:opacity-70 transition-opacity"
+              >
+                <div className="text-xl sm:text-2xl font-black text-[#2A2B4A] tracking-tight" style={{ fontFamily: '"Playfair Display", serif' }}>
+                  {stat.val}
+                </div>
+                <div className="text-[9px] font-medium tracking-widest text-[#6B6C80]">{stat.label}</div>
+              </button>
+              {i < 3 && (
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 h-8 w-px bg-[#2A2B4A]/10"></div>
+              )}
+            </div>
           ))}
         </div>
 
@@ -193,41 +228,43 @@ const Dashboard = () => {
         <div className="p-5 rounded-3xl bg-white shadow-sm border border-white space-y-4">
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-sm font-bold text-[#3D2B2B]" style={{ fontFamily: '"Playfair Display", serif' }}>
+              <h3 className="text-[17px] font-bold text-[#2A2B4A]" style={{ fontFamily: '"Playfair Display", serif' }}>
                 Planning Completion
               </h3>
-              <p className="text-[10px] font-semibold text-[#3D2B2B]/40 uppercase tracking-wider">
-                Real-time Checklist & Budget Metrics
+              <p className="text-[11px] font-medium text-[#6B6C80] mt-0.5">
+                Track your progress to a perfect celebration
               </p>
             </div>
-            <span className="text-base font-black text-[#BE185D]">
+            <span className="text-xl font-bold text-[#9D3875]">
               {planning.checklist?.progressPercentage || 0}%
             </span>
           </div>
 
           {/* Progress Bar */}
-          <div className="w-full bg-[#EAE1D8]/60 rounded-full h-2.5 overflow-hidden">
+          <div className="w-full bg-[#F5EBE6] rounded-full h-2.5 overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-700 ease-out"
               style={{
                 width: `${planning.checklist?.progressPercentage || 0}%`,
-                background: 'linear-gradient(90deg, #BE185D 0%, #F43F5E 100%)'
+                background: '#9D3875'
               }}
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-2 pt-1 border-t border-[#3D2B2B]/5 text-center">
-            <div onClick={() => navigate('/user/tools/checklist')} className="cursor-pointer hover:opacity-80">
-              <div className="text-xs font-bold text-[#3D2B2B]">{planning.checklist?.completed || 0}/{planning.checklist?.total || 0}</div>
-              <div className="text-[9px] text-[#3D2B2B]/40 uppercase font-black">Tasks Done</div>
+          <div className="flex justify-between items-center pt-2 text-center">
+            <div onClick={() => navigate('/user/tools/checklist')} className="flex-1 cursor-pointer hover:opacity-80">
+              <div className="text-[13px] font-bold text-[#2A2B4A]">{planning.checklist?.completed || 0}/{planning.checklist?.total || 0}</div>
+              <div className="text-[11px] text-[#6B6C80]">Tasks Done</div>
             </div>
-            <div onClick={() => navigate('/user/tools/budget')} className="cursor-pointer hover:opacity-80">
-              <div className="text-xs font-bold text-[#3D2B2B]">₹{(planning.budget?.spent || 0).toLocaleString()}</div>
-              <div className="text-[9px] text-[#3D2B2B]/40 uppercase font-black">Budget Spent</div>
+            <div className="h-6 w-px bg-[#2A2B4A]/10"></div>
+            <div onClick={() => navigate('/user/tools/budget')} className="flex-1 cursor-pointer hover:opacity-80">
+              <div className="text-[13px] font-bold text-[#2A2B4A]">₹{(planning.budget?.spent || 0).toLocaleString()}</div>
+              <div className="text-[11px] text-[#6B6C80]">Budget Used</div>
             </div>
-            <div onClick={() => navigate('/user/tools/guests')} className="cursor-pointer hover:opacity-80">
-              <div className="text-xs font-bold text-[#3D2B2B]">{planning.guests?.confirmed || 0}/{planning.guests?.totalInvited || 0}</div>
-              <div className="text-[9px] text-[#3D2B2B]/40 uppercase font-black">RSVP Confirmed</div>
+            <div className="h-6 w-px bg-[#2A2B4A]/10"></div>
+            <div onClick={() => navigate('/user/vendors')} className="flex-1 cursor-pointer hover:opacity-80">
+              <div className="text-[13px] font-bold text-[#2A2B4A]">{bookings.confirmed || 0}/{bookings.total || 0}</div>
+              <div className="text-[11px] text-[#6B6C80]">Vendors Finalized</div>
             </div>
           </div>
         </div>
