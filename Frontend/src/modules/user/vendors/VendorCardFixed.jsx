@@ -141,106 +141,100 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
 
   if (layout === 'responsive') {
     return (
-      <Card 
-        className="transition-all duration-300 shadow-sm border-none overflow-hidden"
-        style={{
-          backgroundColor: 'white',
-          borderRadius: '20px',
-        }}
+      <div 
+        className="transition-all duration-300 shadow-xs hover:shadow-md border border-[#D4AF37]/25 hover:border-[#D4AF37] overflow-hidden rounded-[22px] bg-white/95 cursor-pointer group"
         onClick={handleViewDetails}
       >
-        <>
-          <div className="relative group">
-            <div className="w-full aspect-video overflow-hidden">
-              <img
-                src={image}
-                alt={name}
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                loading="lazy"
-                onError={(e) => {
-                  e.target.src = 'https://images.unsplash.com/photo-1519741497674-611481863552?w=800&h=600&fit=crop&q=80';
-                }}
-              />
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-0.5 bg-black/5 backdrop-blur-md rounded-full">
-                  <div className="w-1 h-1 rounded-full bg-white shadow-sm" />
-                  <div className="w-1 h-1 rounded-full bg-white/40" />
-                  <div className="w-1 h-1 rounded-full bg-white/40" />
-              </div>
-            </div>
-
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleSave();
+        <div className="relative">
+          <div className="w-full aspect-video overflow-hidden">
+            <img
+              src={image}
+              alt={name}
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+              loading="lazy"
+              onError={(e) => {
+                e.target.src = 'https://images.unsplash.com/photo-1519741497674-611481863552?w=800&h=600&fit=crop&q=80';
               }}
-              className="absolute top-3 right-3 w-8 h-8 rounded-lg bg-white/80 backdrop-blur-xl flex items-center justify-center text-[#3D2B2B] shadow-sm active:scale-90 transition-all z-10 hover:bg-white"
-              aria-label={isSaved ? 'Remove from favorites' : 'Save to favorites'}
-            >
-              <Icon 
-                name="heart" 
-                size="xs" 
-                className={`transition-colors ${isSaved ? 'text-rose-600 fill-rose-600' : 'text-[#3D2B2B]/60'}`} 
-              />
-            </button>
-          </div>
-            
-          <div className="p-4 space-y-3">
-            <div>
-               <div className="flex items-center justify-between mb-1">
-                  <span className="text-[9px] font-bold text-[#3D2B2B]/40 uppercase tracking-widest">{location}</span>
-                  <div className="flex items-center gap-1">
-                      <span className="text-[#E91E63] text-xs font-black">★ {rating}</span>
-                      <span className="text-[#3D2B2B]/30 text-[9px] font-bold">({reviews})</span>
-                  </div>
-               </div>
-               <h3 className="text-[#3D2B2B] text-lg font-bold leading-tight line-clamp-1 mb-1" style={{ fontFamily: '"Playfair Display", serif' }}>
-                 {name}
-               </h3>
-            </div>
-
-            <div className="pt-1.5 border-t border-gray-50 flex items-center justify-between">
-               <div className="flex items-baseline gap-1">
-                  <span className="text-lg font-black text-[#3D2B2B]">{price}</span>
-                  <span className="text-[9px] font-bold text-[#3D2B2B]/20">/ day avg.</span>
-               </div>
-               <span className="text-[8px] font-black text-[#3D2B2B]/30 uppercase tracking-widest">Est. Quote</span>
-            </div>
-
-            <div className="flex gap-2.5 pt-2">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleAddToCart();
-                  }}
-                  disabled={isAddingToCart || isInCart(id)}
-                  className={`flex-1 py-2.5 px-4 rounded-full border-2 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95 ${
-                    isInCart(id) 
-                      ? 'bg-[#E91E63] text-white border-[#E91E63]' 
-                      : 'border-[#E91E63] text-[#E91E63] hover:bg-[#E91E63]/5'
-                  }`}
-                >
-                  {isAddingToCart ? (
-                     <div className="w-3 h-3 border-2 border-current border-t-transparent animate-spin rounded-full" />
-                  ) : (
-                    <>
-                      <Icon name={isInCart(id) ? 'checkCircle' : 'heart'} size="xs" />
-                      {isInCart(id) ? 'Shortlisted' : 'Shortlist'}
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.location.href = `tel:${phone || '9876543210'}`;
-                  }}
-                  className="w-10 h-10 rounded-full bg-[#10B981] flex items-center justify-center text-white shadow-lg active:scale-90 transition-all border-none"
-                >
-                    <Icon name="phone" size="sm" />
-                </button>
+            />
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-0.5 bg-black/20 backdrop-blur-md rounded-full">
+                <div className="w-1 h-1 rounded-full bg-[#ECC880] shadow-sm" />
+                <div className="w-1 h-1 rounded-full bg-white/50" />
+                <div className="w-1 h-1 rounded-full bg-white/50" />
             </div>
           </div>
-        </>
-      </Card>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleSave();
+            }}
+            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center text-[#4F1325] shadow-xs active:scale-90 transition-all z-10 hover:bg-white border border-[#D4AF37]/30"
+            aria-label={isSaved ? 'Remove from favorites' : 'Save to favorites'}
+          >
+            <Icon 
+              name="heart" 
+              size="xs" 
+              className={`transition-colors ${isSaved ? 'text-[#651731] fill-[#651731]' : 'text-[#4F1325]/60'}`} 
+            />
+          </button>
+        </div>
+          
+        <div className="p-4 space-y-3">
+          <div>
+             <div className="flex items-center justify-between mb-1">
+                <span className="text-[9px] font-bold text-[#651731]/60 uppercase tracking-widest">{location}</span>
+                <div className="flex items-center gap-1">
+                    <span className="text-[#D4AF37] text-xs font-black">★ {rating}</span>
+                    <span className="text-[#4F1325]/40 text-[9px] font-bold">({reviews})</span>
+                </div>
+             </div>
+             <h3 className="text-[#4F1325] text-lg font-serif font-bold leading-tight line-clamp-1 mb-1">
+               {name}
+             </h3>
+          </div>
+
+          <div className="pt-1.5 border-t border-[#D4AF37]/15 flex items-center justify-between">
+             <div className="flex items-baseline gap-1">
+                <span className="text-lg font-bold text-[#4F1325]">{price}</span>
+                <span className="text-[9px] font-semibold text-[#651731]/50">/ day avg.</span>
+             </div>
+             <span className="text-[8px] font-bold text-[#D4AF37] uppercase tracking-widest">Royal Verified</span>
+          </div>
+
+          <div className="flex gap-2.5 pt-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddToCart();
+                }}
+                disabled={isAddingToCart || isInCart(id)}
+                className={`flex-1 py-2.5 px-4 rounded-full border font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-xs transition-all active:scale-95 ${
+                  isInCart(id) 
+                    ? 'bg-gradient-to-r from-[#4F1325] to-[#651731] text-[#ECC880] border-transparent' 
+                    : 'border-[#651731] text-[#651731] hover:bg-[#651731]/10'
+                }`}
+              >
+                {isAddingToCart ? (
+                   <div className="w-3 h-3 border-2 border-current border-t-transparent animate-spin rounded-full" />
+                ) : (
+                  <>
+                    <Icon name={isInCart(id) ? 'checkCircle' : 'heart'} size="xs" />
+                    {isInCart(id) ? 'Shortlisted' : 'Shortlist'}
+                  </>
+                )}
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.location.href = `tel:${phone || '9876543210'}`;
+                }}
+                className="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-700 flex items-center justify-center text-white shadow-xs active:scale-90 transition-all border-none"
+              >
+                  <Icon name="phone" size="sm" />
+              </button>
+          </div>
+        </div>
+      </div>
     );
   }
 

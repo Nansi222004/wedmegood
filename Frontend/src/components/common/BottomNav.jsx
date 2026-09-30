@@ -1,17 +1,17 @@
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { useTheme } from '../../hooks/useTheme';
-import Icon from '../ui/Icon';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
 
 const BottomNav = () => {
-  const { theme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Hide BottomNav on family planning, group creation, and chat routes to prevent button overlap
+  // Hide BottomNav only on dedicated full-screen flows (chat keyboard rooms, public invitation links)
   if (
-    location.pathname.startsWith('/user/family') ||
-    location.pathname.startsWith('/family') ||
-    location.pathname.includes('/chats/')
+    location.pathname.startsWith('/user/family/group/') ||
+    location.pathname.startsWith('/family/join') ||
+    location.pathname.includes('/chats/') ||
+    location.pathname.startsWith('/invite/') ||
+    location.pathname === '/user/wedding-details'
   ) {
     return null;
   }
@@ -22,213 +22,206 @@ const BottomNav = () => {
       if (!saved || saved === 'null' || saved === 'undefined') return false;
       const parsed = JSON.parse(saved);
       return parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0;
-    } catch (e) {
+    } catch {
       return false;
     }
   };
 
   const hasRequirements = getHasRequirements();
-
-  // Left side nav items (before center button)
-  const leftItems = [
-    { path: '/user/dashboard', label: 'Dashboard', iconName: 'sparkles' },
-    { path: '/user/home', label: 'Home', iconName: 'home' },
-  ];
-
-  // Right side nav items (after center button)
-  const rightItems = [
-    { path: '/user/vendors', label: 'Vendors', iconName: 'vendors' },
-    { path: '/user/account', label: 'Account', iconName: 'account' },
-  ];
-
   const centerRoute = hasRequirements ? '/user/planning-dashboard' : '/user/requirements';
+  const isCenterActive =
+    location.pathname.startsWith('/user/requirements') ||
+    location.pathname === '/user/planning-dashboard' ||
+    location.pathname === '/user/wedding-form';
+
+  const isHomeActive = location.pathname === '/user/home' || location.pathname === '/user/dashboard';
+  const isDiscoverActive =
+    location.pathname.startsWith('/user/vendors') ||
+    location.pathname.startsWith('/user/vendor/') ||
+    location.pathname === '/user/search';
+  const isSavedActive = location.pathname === '/user/favourites' || location.pathname === '/user/shortlist';
+  const isProfileActive = location.pathname.startsWith('/user/account');
+
+  const navItems = [
+    {
+      id: 'home',
+      label: 'Home',
+      path: '/user/home',
+      isActive: isHomeActive,
+      icon: (active) => (
+        <svg
+          className={`w-5 h-5 transition-colors duration-200 ${
+            active ? 'fill-[#651731] text-[#651731]' : 'stroke-[#716860] stroke-[1.8] fill-none'
+          }`}
+          viewBox="0 0 24 24"
+        >
+          <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+        </svg>
+      )
+    },
+    {
+      id: 'discover',
+      label: 'Discover',
+      path: '/user/vendors',
+      isActive: isDiscoverActive,
+      icon: (active) => (
+        <svg
+          className={`w-5 h-5 transition-colors duration-200 ${
+            active ? 'text-[#651731] stroke-[#651731]' : 'text-[#716860] stroke-current'
+          }`}
+          fill="none"
+          strokeWidth={active ? 2.3 : 1.8}
+          viewBox="0 0 24 24"
+        >
+          <path
+            d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )
+    },
+    {
+      id: 'create',
+      label: 'Create',
+      path: centerRoute,
+      isActive: isCenterActive,
+      icon: (active) => (
+        <div
+          className={`relative w-12 h-12 -mt-4 rounded-full flex items-center justify-center transition-all duration-300 ${
+            active
+              ? 'bg-gradient-to-tr from-[#D49826] via-[#FFD700] to-[#FFF4B8] shadow-[0_6px_22px_rgba(245,175,25,0.75)] ring-2.5 ring-[#ECC880] scale-105'
+              : 'bg-gradient-to-tr from-[#C58B16] via-[#F7C844] to-[#FFF0A3] shadow-[0_4px_16px_rgba(235,165,20,0.52)] hover:shadow-[0_6px_22px_rgba(245,175,25,0.7)] hover:scale-105'
+          } border-2 border-[#FFF8D6]`}
+        >
+          {/* Subtle Golden Inner Highlight Rim */}
+          <div className="absolute inset-[1.5px] rounded-full border border-white/60 pointer-events-none" />
+
+          {/* Golden Lotus Diya Emblem in Royal Maroon */}
+          <svg
+            className="w-6 h-6 fill-none stroke-[#4A1224] stroke-[2.2] relative z-10 drop-shadow-[0_1px_1.5px_rgba(255,255,255,0.65)]"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            viewBox="0 0 40 40"
+          >
+            <path d="M20 7 C21.5 13 23.5 21 20 27 C16.5 21 18.5 13 20 7 Z" fill="#4A1224" fillOpacity="0.88" />
+            <path
+              d="M20 14 C25 17 31 22 28 29 C24 29 21 25 20 23 C19 25 16 29 12 29 C9 22 15 17 20 14 Z"
+              fill="#4A1224"
+              fillOpacity="0.4"
+            />
+            <path d="M12 21 C7 21 4 27 7 31 C11 31 15 28 17 25" stroke="#4A1224" strokeWidth="2.1" />
+            <path d="M28 21 C33 21 36 27 33 31 C29 31 25 28 23 25" stroke="#4A1224" strokeWidth="2.1" />
+            <path d="M13 32 C17 34 23 34 27 32" stroke="#4A1224" strokeWidth="2.3" />
+          </svg>
+        </div>
+      )
+    },
+    {
+      id: 'saved',
+      label: 'Saved',
+      path: '/user/favourites',
+      isActive: isSavedActive,
+      icon: (active) => (
+        <svg
+          className={`w-5 h-5 transition-colors duration-200 ${
+            active ? 'fill-[#651731] text-[#651731]' : 'stroke-[#716860] stroke-[1.8] fill-none'
+          }`}
+          viewBox="0 0 24 24"
+        >
+          <path
+            d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )
+    },
+    {
+      id: 'profile',
+      label: 'Profile',
+      path: '/user/account',
+      isActive: isProfileActive,
+      icon: (active) => (
+        <svg
+          className={`w-5 h-5 transition-colors duration-200 ${
+            active ? 'stroke-[#651731] stroke-[2.3]' : 'stroke-[#716860] stroke-[1.8]'
+          }`}
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <path
+            d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )
+    }
+  ];
+
+  const handleTabClick = (item) => {
+    if (item.isActive) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      navigate(item.path);
+    }
+  };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 md:hidden z-40" style={{ height: '80px' }}>
-      {/* Curved SVG Background */}
-      <svg
-        className="absolute bottom-0 left-0 w-full"
-        viewBox="0 0 400 90"
-        preserveAspectRatio="none"
-        style={{ height: '80px' }}
-      >
-        <defs>
-          <linearGradient id="navBg" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#F8F0F5" />
-            <stop offset="100%" stopColor="#F3E8EE" />
-          </linearGradient>
-          <linearGradient id="goldLine" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#E3AE56" stopOpacity="0.1" />
-            <stop offset="20%" stopColor="#C59A5A" stopOpacity="0.6" />
-            <stop offset="50%" stopColor="#E3AE56" stopOpacity="0.8" />
-            <stop offset="80%" stopColor="#C59A5A" stopOpacity="0.6" />
-            <stop offset="100%" stopColor="#E3AE56" stopOpacity="0.1" />
-          </linearGradient>
-          <filter id="navShadow" x="-5%" y="-30%" width="110%" height="160%">
-            <feDropShadow dx="0" dy="-3" stdDeviation="4" floodColor="#3D2B2B" floodOpacity="0.08" />
-          </filter>
-        </defs>
-
-        {/* Main body with center notch */}
-        <path
-          d="M0,28 L145,28 C155,28 160,10 175,2 C183,-2 192,-2 200,2 C208,-2 217,-2 225,2 C240,10 245,28 255,28 L400,28 L400,90 L0,90 Z"
-          fill="url(#navBg)"
-          filter="url(#navShadow)"
-        />
-
-        {/* Gold accent line along the top edge */}
-        <path
-          d="M0,28 L145,28 C155,28 160,10 175,2 C183,-2 192,-2 200,2 C208,-2 217,-2 225,2 C240,10 245,28 255,28 L400,28"
-          fill="none"
-          stroke="url(#goldLine)"
-          strokeWidth="1.5"
-        />
-
-        {/* Decorative floral accent - left */}
-        <g opacity="0.12" transform="translate(10, 35)">
-          <path d="M0,20 C5,10 15,5 25,10 C20,15 10,20 0,20Z" fill="#C59A5A" />
-          <path d="M5,25 C10,15 20,10 30,15 C25,20 15,25 5,25Z" fill="#C59A5A" />
-          <path d="M2,15 C8,8 18,5 25,8" stroke="#C59A5A" strokeWidth="0.5" fill="none" />
-        </g>
-
-        {/* Decorative floral accent - right */}
-        <g opacity="0.12" transform="translate(360, 35) scale(-1,1)">
-          <path d="M0,20 C5,10 15,5 25,10 C20,15 10,20 0,20Z" fill="#C59A5A" />
-          <path d="M5,25 C10,15 20,10 30,15 C25,20 15,25 5,25Z" fill="#C59A5A" />
-          <path d="M2,15 C8,8 18,5 25,8" stroke="#C59A5A" strokeWidth="0.5" fill="none" />
-        </g>
-      </svg>
-
-      {/* Navigation Items Container */}
-      <div className="absolute bottom-0 left-0 right-0 flex items-end justify-around px-2" style={{ height: '72px', paddingBottom: '8px' }}>
-
-        {/* Left side items */}
-        {leftItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            className="flex flex-col items-center justify-center flex-1 py-1"
+    <nav
+      className="fixed bottom-0 left-0 right-0 w-full z-40 bg-[#FAF7F2]/95 backdrop-blur-xl border-t border-[#E8DFC8]/70 shadow-[0_-2px_15px_rgba(74,18,36,0.04)]"
+      data-purpose="bottom-navigation"
+    >
+      <div className="max-w-md sm:max-w-lg md:max-w-2xl mx-auto px-2 sm:px-6 pt-2 pb-3.5 flex items-center justify-around">
+        {navItems.map((item) => (
+          <motion.button
+            key={item.id}
+            onClick={() => handleTabClick(item)}
+            className="relative flex flex-col items-center flex-1 py-1 cursor-pointer focus:outline-none select-none"
+            whileTap={{ scale: 0.92 }}
+            whileHover={{ scale: 1.04 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
           >
-            {({ isActive }) => (
-              <>
-                <div
-                  className="mb-1 transition-all duration-200"
-                  style={{
-                    color: isActive ? '#9B1B5A' : '#6B5B6B',
-                    transform: isActive ? 'scale(1.1)' : 'scale(1)',
-                  }}
-                >
-                  <Icon name={item.iconName} size="lg" />
-                </div>
-                <span
-                  className="text-[10px] font-semibold tracking-wide transition-colors duration-200"
-                  style={{
-                    fontFamily: '"Outfit", sans-serif',
-                    color: isActive ? '#9B1B5A' : '#6B5B6B',
-                  }}
-                >
-                  {item.label}
-                </span>
-              </>
+            {/* Classy Flat Bar Active Indicator */}
+            {item.isActive && (
+              <motion.div
+                layoutId="bottomNavActiveBar"
+                className={`absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-[2.5px] rounded-full ${
+                  item.id === 'create'
+                    ? 'bg-gradient-to-r from-[#D49826] via-[#FFD700] to-[#D49826] shadow-[0_1px_6px_rgba(245,175,25,0.6)]'
+                    : 'bg-gradient-to-r from-[#651731] via-[#8B1E3F] to-[#D4AF37] shadow-[0_1px_4px_rgba(101,23,49,0.25)]'
+                }`}
+                transition={{ type: 'spring', stiffness: 480, damping: 34 }}
+              />
             )}
-          </NavLink>
-        ))}
 
-        {/* Center FAB - Create Event */}
-        <div className="flex flex-col items-center flex-1" style={{ marginTop: '-32px' }}>
-          <button
-            onClick={() => navigate(centerRoute)}
-            className="relative flex items-center justify-center rounded-full shadow-xl active:scale-95 transition-transform duration-200"
-            style={{
-              width: '60px',
-              height: '60px',
-              background: 'linear-gradient(135deg, #F8DF9E 0%, #C59A5A 50%, #A67C3D 100%)',
-              boxShadow: '0 4px 20px rgba(197, 154, 90, 0.45), inset 0 1px 2px rgba(255,255,255,0.3)',
-              border: '3px solid rgba(255, 255, 255, 0.6)',
-            }}
-            aria-label="Create Event"
-          >
-            {/* Lotus / flower icon using SVG */}
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-              {/* Center petal */}
-              <path
-                d="M12 3C12 3 9 7 9 11C9 14 10.5 16 12 16C13.5 16 15 14 15 11C15 7 12 3 12 3Z"
-                fill="rgba(255,255,255,0.85)"
-                stroke="rgba(255,255,255,0.9)"
-                strokeWidth="0.5"
-              />
-              {/* Left petal */}
-              <path
-                d="M12 16C12 16 7 14 5 11C3.5 8.5 4 6 5.5 5.5C7 5 9 6.5 10 9"
-                fill="none"
-                stroke="rgba(255,255,255,0.7)"
-                strokeWidth="1"
-                strokeLinecap="round"
-              />
-              {/* Right petal */}
-              <path
-                d="M12 16C12 16 17 14 19 11C20.5 8.5 20 6 18.5 5.5C17 5 15 6.5 14 9"
-                fill="none"
-                stroke="rgba(255,255,255,0.7)"
-                strokeWidth="1"
-                strokeLinecap="round"
-              />
-              {/* Base */}
-              <path
-                d="M10 16C10 16 11 19 12 20C13 19 14 16 14 16"
-                fill="none"
-                stroke="rgba(255,255,255,0.6)"
-                strokeWidth="0.8"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-          <span
-            className="text-[9px] font-semibold tracking-wide mt-1"
-            style={{
-              fontFamily: '"Outfit", sans-serif',
-              color: '#6B5B6B',
-            }}
-          >
-            Create Event
-          </span>
-        </div>
+            <motion.div
+              animate={{
+                scale: item.isActive ? (item.id === 'create' ? 1.08 : 1.12) : 1,
+                y: item.isActive ? -1 : 0
+              }}
+              transition={{ type: 'spring', stiffness: 450, damping: 25 }}
+            >
+              {item.icon(item.isActive)}
+            </motion.div>
 
-        {/* Right side items */}
-        {rightItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            className="flex flex-col items-center justify-center flex-1 py-1"
-          >
-            {({ isActive }) => (
-              <>
-                <div
-                  className="mb-1 transition-all duration-200"
-                  style={{
-                    color: isActive ? '#9B1B5A' : '#6B5B6B',
-                    transform: isActive ? 'scale(1.1)' : 'scale(1)',
-                  }}
-                >
-                  <Icon name={item.iconName} size="lg" />
-                </div>
-                <span
-                  className="text-[10px] font-semibold tracking-wide transition-colors duration-200"
-                  style={{
-                    fontFamily: '"Outfit", sans-serif',
-                    color: isActive ? '#9B1B5A' : '#6B5B6B',
-                  }}
-                >
-                  {item.label}
-                </span>
-              </>
-            )}
-          </NavLink>
+            <span
+              className={`text-[10px] mt-1 tracking-tight transition-colors duration-200 ${
+                item.id === 'create'
+                  ? item.isActive
+                    ? 'text-[#651731] font-bold'
+                    : 'text-[#8A5A12] font-bold'
+                  : item.isActive
+                  ? 'text-[#651731] font-bold'
+                  : 'text-[#716860] font-medium'
+              }`}
+            >
+              {item.label}
+            </span>
+          </motion.button>
         ))}
       </div>
-
-      {/* Safe area for devices with home indicator */}
-      <div className="h-safe-area-inset-bottom" style={{ backgroundColor: '#F3E8EE' }}></div>
     </nav>
   );
 };

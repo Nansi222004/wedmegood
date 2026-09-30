@@ -169,124 +169,124 @@ const Inspirations = () => {
   };
 
   return (
-    <div className="min-h-screen pb-20 bg-transparent">
-      {/* Header */}
-      <div className="px-4 pt-6 pb-2">
-        <div className="flex items-start justify-between mb-5">
-          <div className="flex items-start gap-4">
+    <div className="bg-[#EDE8E1] min-h-screen text-slate-800 antialiased font-sans">
+      <div className="max-w-[430px] md:max-w-4xl mx-auto min-h-screen bg-[#FAF6F0] relative overflow-hidden shadow-2xl pb-28">
+        {/* Subtle Luxury Floral Watermarks */}
+        <div className="floral-bg-corner-tl opacity-70 pointer-events-none" />
+        <div className="floral-bg-corner-br opacity-70 pointer-events-none" />
+
+        {/* Header */}
+        <div className="px-5 pt-6 pb-2 relative z-10">
+          <div className="flex items-center justify-between mb-4">
             <button
               onClick={() => navigate(-1)}
-              className="w-12 h-12 flex-shrink-0 rounded-2xl bg-white shadow-sm border border-white flex items-center justify-center active:scale-95 transition-all text-[#4A2B42]"
+              className="w-10 h-10 rounded-full bg-white/90 border border-[#D4AF37]/35 flex items-center justify-center text-[#4F1325] hover:bg-white active:scale-95 transition-all shadow-xs"
             >
               <Icon name="chevronLeft" size="sm" />
             </button>
-            <div>
-              <h1 
-                className="text-[28px] font-bold text-[#4A2B42] leading-tight"
-                style={{ fontFamily: '"Playfair Display", serif' }}
-              >
-                Wedding Inspirations
+            <div className="text-center">
+              <span className="text-[10px] font-cinzel uppercase tracking-[0.2em] text-[#D4AF37] block font-bold">
+                Royal Moodboards
+              </span>
+              <h1 className="text-2xl font-serif font-bold text-[#4F1325]">
+                Inspirations
               </h1>
-              <p className="text-[13px] text-[#6B6C80] leading-snug mt-1">
-                {filteredItems.length} ideas to inspire your wedding
-              </p>
             </div>
-          </div>
-          <button
-            onClick={() => navigate('/user/favourites')}
-            className="w-12 h-12 flex-shrink-0 rounded-2xl bg-white shadow-sm border border-white flex items-center justify-center active:scale-95 transition-all text-[#9D3875]"
-          >
-            <Icon name="heart" size="sm" />
-          </button>
-        </div>
-
-        {/* Category Filter */}
-        <div className="relative pb-3">
-          <div className="flex gap-2 overflow-x-auto pb-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
-                className={`flex-shrink-0 px-4 py-2 rounded-full text-[13px] font-bold transition-all duration-200 flex items-center gap-2 shadow-sm border border-white/50 ${
-                  selectedCategory === category.id 
-                    ? 'bg-[#8A3A69] text-white' 
-                    : 'bg-white/80 text-[#4A2B42] hover:bg-white'
-                }`}
-              >
-                <Icon 
-                  name={category.icon} 
-                  size="xs" 
-                  className={selectedCategory === category.id ? 'text-white' : 'text-[#8A3A69]'}
-                />
-                {category.name}
-              </button>
-            ))}
-          </div>
-          {/* Decorative bottom line */}
-          <div className="absolute bottom-0 left-0 right-0 flex">
-             <div className="h-0.5 bg-[#8A3A69]" style={{ width: '70px', borderRadius: '2px' }}></div>
-             <div className="h-0.5 bg-[#8A3A69]/10 flex-1 rounded-r-sm"></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Masonry Grid */}
-      <div className="px-4 py-3">
-        <div className="columns-2 gap-3 space-y-3">
-          {filteredItems.map((item) => (
-            <div
-              key={item.id}
-              className="break-inside-avoid mb-3 cursor-pointer group relative"
-              onClick={() => handleItemClick(item)}
+            <button
+              onClick={() => navigate('/user/favourites')}
+              className="w-10 h-10 rounded-full bg-white/90 border border-[#D4AF37]/35 flex items-center justify-center text-[#651731] hover:bg-white active:scale-95 transition-all shadow-xs"
+              title="Saved Favorites"
             >
-              <div className="relative rounded-[20px] overflow-hidden shadow-sm">
-                {/* Image */}
-                <img
-                  src={item.image}
-                  alt={item.title}
-                  className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-105"
-                  loading="lazy"
-                  onError={(e) => {
-                    e.target.src = 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=600&fit=crop&q=80';
-                  }}
-                />
-                
-                {/* Save Button */}
+              <Icon name="heart" size="sm" />
+            </button>
+          </div>
+
+          <p className="text-center text-xs text-[#651731]/70 mb-4">
+            {filteredItems.length} bespoke ideas to curate your grand celebration
+          </p>
+
+          {/* Category Filter */}
+          <div className="relative pb-3">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+              {categories.map((category) => (
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSave(item);
-                  }}
-                  className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/95 shadow-sm flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95"
+                  key={category.id}
+                  onClick={() => setSelectedCategory(category.id)}
+                  className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 flex items-center gap-1.5 shadow-xs ${
+                    selectedCategory === category.id 
+                      ? 'bg-gradient-to-r from-[#4F1325] to-[#651731] text-[#ECC880] shadow-sm' 
+                      : 'bg-white/90 border border-[#D4AF37]/25 text-[#4F1325] hover:bg-white'
+                  }`}
                 >
                   <Icon 
-                    name="heart" 
-                    size="sm" 
-                    style={{ 
-                      color: savedMap.has(item.title) ? '#9D3875' : '#4A2B42' 
-                    }} 
+                    name={category.icon} 
+                    size="xs" 
+                    className={selectedCategory === category.id ? 'text-[#ECC880]' : 'text-[#D4AF37]'}
                   />
+                  <span>{category.name}</span>
                 </button>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Empty State */}
-      {filteredItems.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 px-4">
-          <div className="w-20 h-20 rounded-full bg-white/60 backdrop-blur shadow-sm flex items-center justify-center mb-4 border border-white">
-            <Icon name="search" size="lg" className="text-[#4A2B42]/50" />
+            <div className="h-[1px] bg-[#D4AF37]/25 w-full mt-2"></div>
           </div>
-          <h3 className="text-[17px] font-bold text-[#4A2B42] mb-1">
-            No inspirations found
-          </h3>
-          <p className="text-[13px] text-[#6B6C80]">
-            Try selecting a different category
-          </p>
         </div>
-      )}
+
+        {/* Masonry Grid */}
+        <div className="px-5 py-3 relative z-10">
+          <div className="columns-2 gap-3 space-y-3">
+            {filteredItems.map((item) => (
+              <div
+                key={item.id}
+                className="break-inside-avoid mb-3 cursor-pointer group relative"
+                onClick={() => handleItemClick(item)}
+              >
+                <div className="relative rounded-[20px] overflow-hidden shadow-xs border border-[#D4AF37]/25 hover:border-[#D4AF37] transition-all">
+                  <img
+                    src={item.image}
+                    alt={item.title}
+                    className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-105"
+                    loading="lazy"
+                    onError={(e) => {
+                      e.target.src = 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=600&fit=crop&q=80';
+                    }}
+                  />
+                  
+                  {/* Save Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSave(item);
+                    }}
+                    className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-white/90 backdrop-blur-xs shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 border border-[#D4AF37]/30"
+                    title={savedMap.has(item.title) ? 'Saved' : 'Save'}
+                  >
+                    <Icon 
+                      name="heart" 
+                      size="xs" 
+                      className={savedMap.has(item.title) ? 'fill-[#651731] text-[#651731]' : 'text-[#4F1325]/70'} 
+                    />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Empty State */}
+        {filteredItems.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 px-4 relative z-10">
+            <div className="w-16 h-16 rounded-full bg-[#FAF6F0] border border-[#D4AF37]/30 shadow-xs flex items-center justify-center mb-3 text-[#D4AF37]">
+              <Icon name="search" size="lg" />
+            </div>
+            <h3 className="text-lg font-serif font-bold text-[#4F1325] mb-1">
+              No Inspirations Found
+            </h3>
+            <p className="text-xs text-[#651731]/70">
+              Try selecting a different celebration category
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

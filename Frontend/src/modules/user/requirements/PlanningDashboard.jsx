@@ -3,31 +3,26 @@ import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
 import { useState, useEffect } from 'react';
-import { useLenisContext } from '../../../providers/LenisProvider';
 import { userApi } from '../../../services/userApi';
 
 const PlanningDashboard = () => {
   const navigate = useNavigate();
   const { theme } = useTheme();
-  const lenis = useLenisContext();
   const [eventData, setEventData] = useState(null);
   const [planningCategories, setPlanningCategories] = useState([]);
   const [selectedCeremony, setSelectedCeremony] = useState(null);
 
-  // Lock body scroll and stop Lenis when modal is open
+  // Lock body scroll when modal is open
   useEffect(() => {
     if (selectedCeremony) {
       document.body.style.overflow = 'hidden';
-      lenis?.stop();
     } else {
       document.body.style.overflow = '';
-      lenis?.start();
     }
     return () => {
       document.body.style.overflow = '';
-      lenis?.start();
     };
-  }, [selectedCeremony, lenis]);
+  }, [selectedCeremony]);
 
   // Load event data from Backend (with localStorage fallback)
   useEffect(() => {
@@ -316,102 +311,110 @@ const PlanningDashboard = () => {
   if (!eventData) return null;
 
   return (
-    <div className="min-h-screen relative flex flex-col items-center overflow-x-hidden font-['Outfit'] pb-40 bg-transparent">
-      {/* Background Image for the whole page */}
-      <div className="fixed inset-0 pointer-events-none z-[-1]" style={{ backgroundImage: "url('/uservendorre%20page%20bg.png')", backgroundSize: 'cover', backgroundPosition: 'center', opacity: 1 }} />
-      
-      {/* HEADER NAVIGATION */}
-      <div className="relative z-20 w-full px-6 pt-0 flex justify-between items-center -mt-2">
-        <button 
-          onClick={handleBack}
-          className="w-9 h-9 rounded-xl bg-white shadow-sm flex items-center justify-center border border-gray-100 text-[#301024] hover:bg-gray-50 transition-all active:scale-90"
-        >
-          <Icon name="chevronDown" size="sm" className="rotate-90" />
-        </button>
-        <div className="w-9 h-9 bg-white shadow-sm rounded-xl flex items-center justify-center border border-gray-100 text-[#301024]">
-           <Icon name="users" size="sm" />
-        </div>
-      </div>
-
-      {/* DASHBOARD HERO */}
-      <div className="relative z-20 w-full max-w-md pt-2 px-8 text-center space-y-1 mb-8">
-        <h1 className="text-[#641A3D] text-3xl font-black leading-tight" style={{ fontFamily: '"Playfair Display", serif' }}>
-          {getDashboardTitle()}
-        </h1>
-        <div className="flex items-center justify-center gap-2 mt-2">
-           <span className="w-6 h-[1px] bg-[#641A3D]/20"></span>
-           <Icon name="heart" size="xs" style={{ color: '#D9B78B' }} />
-           <span className="w-6 h-[1px] bg-[#641A3D]/20"></span>
-        </div>
-        <p className="text-[#641A3D]/60 text-[9px] font-bold tracking-[0.2em] uppercase mt-2">
-          Your complete event planning toolkit
-        </p>
-      </div>
-
-      <div className="relative z-20 w-full max-w-sm px-4 space-y-8">
+    <div className="bg-[#EDE8E1] min-h-screen text-slate-800 antialiased font-sans">
+      <div className="max-w-[430px] md:max-w-4xl mx-auto min-h-screen bg-[#FAF6F0] relative overflow-hidden shadow-2xl pb-28">
+        {/* Subtle Luxury Floral Watermarks */}
+        <div className="floral-bg-corner-tl opacity-70 pointer-events-none" />
+        <div className="floral-bg-corner-br opacity-70 pointer-events-none" />
         
-        {/* WHAT WE PROVIDE SECTION */}
-        <div className="text-center space-y-6">
-          <h2 className="text-[#641A3D] text-[12px] font-bold uppercase tracking-[0.2em]" style={{ fontFamily: '"Playfair Display", serif' }}>
-            What We Provide?
-          </h2>
+        {/* HEADER NAVIGATION */}
+        <div className="relative z-20 w-full px-5 pt-6 flex justify-between items-center">
+          <button 
+            onClick={handleBack}
+            className="w-10 h-10 rounded-full bg-white/90 border border-[#D4AF37]/35 flex items-center justify-center text-[#4F1325] hover:bg-white transition-all active:scale-90 shadow-xs"
+          >
+            <Icon name="chevronLeft" size="sm" />
+          </button>
+          <div className="w-10 h-10 bg-white/90 rounded-full border border-[#D4AF37]/35 flex items-center justify-center text-[#4F1325] shadow-xs">
+             <Icon name="users" size="sm" />
+          </div>
+        </div>
+
+        {/* DASHBOARD HERO */}
+        <div className="relative z-20 w-full pt-3 px-6 text-center space-y-1 mb-6">
+          <p className="font-script text-[#D4AF37] text-2xl -mb-1">Celebration Concierge</p>
+          <h1 className="text-[#4F1325] text-2xl sm:text-3xl font-serif font-bold leading-tight">
+            {getDashboardTitle()}
+          </h1>
+          <div className="flex items-center justify-center gap-2 mt-2">
+             <span className="w-8 h-[1px] bg-[#D4AF37]/30"></span>
+             <Icon name="heart" size="xs" style={{ color: '#D4AF37' }} />
+             <span className="w-8 h-[1px] bg-[#D4AF37]/30"></span>
+          </div>
+          <p className="text-[#651731]/70 text-[10px] font-bold tracking-[0.2em] uppercase mt-1 font-cinzel">
+            Your Bespoke Celebration Roadmap
+          </p>
+        </div>
+
+        <div className="relative z-20 w-full px-5 space-y-6">
           
-          <div className="grid grid-cols-2 gap-3">
-            {planningTools.map((tool) => (
-              <div
-                key={tool.id}
-                onClick={() => handleToolNavigation(tool)}
-                className="group cursor-pointer transition-transform active:scale-95"
-              >
-                <div className="relative h-32 rounded-[1.5rem] bg-white shadow-sm border border-white flex flex-col justify-end">
-                  <div className="absolute top-0 left-0 right-0 h-20 rounded-t-[1.5rem] overflow-hidden">
-                    <img 
-                      src={`https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=400&fit=crop&q=80&sig=${tool.id}`} 
-                      alt={tool.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="absolute top-[3.5rem] left-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-white border border-gray-100 flex items-center justify-center shadow-sm">
-                     <Icon name={tool.icon} size="xs" style={{ color: '#BE185D' }} />
-                  </div>
-                  <div className="h-12 flex flex-col justify-end items-center pb-2 px-1">
-                    <h3 className="text-[#641A3D] text-[8px] font-black uppercase tracking-widest leading-none text-center">
-                      {tool.title}
-                    </h3>
-                    <p className="text-[7px] text-[#8E95A4] mt-0.5 text-center px-2 truncate w-full">
-                       {tool.description}
-                    </p>
+          {/* WHAT WE PROVIDE SECTION */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[#4F1325] text-xs font-bold uppercase tracking-[0.2em] font-cinzel">
+                Essential Planning Services
+              </h2>
+              <span className="text-[10px] font-semibold text-[#D4AF37]">
+                {planningTools.length} Services
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              {planningTools.map((tool) => (
+                <div
+                  key={tool.id}
+                  onClick={() => handleToolNavigation(tool)}
+                  className="group cursor-pointer transition-transform active:scale-95"
+                >
+                  <div className="relative h-36 rounded-[20px] bg-white shadow-xs border border-[#D4AF37]/25 hover:border-[#D4AF37] flex flex-col justify-end overflow-hidden">
+                    <div className="absolute top-0 left-0 right-0 h-22 overflow-hidden">
+                      <img 
+                        src={`https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=400&fit=crop&q=80&sig=${tool.id}`} 
+                        alt={tool.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    </div>
+                    <div className="absolute top-[4.2rem] left-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-white border border-[#D4AF37]/35 flex items-center justify-center shadow-xs">
+                       <Icon name={tool.icon} size="xs" style={{ color: '#651731' }} />
+                    </div>
+                    <div className="h-14 flex flex-col justify-end items-center pb-2.5 px-1.5">
+                      <h3 className="text-[#4F1325] text-[9px] font-bold uppercase tracking-wider leading-none text-center font-cinzel truncate w-full px-1">
+                        {tool.title}
+                      </h3>
+                      <p className="text-[8px] text-[#8E95A4] mt-0.5 text-center px-1 truncate w-full">
+                         {tool.description}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Planning Progress Summary Bar */}
-        <div
-          className="p-3.5 rounded-[1.5rem] bg-white/95 backdrop-blur-sm shadow-sm border border-white cursor-pointer active:scale-95 transition-transform flex items-center justify-between"
-          onClick={handlePlanningProgressClick}
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#FDF4F7] flex items-center justify-center shrink-0">
-               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#BE185D" strokeWidth="2"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/></svg>
+          {/* Planning Progress Summary Bar */}
+          <div
+            className="p-4 rounded-[22px] bg-white/95 backdrop-blur-sm shadow-xs border border-[#D4AF37]/25 cursor-pointer active:scale-95 transition-transform flex items-center justify-between"
+            onClick={handlePlanningProgressClick}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#FAF6F0] border border-[#D4AF37]/30 flex items-center justify-center shrink-0 text-[#D4AF37]">
+                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/></svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xs font-serif font-bold text-[#4F1325] leading-tight mb-0.5">Planning Milestones</h3>
+                <p className="text-[9px] text-[#8E95A4]">Track your complete wedding progress</p>
+              </div>
             </div>
-            <div className="flex-1">
-              <h3 className="text-[12px] font-bold text-[#301024] leading-tight mb-0.5">Planning Progress</h3>
-              <p className="text-[9px] text-[#8E95A4]">Track your wedding planning journey</p>
+            <div className="flex items-end justify-center w-28 flex-col">
+              <div className="text-[11px] font-bold text-[#651731] leading-tight flex items-center gap-1 w-full justify-end font-cinzel">
+                <span>32%</span> <span className="text-[#8E95A4] font-normal text-[9px]">Achieved</span>
+              </div>
+              <div className="w-full h-1.5 bg-[#FAF6F0] rounded-full overflow-hidden mt-1 border border-[#D4AF37]/20">
+                 <div className="h-full bg-gradient-to-r from-[#4F1325] to-[#651731] rounded-full w-[32%]"></div>
+              </div>
             </div>
+            <Icon name="chevronRight" size="xs" className="ml-2 text-[#D4AF37]" />
           </div>
-          <div className="flex items-center gap-3 w-28 flex-col items-end justify-center mt-1">
-            <div className="text-[11px] font-bold text-[#BE185D] leading-tight flex items-center gap-1 w-full justify-end">
-              <span>32%</span> <span className="text-[#8E95A4] font-normal">Completed</span>
-            </div>
-            <div className="w-full h-1.5 bg-[#FDF4F7] rounded-full overflow-hidden mt-1">
-               <div className="h-full bg-[#BE185D] rounded-full w-[32%]"></div>
-            </div>
-          </div>
-          <Icon name="chevronRight" size="xs" className="ml-2 text-gray-400" />
-        </div>
 
         {/* YOUR SACRED CEREMONIES */}
         {eventData.subcategories && eventData.subcategories.length > 0 && (
@@ -702,11 +705,11 @@ const PlanningDashboard = () => {
 
               <Button
                 onClick={() => setSelectedCeremony(null)}
-                className="w-full py-4 rounded-2xl text-base font-black shadow-xl"
+                className="w-full py-3.5 rounded-full text-sm font-bold shadow-lg"
                 style={{
-                  background: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
-                  color: 'white',
-                  boxShadow: '0 10px 20px -5px rgba(236, 72, 153, 0.4)'
+                  background: 'linear-gradient(135deg, #4F1325 0%, #651731 100%)',
+                  color: '#ECC880',
+                  boxShadow: '0 10px 20px -5px rgba(79, 19, 37, 0.4)'
                 }}
               >
                 GOT IT
@@ -715,6 +718,7 @@ const PlanningDashboard = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

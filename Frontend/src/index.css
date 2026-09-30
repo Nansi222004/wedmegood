@@ -5,6 +5,12 @@
   font-family: 'Poppins', sans-serif;
 }
 
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
+}
+
 body {
   font-family: 'Poppins', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -387,4 +393,67 @@ body.modal-open .vendor-bottom-nav {
 [data-lenis-prevent] {
   overscroll-behavior: contain !important;
 }
+
+/* Luxury & Utsavo Custom Utilities */
+.font-cinzel {
+  font-family: 'Cinzel', serif;
+}
+.font-script {
+  font-family: 'Great Vibes', 'Alex Brush', cursive;
+}
+.font-serif {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+.font-sans {
+  font-family: 'Plus Jakarta Sans', 'Poppins', sans-serif;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.floral-bg-corner-top-right {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 140px;
+  height: 140px;
+  pointer-events: none;
+  opacity: 0.85;
+  background: radial-gradient(circle at 100% 0%, rgba(200, 162, 200, 0.4) 0%, rgba(212, 175, 55, 0.2) 40%, transparent 70%);
+  z-index: 1;
+}
+
+.floral-bg-corner-left {
+  position: absolute;
+  top: 240px;
+  left: 0;
+  width: 80px;
+  height: 160px;
+  pointer-events: none;
+  opacity: 0.6;
+  background: radial-gradient(circle at 0% 50%, rgba(186, 140, 175, 0.3) 0%, transparent 70%);
+  z-index: 1;
+}
+
+.glass-nav {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(229, 219, 209, 0.6);
+}
+
+.hero-gradient {
+  background: linear-gradient(105deg, #370B1B 0%, #4D1226 38%, rgba(77, 18, 38, 0.85) 55%, rgba(77, 18, 38, 0.15) 75%, transparent 100%);
+}
+
+.gold-emboss {
+  background: linear-gradient(135deg, #ECC880 0%, #CFA146 50%, #997324 100%);
+  box-shadow: 0 4px 14px rgba(184, 134, 11, 0.38), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+}
+
 

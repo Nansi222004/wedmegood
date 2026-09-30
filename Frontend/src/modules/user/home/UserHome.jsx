@@ -1,1323 +1,569 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useTheme } from '../../../hooks/useTheme';
-import Icon from '../../../components/ui/Icon';
+import { useAuth } from '../../../contexts/AuthContext';
 import userApi from '../../../services/userApi';
 
 const UserHome = () => {
-  const { theme } = useTheme();
   const navigate = useNavigate();
-  const [checklistStats, setChecklistStats] = useState({ completed: 0, total: 10 });
-  const [venues, setVenues] = useState([]);
-  const [photographers, setPhotographers] = useState([]);
-  const [trendingVendors, setTrendingVendors] = useState([]);
-  const [makeupArtists, setMakeupArtists] = useState([]);
-  const [decorators, setDecorators] = useState([]);
-  const [heroBanners, setHeroBanners] = useState([]);
-  const [bannersLoading, setBannersLoading] = useState(true);
-  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
-  const [promoBanners, setPromoBanners] = useState([]);
+  const { isAuthenticated } = useAuth();
+  const [activeCategory, setActiveCategory] = useState('wedding');
+  const [favorites, setFavorites] = useState(new Set());
 
-  const [topCategories, setTopCategories] = useState([
-    { id: 'venues', name: 'Wedding Venues', image: 'https://images.unsplash.com/photo-1510076857177-7470076d4098?w=200&h=200&fit=crop&q=80', route: '/user/vendors/venues' },
-    { id: 'photographers', name: 'Wedding Photographers', image: 'https://images.unsplash.com/photo-1537633552985-df8429e8048b?w=200&h=200&fit=crop&q=80', route: '/user/vendors/photographers' },
-    { id: 'makeup', name: 'Bridal Makeup', image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=200&h=200&fit=crop&q=80', route: '/user/vendors/makeup' },
-    { id: 'decorators', name: 'Wedding Decorators', image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=200&h=200&fit=crop&q=80', route: '/user/vendors/decorators' },
-    { id: 'catering', name: 'Catering', image: 'https://images.unsplash.com/photo-1555244162-803834f70033?w=200&h=200&fit=crop&q=80', route: '/user/vendors/catering' },
-    { id: 'mehndi', name: 'Mehndi Artists', image: 'https://images.unsplash.com/photo-1610701596007-11502861dcfa?w=200&h=200&fit=crop&q=80', route: '/user/vendors/mehndi' },
-    { id: 'jewellery', name: 'Bridal Jewellery', image: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=200&h=200&fit=crop&q=80', route: '/user/vendors/jewellery' },
-    { id: 'invitations', name: 'Invitations', image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=200&h=200&fit=crop&q=80', route: '/user/vendors/invitations' },
-    { id: 'music', name: 'Music & DJ', image: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=200&h=200&fit=crop&q=80', route: '/user/vendors/music' },
-    { id: 'choreography', name: 'Choreography', image: 'https://images.unsplash.com/photo-1504609773096-104ff2c73ba4?w=200&h=200&fit=crop&q=80', route: '/user/vendors/choreography' }
+  // Dynamic data states with robust fallbacks matching exact mock design
+  const [featuredVendors, setFeaturedVendors] = useState([
+    {
+      id: 'rajadhani-weddings',
+      name: 'Rajadhani Weddings',
+      category: 'Wedding Decorators',
+      city: 'Hyderabad',
+      rating: 4.9,
+      isPremium: true,
+      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBP3vmHLpGwX6-J1pT9806eu73KSHxlCscZneWp7xnnYgzHNj5zahRWMGuEkntnTPlBSyG4AdOVPX3tt8zsZz4YP-RtVP2Fxp5fPvBA-3kM27o7UEe7qeqOTu8C4v20DvHVJidlmJ1hEt7KaugMrbBwIZqUa37n2rzYhKDFWC7OIjSOtff-4pBWSD3iRh4QBFiSiRjnAs2XsMJYF7z3AS6MSYf2CCuGQEZGKz6uik5_Gdfxuhr1ApuHWQ',
+      route: '/user/vendors/decorators'
+    },
+    {
+      id: 'moments-photography',
+      name: 'Moments Photography',
+      category: 'Photography & Videography',
+      city: 'Hyderabad',
+      rating: 4.8,
+      isPremium: true,
+      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA5TbBQR-ALDzFzf0Ez6fOwT990sV-3giyOJ8YZeGPQJQ8yr9h08EAPlQWiL56MJUR37bTOJka3uBlYwOwMhg09xtIhMyrCEVT8Sj2bmyoam9XXiYVaPe42jOARm2bU_aaF99GjRRGGhJWt1ytddpQLceCQoeUjiBdW09verMndqisF_7d4AJwinAZPqvNDbbMWilEqWD_kv92y3ZfGu638jST2hfHoTGnwLTtZTZd1cSk2QFJvkzZOgw',
+      route: '/user/vendors/photographers'
+    },
+    {
+      id: 'the-grand-venue',
+      name: 'The Grand Venue',
+      category: 'Banquet Halls',
+      city: 'Hyderabad',
+      rating: 4.7,
+      isPremium: true,
+      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBzA86OHAcNR79LRKsKlxPf4X1ZLyLMmO4aYGOtxuCQSi8Yh5pFgIXi131DsGdiRtRX24UvekrvNUJIJHzwSvj_fzAP097El4ApQZGoqbwQZrwKGb1JfB2depmk-8qIE4jMcsTi9ttJz5lvg-Hdvv5ZDJSP69nev9Q4EewzBCLEGhpS618oV29rWRT-6BOrfeG0h1Ew7R37_SpnGgoq_FWPn6MYexn6HwiDEvuRktTwaAvkXt5AIArIXw',
+      route: '/user/vendors/venues'
+    }
   ]);
 
-  // Load checklist stats, banners, and dynamic vendor categories from MongoDB
+  const trendingInspirations = [
+    {
+      id: 'mandap-ideas',
+      title: 'Mandap Ideas',
+      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCqdSfRnr_IFR-g2BkIGf86d9BOOwGs-uOERoALBHP5Qv6IgAfwH6LqbswE4720xnf6BlXgxturn-Q_etlSv5tew_Z6y0k9yorji3N2tUj6ymFXJCOa3o2YNwCiyxsz5iIqibbo_MFke6iqpVosBvOYR8-r1szjASHsn9ID4jg9LEa5dvefPZfkpoLIjZ1i7TcAN1WK0F_wUlm1UQ2fTZ2npYmNoMmI-Uo3LVUKSYDJvH94a3_EsFOfGg',
+      route: '/user/decor/mandap'
+    },
+    {
+      id: 'reception-decor',
+      title: 'Reception Decor',
+      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBIR3I3cophLBewsaI7WLpc1edyaXWN8cSJx1l_NBbfCzqhE2K3oJN0ljv4LtgYBaO3RISXSirnGel3g2bDKM1QhqiOFmtCFg2CSkgP-WgPv0z80yhnJV0QlO2uOOUvRx9Nwf1zfQnhJNwaC48ss5Bcr26rWv2MKg2DkiF7bhItdL2ifRhuJ6jAvJnL7ndoYmTyQ0di5NBNFo44XJI3G5PFWczHd-JlVzM6_17ynj_FSvtHhVQvcfdp3A',
+      route: '/user/decor/reception'
+    },
+    {
+      id: 'bridal-looks',
+      title: 'Bridal Looks',
+      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCTL0u6065YQJoAswuEjEw-kdQG2lXxp9UgA0TYI3w6axkYzZKSpiCa9wL2Xufx8EGW37tmEDNOTu3DHlWf0bSNWvHZS68Vbq9LbomJf-_UXxUZM_teVlCcfY5TaSw-bHKjohVOlO-tufGfF22isu9Ux7bIdlTE3iSOgHlialN29m7JUTSMyw7dgBzvfMDZANEt-6bM1RTjc2NVnbpB4PqpXjfqkpI0nr3QA-6Bp-HEKiz6FB1ia30jvQ',
+      route: '/user/bridal-looks/makeup'
+    },
+    {
+      id: 'outdoor-weddings',
+      title: 'Outdoor Weddings',
+      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCk4M6KCDXkp-wW9hQ9qtsXLWnAIH-syoqIhkPiBapmdqec-ZGbYW90SKfAx9PNCmq_g_lS93yLAUZB8xUlBsQK-YlHmf0YyJaqsym4HmkeNwqV3kRJ4MS08zZ2x9bSCRkzh9yL9dkLWb4KbpzUXYgf47pqEbq0N7uLtS5NYhcSsf6dadpess138PTFDl7YuqJ43PG1LKAu3UTfRqkHUgobB-H0Pav0uU1hirMHVYl_tPtK-LAMfaa0_g',
+      route: '/user/venues/outdoor'
+    }
+  ];
+
+  const categories = [
+    {
+      id: 'wedding',
+      name: 'Wedding',
+      route: '/user/vendors/venues',
+      icon: (
+        <svg className="w-7 h-7 text-[#7D1D3A]" fill="none" stroke="currentColor" strokeWidth="1.7" viewBox="0 0 24 24">
+          <circle cx="9" cy="14" r="5" />
+          <circle cx="15" cy="14" r="5" />
+          <path d="M12 9 L12 5 M10 6 L14 6" strokeLinecap="round" />
+          <circle cx="12" cy="4" fill="#7D1D3A" r="1.5" stroke="none" />
+        </svg>
+      ),
+      activeBg: 'bg-[#FFF5F6] border-[#F2BDCD]'
+    },
+    {
+      id: 'engagement',
+      name: 'Engagement',
+      route: '/user/vendors/venues',
+      icon: (
+        <svg className="w-7 h-7 text-[#8B6743]" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">
+          <path d="M6 9l6-6 6 6-6 12-6-12z" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M6 9h12 M9 3l3 6 3-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ),
+      activeBg: 'bg-[#F6F4F0] border-stone-200/80'
+    },
+    {
+      id: 'birthday',
+      name: 'Birthday',
+      route: '/user/vendors/catering',
+      icon: (
+        <svg className="w-7 h-7 text-[#A06C34]" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">
+          <path d="M4 14h16v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z M6 10h12v4H6v-4z" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M9 7v3 M12 7v3 M15 7v3 M9 4.5h.01 M12 4.5h.01 M15 4.5h.01" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ),
+      activeBg: 'bg-[#FBF3EA] border-[#ECD9C5]/80'
+    },
+    {
+      id: 'baby-celebration',
+      name: 'Baby\nCelebration',
+      route: '/user/vendors/decorators',
+      icon: (
+        <svg className="w-7 h-7 text-[#91586E]" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">
+          <path d="M4 8h11a4 4 0 014 4v3H6a3 3 0 01-3-3V8zm12-4l3 4" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="8" cy="19" r="2" />
+          <circle cx="16" cy="19" r="2" />
+        </svg>
+      ),
+      activeBg: 'bg-[#F8F1F3] border-[#E9D9E0]/80'
+    },
+    {
+      id: 'anniversary',
+      name: 'Anniversary',
+      route: '/user/vendors/photographers',
+      icon: (
+        <svg className="w-7 h-7 text-[#87334D]" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">
+          <path d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ),
+      activeBg: 'bg-[#FAF0F3] border-[#ECD1DA]/80'
+    },
+    {
+      id: 'housewarming',
+      name: 'Housewarming',
+      route: '/user/vendors/catering',
+      icon: (
+        <svg className="w-7 h-7 text-[#73684B]" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">
+          <path d="M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ),
+      activeBg: 'bg-[#F5F5EE] border-stone-200/80'
+    },
+    {
+      id: 'festivals',
+      name: 'Festivals',
+      route: '/user/festivals',
+      icon: (
+        <svg className="w-7 h-7 text-[#9B702B]" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">
+          <path d="M12 4c1 3 3 5 5 7-2 1-3 3-5 5-2-2-3-4-5-5 2-2 4-4 5-7z" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M6 14c-2 0-3 2-2 4 2 2 8 3 8 3s6-1 8-3c1-2 0-4-2-4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ),
+      activeBg: 'bg-[#FCF6EB] border-[#EBDCB9]/80'
+    },
+    {
+      id: 'other',
+      name: 'Other\nCelebrations',
+      route: '/user/vendors',
+      icon: (
+        <div className="w-8 h-8 rounded-full border border-dashed border-[#8E445E] flex items-center justify-center">
+          <svg className="w-5 h-5 text-[#8E445E]" fill="currentColor" viewBox="0 0 24 24">
+            <circle cx="5" cy="12" r="1.7" />
+            <circle cx="12" cy="12" r="1.7" />
+            <circle cx="19" cy="12" r="1.7" />
+          </svg>
+        </div>
+      ),
+      activeBg: 'bg-[#FAF0F2] border-[#EACED5]/80'
+    }
+  ];
+
+  // Toggle favorite helper
+  const toggleFavorite = (id, e) => {
+    e.stopPropagation();
+    setFavorites(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Fetch real vendors if available from backend, with graceful fallback
   useEffect(() => {
     let isMounted = true;
-    const mapVendor = (v, defaultImg) => ({
-      id: v._id,
-      name: v.businessName || v.name,
-      location: v.city || 'Indore',
-      city: v.city || 'Indore',
-      price: v.pricing?.range ? `₹${v.pricing.range}` : (v.startingPrice ? `From ₹${v.startingPrice.toLocaleString()}` : 'Contact for price'),
-      priceType: 'per event',
-      rating: v.rating && v.rating > 0 ? v.rating : 'New',
-      reviews: v.reviewCount || 0,
-      image: v.portfolio?.[0]?.url || v.profileImage || defaultImg,
-      route: `/user/vendor/${v._id}`
-    });
+    userApi.getVendors({ limit: 6 })
+      .then(res => {
+        if (!isMounted) return;
+        if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          const mapped = res.data.slice(0, 5).map((v, idx) => ({
+            id: v._id || `vendor-${idx}`,
+            name: v.businessName || v.name,
+            category: v.category || 'Wedding Specialist',
+            city: v.city || 'Hyderabad',
+            rating: v.rating && v.rating > 0 ? v.rating : 4.8,
+            isPremium: true,
+            image: v.portfolio?.[0]?.url || v.profileImage || featuredVendors[idx % featuredVendors.length]?.image,
+            route: `/user/vendor/${v._id || v.id}`
+          }));
+          setFeaturedVendors(mapped);
+        }
+      })
+      .catch(() => {
+        // Keep pristine fallback
+      });
 
-    Promise.all([
-      userApi.getVendors({ category: 'Venues', limit: 10 }).catch(() => ({ data: [] })),
-      userApi.getVendors({ category: 'Photography', limit: 10 }).catch(() => ({ data: [] })),
-      userApi.getTrendingVendors({ limit: 10 }).catch(() => ({ data: [] })),
-      userApi.getVendors({ category: 'Makeup', limit: 10 }).catch(() => ({ data: [] })),
-      userApi.getVendors({ category: 'Decoration', limit: 10 }).catch(() => ({ data: [] })),
-      userApi.getChecklist().catch(() => ({ data: [] })),
-      userApi.getBanners({ placement: 'Hero Main' }).catch(() => ({ data: [] })),
-      userApi.getCategories().catch(() => ({ data: [] })),
-      userApi.getBanners({ placement: 'Promo Banner' }).catch(() => ({ data: [] }))
-    ]).then(([venueRes, photoRes, trendRes, makeupRes, decorRes, checkRes, bannerRes, catRes, promoRes]) => {
-      if (!isMounted) return;
-      if (checkRes?.success && Array.isArray(checkRes?.data)) {
-        const completed = checkRes.data.filter(t => t.completed).length;
-        setChecklistStats({ completed, total: checkRes.data.length });
-      }
-      if (venueRes?.data?.length) setVenues(venueRes.data.map(v => mapVendor(v, 'https://images.unsplash.com/photo-1519167758481-83f29d8ae8e4?w=600&h=400&fit=crop&q=80')));
-      if (photoRes?.data?.length) setPhotographers(photoRes.data.map(v => mapVendor(v, 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=600&h=400&fit=crop&q=80')));
-      if (trendRes?.data?.length) setTrendingVendors(trendRes.data.map(v => mapVendor(v, 'https://images.unsplash.com/photo-1519741497674-611481863552?w=600&h=400&fit=crop&q=80')));
-      if (makeupRes?.data?.length) setMakeupArtists(makeupRes.data.map(v => mapVendor(v, 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=400&fit=crop&q=80')));
-      if (decorRes?.data?.length) setDecorators(decorRes.data.map(v => mapVendor(v, 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=600&h=400&fit=crop&q=80')));
-      if (bannerRes?.data?.length) {
-        setHeroBanners(bannerRes.data);
-      }
-      if (catRes?.data?.length) {
-        const sortedCats = catRes.data.sort((a, b) => (a.order || 0) - (b.order || 0));
-        setTopCategories(sortedCats.map(c => ({
-          id: c._id || c.slug || c.name.toLowerCase(),
-          name: c.name,
-          image: c.image || 'https://images.unsplash.com/photo-1510076857177-7470076d4098?w=200&h=200&fit=crop&q=80',
-          route: `/user/vendors/${c.slug || c.name.toLowerCase().replace(/\s+/g, '-')}`
-        })));
-      }
-      if (promoRes?.data?.length) {
-        setPromoBanners(promoRes.data);
-      }
-    }).finally(() => {
-      if (isMounted) setBannersLoading(false);
-    });
+    if (isAuthenticated) {
+      userApi.getUnreadNotificationCount?.()
+        .then(res => {
+          if (isMounted && typeof res?.count === 'number') {
+            setUnreadNotifications(res.count);
+          }
+        })
+        .catch(() => {});
+    }
 
     return () => { isMounted = false; };
-  }, []);
+  }, [isAuthenticated]);
 
-  // Auto-advance banner carousel if multiple banners exist
-  useEffect(() => {
-    if (heroBanners.length <= 1) return;
-    const interval = setInterval(() => {
-      setCurrentBannerIndex(prev => (prev + 1) % heroBanners.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [heroBanners.length]);
-
-  const handleBannerClick = (banner) => {
-    if (!banner?.linkUrl) return;
-    if (banner.linkUrl.startsWith('http://') || banner.linkUrl.startsWith('https://')) {
-      window.open(banner.linkUrl, '_blank', 'noopener,noreferrer');
+  const handleSearchSubmit = (e) => {
+    e?.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/user/search?q=${encodeURIComponent(searchQuery.trim())}`);
     } else {
-      navigate(banner.linkUrl.startsWith('/') ? banner.linkUrl : `/${banner.linkUrl}`);
+      navigate('/user/vendors');
     }
   };
-
-  // Image error handler
-  const handleImageError = (e, fallbackUrl) => {
-    if (e.target.src !== fallbackUrl) {
-      e.target.src = fallbackUrl || 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=300&fit=crop&q=80';
-    }
-  };
-
-  // Data arrays will be added here
-  const planningTools = [
-    { id: 'e-invites', title: 'Build your Digital E-Invites', subtitle: "Let's get started", icon: 'https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?w=100&h=100&fit=crop&q=80', bgColor: '#F0F9FF', route: '/user/e-invites' },
-    { id: 'shortlist', title: 'Your shortlisted vendors', subtitle: 'Browse vendors', icon: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=100&h=100&fit=crop&q=80', bgColor: '#F5F3FF', route: '/user/shortlist' },
-    { id: 'favourites', title: 'Your favourite vendors', subtitle: 'Add a favourite', icon: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=100&h=100&fit=crop&q=80', bgColor: '#FFF1F2', route: '/user/favourites' },
-    { id: 'groups', title: 'Family Planning Groups', subtitle: 'Collaborate with family', icon: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=100&h=100&fit=crop&q=80', bgColor: '#F0FDF4', route: '/user/family/groups' }
-  ];
- 
-
-
-  const weddingIdeas = [
-    { id: 1, title: 'Bridal Lehenga Inspiration', image: 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?w=400&h=500&fit=crop&q=80', route: '/user/inspirations/1' },
-    { id: 2, title: 'Mehndi Design Ideas', image: 'https://images.unsplash.com/photo-1610701596007-11502861dcfa?w=400&h=500&fit=crop&q=80', route: '/user/inspirations/2' },
-    { id: 3, title: 'Bridal Jewelry Trends', image: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400&h=500&fit=crop&q=80', route: '/user/inspirations/3' },
-    { id: 4, title: 'Groom Sherwani Styles', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=500&fit=crop&q=80', route: '/user/inspirations/4' },
-    { id: 5, title: 'Wedding Mandap Decor', image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=500&fit=crop&q=80', route: '/user/inspirations/5' },
-    { id: 6, title: 'Sangeet Outfit Ideas', image: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=400&h=500&fit=crop&q=80', route: '/user/inspirations/6' },
-    { id: 7, title: 'Bridal Hairstyles', image: 'https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=400&h=500&fit=crop&q=80', route: '/user/inspirations/7' },
-    { id: 8, title: 'Wedding Photography Poses', image: 'https://images.unsplash.com/photo-1606800052052-a08af7148866?w=400&h=500&fit=crop&q=80', route: '/user/inspirations/8' },
-    { id: 9, title: 'Reception Decor', image: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=400&h=500&fit=crop&q=80', route: '/user/inspirations/9' },
-    { id: 10, title: 'Bridal Bouquet Ideas', image: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400&h=500&fit=crop&q=80', route: '/user/inspirations/10' }
-  ];
-
-  const realWeddings = [
-    { id: 1, coupleName: 'Priya & Rahul', city: 'Mumbai', image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=800&h=600&fit=crop&q=80', route: '/user/real-weddings/1' },
-    { id: 2, coupleName: 'Ananya & Arjun', city: 'Jaipur', image: 'https://images.unsplash.com/photo-1606800052052-a08af7148866?w=800&h=600&fit=crop&q=80', route: '/user/real-weddings/2' },
-    { id: 3, coupleName: 'Meera & Karan', city: 'Udaipur', image: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=800&h=600&fit=crop&q=80', route: '/user/real-weddings/3' },
-    { id: 4, coupleName: 'Sneha & Vikram', city: 'Delhi', image: 'https://images.unsplash.com/photo-1591604466107-ec97de577aff?w=800&h=600&fit=crop&q=80', route: '/user/real-weddings/4' },
-    { id: 5, coupleName: 'Riya & Aditya', city: 'Bangalore', image: 'https://images.unsplash.com/photo-1523438885200-e635ba2c371e?w=800&h=600&fit=crop&q=80', route: '/user/real-weddings/5' },
-    { id: 6, coupleName: 'Divya & Rohan', city: 'Goa', image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=800&h=600&fit=crop&q=80', route: '/user/real-weddings/6' },
-    { id: 7, coupleName: 'Kavya & Siddharth', city: 'Hyderabad', image: 'https://images.unsplash.com/photo-1606800052052-a08af7148866?w=800&h=600&fit=crop&q=80', route: '/user/real-weddings/7' },
-    { id: 8, coupleName: 'Ishita & Aman', city: 'Pune', image: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=800&h=600&fit=crop&q=80', route: '/user/real-weddings/8' },
-    { id: 9, coupleName: 'Nisha & Varun', city: 'Chandigarh', image: 'https://images.unsplash.com/photo-1591604466107-ec97de577aff?w=800&h=600&fit=crop&q=80', route: '/user/real-weddings/9' },
-    { id: 10, coupleName: 'Pooja & Akash', city: 'Indore', image: 'https://images.unsplash.com/photo-1523438885200-e635ba2c371e?w=800&h=600&fit=crop&q=80', route: '/user/real-weddings/10' }
-  ];
-
-  const bridalLooks = [
-    { id: 1, title: 'Bridal Makeup', image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&h=500&fit=crop&q=80', route: '/user/bridal-looks/makeup' },
-    { id: 2, title: 'Hairstyles', image: 'https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=400&h=500&fit=crop&q=80', route: '/user/bridal-looks/hairstyles' },
-    { id: 3, title: 'Jewellery', image: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400&h=500&fit=crop&q=80', route: '/user/bridal-looks/jewellery' },
-    { id: 4, title: 'Mehndi Designs', image: 'https://images.unsplash.com/photo-1610701596007-11502861dcfa?w=400&h=500&fit=crop&q=80', route: '/user/bridal-looks/mehndi' },
-    { id: 5, title: 'Bridal Sarees', image: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=400&h=500&fit=crop&q=80', route: '/user/bridal-looks/sarees' },
-    { id: 6, title: 'Bridal Lehengas', image: 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?w=400&h=500&fit=crop&q=80', route: '/user/bridal-looks/lehengas' },
-    { id: 7, title: 'Bridal Accessories', image: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400&h=500&fit=crop&q=80', route: '/user/bridal-looks/accessories' },
-    { id: 8, title: 'Bridal Footwear', image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&h=500&fit=crop&q=80', route: '/user/bridal-looks/footwear' },
-    { id: 9, title: 'Bridal Nails', image: 'https://images.unsplash.com/photo-1610701596007-11502861dcfa?w=400&h=500&fit=crop&q=80', route: '/user/bridal-looks/nails' },
-    { id: 10, title: 'Bridal Dupatta Draping', image: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=400&h=500&fit=crop&q=80', route: '/user/bridal-looks/dupatta' }
-  ];
-
-  const decorInspirations = [
-    { id: 1, title: 'Mandap Decor', image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=500&fit=crop&q=80', route: '/user/decor/mandap' },
-    { id: 2, title: 'Floral Setups', image: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400&h=500&fit=crop&q=80', route: '/user/decor/floral' },
-    { id: 3, title: 'Stage Decor', image: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=400&h=500&fit=crop&q=80', route: '/user/decor/stage' },
-    { id: 4, title: 'Lighting Ideas', image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=400&h=500&fit=crop&q=80', route: '/user/decor/lighting' },
-    { id: 5, title: 'Entrance Decor', image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=500&fit=crop&q=80', route: '/user/decor/entrance' },
-    { id: 6, title: 'Table Settings', image: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400&h=500&fit=crop&q=80', route: '/user/decor/table' },
-    { id: 7, title: 'Ceiling Decor', image: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=400&h=500&fit=crop&q=80', route: '/user/decor/ceiling' },
-    { id: 8, title: 'Photo Booth Ideas', image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=400&h=500&fit=crop&q=80', route: '/user/decor/photobooth' },
-    { id: 9, title: 'Backdrop Designs', image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=500&fit=crop&q=80', route: '/user/decor/backdrop' },
-    { id: 10, title: 'Aisle Decor', image: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400&h=500&fit=crop&q=80', route: '/user/decor/aisle' }
-  ];
-
-
-
-  const planningBanners = [
-    { id: 1, title: 'Plan Your Wedding Budget', subtitle: 'Smart tools to manage expenses', image: 'https://images.unsplash.com/photo-1554224311-beee415c201f?w=800&h=300&fit=crop&q=80', route: '/user/tools/budget' },
-    { id: 2, title: 'Checklist for Your Big Day', subtitle: 'Never miss a detail', image: 'https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?w=800&h=300&fit=crop&q=80', route: '/user/tools/checklist' },
-    { id: 3, title: 'Talk to Verified Vendors', subtitle: 'Get instant quotes', image: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=800&h=300&fit=crop&q=80', route: '/user/vendors' }
-  ];
-
-  const weddingFeed = [
-    { id: 1, title: 'Elegant Bridal Lehenga', image: 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?w=400&h=500&fit=crop&q=80', route: '/user/feed/1' },
-    { id: 2, title: 'Groom Sherwani Ideas', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=500&fit=crop&q=80', route: '/user/feed/2' },
-    { id: 3, title: 'Wedding Invitation Design', image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=400&h=500&fit=crop&q=80', route: '/user/feed/3' },
-    { id: 4, title: 'Reception Decor Ideas', image: 'https://images.unsplash.com/photo-1519167758481-83f29d8ae8e4?w=400&h=500&fit=crop&q=80', route: '/user/feed/4' },
-    { id: 5, title: 'Bridal Bouquet Trends', image: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400&h=500&fit=crop&q=80', route: '/user/feed/5' },
-    { id: 6, title: 'Sangeet Outfit Inspiration', image: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=400&h=500&fit=crop&q=80', route: '/user/feed/6' },
-    { id: 7, title: 'Mehndi Ceremony Decor', image: 'https://images.unsplash.com/photo-1610701596007-11502861dcfa?w=400&h=500&fit=crop&q=80', route: '/user/feed/7' },
-    { id: 8, title: 'Bridal Jewelry Sets', image: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400&h=500&fit=crop&q=80', route: '/user/feed/8' },
-    { id: 9, title: 'Wedding Cake Designs', image: 'https://images.unsplash.com/photo-1464349095431-e9a21285b5f3?w=400&h=500&fit=crop&q=80', route: '/user/feed/9' },
-    { id: 10, title: 'Couple Photography Poses', image: 'https://images.unsplash.com/photo-1606800052052-a08af7148866?w=400&h=500&fit=crop&q=80', route: '/user/feed/10' },
-    { id: 11, title: 'Haldi Ceremony Ideas', image: 'https://images.unsplash.com/photo-1591604466107-ec97de577aff?w=400&h=500&fit=crop&q=80', route: '/user/feed/11' },
-    { id: 12, title: 'Wedding Table Settings', image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=400&h=500&fit=crop&q=80', route: '/user/feed/12' }
-  ];
-
-
-
-
-
-  const photographerCollections = [
-    { id: 1, title: 'Top Rated Photographers', count: '19 Vendors', image: 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=300&h=300&fit=crop&q=80', route: '/user/photographers/top-rated' },
-    { id: 2, title: 'Value For Money', count: '10 Vendors', image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=300&h=300&fit=crop&q=80', route: '/user/photographers/value' },
-    { id: 3, title: 'Luxury Wedding Photographers', count: '10 Vendors', image: 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=300&h=300&fit=crop&q=80', route: '/user/photographers/luxury' }
-  ];
-
-  const venueCollections = [
-    { id: 1, title: 'Luxury Wedding Venues', count: '9 Vendors', image: 'https://images.unsplash.com/photo-1519167758481-83f29d8ae8e4?w=300&h=300&fit=crop&q=80', route: '/user/venues/luxury' },
-    { id: 2, title: 'Budget Wedding Venues', count: '7 Vendors', image: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=300&h=300&fit=crop&q=80', route: '/user/venues/budget' },
-    { id: 3, title: 'Beach Wedding Destinations', count: '15 Vendors', image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=300&h=300&fit=crop&q=80', route: '/user/venues/beach' }
-  ];
-
-
-
-  const trendingToday = [
-    { id: 1, hashtag: '#bridal-jewellery', image: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400&h=300&fit=crop&q=80', route: '/user/trending/bridal-jewellery' },
-    { id: 2, hashtag: '#wedding-decor', image: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=300&fit=crop&q=80', route: '/user/trending/wedding-decor' },
-    { id: 3, hashtag: '#bridal-makeup', image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&h=300&fit=crop&q=80', route: '/user/trending/bridal-makeup' },
-    { id: 4, hashtag: '#wedding-photography', image: 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=400&h=300&fit=crop&q=80', route: '/user/trending/photography' },
-    { id: 5, hashtag: '#mehndi-designs', image: 'https://images.unsplash.com/photo-1610701596007-11502861dcfa?w=400&h=300&fit=crop&q=80', route: '/user/trending/mehndi' },
-    { id: 6, hashtag: '#bridal-lehenga', image: 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?w=400&h=300&fit=crop&q=80', route: '/user/trending/lehenga' },
-    { id: 7, hashtag: '#wedding-venues', image: 'https://images.unsplash.com/photo-1519167758481-83f29d8ae8e4?w=400&h=300&fit=crop&q=80', route: '/user/trending/venues' },
-    { id: 8, hashtag: '#groom-style', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=300&fit=crop&q=80', route: '/user/trending/groom' },
-    { id: 9, hashtag: '#wedding-invitations', image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=400&h=300&fit=crop&q=80', route: '/user/trending/invitations' },
-    { id: 10, hashtag: '#sangeet-night', image: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=400&h=300&fit=crop&q=80', route: '/user/trending/sangeet' }
-  ];
-
-  const interestingReads = [
-    { id: 1, title: 'Pink Lehenga We Can\'t Stop Staring At!', image: 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?w=400&h=300&fit=crop&q=80', route: '/user/reads/1' },
-    { id: 2, title: 'Baraat Entry Ideas That Will Wow Your Guests', image: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=400&h=300&fit=crop&q=80', route: '/user/reads/2' },
-    { id: 3, title: 'Latest Mehndi Design Trends', image: 'https://images.unsplash.com/photo-1610701596007-11502861dcfa?w=400&h=300&fit=crop&q=80', route: '/user/reads/3' },
-    { id: 4, title: 'Top 10 Wedding Venues in Indore', image: 'https://images.unsplash.com/photo-1519167758481-83f29d8ae8e4?w=400&h=300&fit=crop&q=80', route: '/user/reads/4' },
-    { id: 5, title: 'Bridal Makeup Tips for Perfect Look', image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&h=300&fit=crop&q=80', route: '/user/reads/5' },
-    { id: 6, title: 'Groom Fashion Trends 2026', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=300&fit=crop&q=80', route: '/user/reads/6' },
-    { id: 7, title: 'Budget Wedding Planning Guide', image: 'https://images.unsplash.com/photo-1464349095431-e9a21285b5f3?w=400&h=300&fit=crop&q=80', route: '/user/reads/7' },
-    { id: 8, title: 'Destination Wedding Ideas', image: 'https://images.unsplash.com/photo-1478146896981-b80fe463b330?w=400&h=300&fit=crop&q=80', route: '/user/reads/8' },
-    { id: 9, title: 'Wedding Photography Poses Guide', image: 'https://images.unsplash.com/photo-1606800052052-a08af7148866?w=400&h=300&fit=crop&q=80', route: '/user/reads/9' },
-    { id: 10, title: 'Sangeet Choreography Ideas', image: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=400&h=300&fit=crop&q=80', route: '/user/reads/10' }
-  ];
 
   return (
-    <>
-      <div className="min-h-screen pb-32 px-4 space-y-8">
-      
-      {/* 1. Dynamic Hero Main Banner Carousel from Admin */}
-      <div className="pt-2">
-      {bannersLoading ? (
-        <div className="w-full rounded-2xl h-[200px] md:aspect-[21/9] md:h-auto bg-black/5 animate-pulse" />
-      ) : heroBanners.length > 0 ? (
-        <div className="relative group rounded-2xl overflow-hidden shadow-sm border border-white/40 h-[200px] md:aspect-[21/9] md:h-auto w-full bg-[#3D2B2B]">
-          {heroBanners.map((banner, idx) => (
-            <div
-              key={banner._id || idx}
-              onClick={() => handleBannerClick(banner)}
-              className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
-                idx === currentBannerIndex ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
-              } ${banner.linkUrl ? 'cursor-pointer' : ''}`}
-            >
-              <img
-                src={banner.imageUrl}
-                alt={banner.title || 'Wedding Feature Banner'}
-                className="w-full h-full object-cover"
-                onError={(e) => handleImageError(e, 'https://images.unsplash.com/photo-1519741497674-611481863552?w=1200&h=500&fit=crop&q=80')}
-              />
-              {/* Smooth Left to right gradient overlay */}
-              <div className="absolute inset-0 bg-gradient-to-r from-[#44263D] via-[#44263D]/90 to-transparent w-full sm:w-[70%] flex flex-col justify-center p-6 md:p-10 pointer-events-none">
-                <div className="max-w-[220px] sm:max-w-[300px] pointer-events-auto">
-                  <h3 
-                    className="text-2xl md:text-4xl font-medium text-[#F6E3CD] leading-tight mb-3 whitespace-pre-line"
-                    style={{ fontFamily: '"Playfair Display", serif' }}
-                  >
-                    {banner.title || "Beautiful Celebrations Brighter Lives"}
-                  </h3>
-                  
-                  <div className="w-12 h-[1px] bg-[#C59A5A]/60 mb-3" />
-                  
-                  <p 
-                    className="text-xs md:text-sm text-white/90 line-clamp-3 mb-5 font-light leading-relaxed whitespace-pre-line"
-                    style={{ fontFamily: '"Outfit", sans-serif' }}
-                  >
-                    {banner.description || "Find trusted vendors for your special moments"}
-                  </p>
-                  
-                  <button 
-                    onClick={(e) => {
-                       e.stopPropagation();
-                       if(banner.linkUrl) window.open(banner.linkUrl, '_blank');
-                    }}
-                    className="flex items-center gap-1.5 bg-gradient-to-r from-[#F8DF9E] to-[#E3AE56] text-[#3D2B2B] px-5 py-2 rounded-full w-fit text-[11px] md:text-xs font-bold shadow-lg hover:scale-105 transition-transform active:scale-95"
-                  >
-                    Explore Now
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-
-          {/* Carousel Dot Indicators */}
-          {heroBanners.length > 1 && (
-            <div className="absolute bottom-5 left-6 z-20 flex items-center gap-1.5">
-              {heroBanners.map((_, dotIdx) => (
-                <button
-                  key={dotIdx}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setCurrentBannerIndex(dotIdx);
-                  }}
-                  className={`h-1.5 rounded-full transition-all border border-white/50 ${
-                    dotIdx === currentBannerIndex ? 'w-1.5 bg-white' : 'w-1.5 bg-transparent'
-                  }`}
-                  aria-label={`Go to slide ${dotIdx + 1}`}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Previous / Next Arrow Controls on Hover */}
-          {heroBanners.length > 1 && (
-            <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentBannerIndex(prev => (prev === 0 ? heroBanners.length - 1 : prev - 1));
-                }}
-                className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                aria-label="Previous Banner"
-              >
-                <Icon name="chevronLeft" size="xs" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentBannerIndex(prev => (prev + 1) % heroBanners.length);
-                }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                aria-label="Next Banner"
-              >
-                <Icon name="chevronRight" size="xs" />
-              </button>
-            </>
-          )}
-        </div>
-      ) : null}
-      </div>
-
-      {/* 2. Top Category Icons - Editorial Squares */}
-      {/* 2. Top Category Icons - Editorial Squares */}
-      <div className="pt-2">
-        <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 px-1 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          {topCategories.map((category, idx) => {
-            const colors = [
-              { bg: 'bg-[#FBE8F1]', border: 'border border-[#D48AAC]', text: 'text-[#872A5E]' },
-              { bg: 'bg-[#F4F2F4]', border: 'border border-transparent', text: 'text-[#3D2B2B]' },
-              { bg: 'bg-[#FEF5F1]', border: 'border border-transparent', text: 'text-[#3D2B2B]' },
-              { bg: 'bg-[#FAF1F8]', border: 'border border-transparent', text: 'text-[#3D2B2B]' },
-              { bg: 'bg-[#F7EEF8]', border: 'border border-transparent', text: 'text-[#3D2B2B]' },
-              { bg: 'bg-[#F3F6F4]', border: 'border border-transparent', text: 'text-[#3D2B2B]' },
-              { bg: 'bg-[#FFF7F0]', border: 'border border-transparent', text: 'text-[#3D2B2B]' },
-              { bg: 'bg-[#FCECF2]', border: 'border border-transparent', text: 'text-[#3D2B2B]' }
-            ];
-            const theme = colors[idx % colors.length];
-
-            return (
-              <div
-                key={category.id}
-                onClick={() => navigate(category.route)}
-                className={`flex-shrink-0 w-[90px] h-[100px] rounded-2xl flex flex-col items-center justify-center p-2 cursor-pointer active:scale-95 transition-all shadow-sm ${theme.bg} ${theme.border}`}
-              >
-                <div className="w-12 h-12 mb-2 flex items-center justify-center">
-                  <img
-                    src={category.image}
-                    alt={category.name}
-                    loading="lazy"
-                    className="w-full h-full object-contain mix-blend-multiply"
-                    onError={(e) => {
-                      e.target.src = 'https://images.unsplash.com/photo-1519167758481-83f29d8ae8e4?w=64&h=64&fit=crop&q=80';
-                    }}
-                  />
-                </div>
-                <p 
-                  className={`text-[9px] w-full text-center font-medium leading-tight ${theme.text}`}
-                  style={{ fontFamily: '"Outfit", sans-serif' }}
-                >
-                  {category.name}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Promo Banner - Dynamic from Admin */}
-      {promoBanners.length > 0 && promoBanners.map((promo) => (
-        <div key={promo._id} className="relative w-full overflow-hidden rounded-2xl group cursor-pointer shadow-sm hover:shadow-md transition-all">
-          {/* Base Image determines the aspect ratio of the container perfectly */}
-          <img 
-            src={promo.imageUrl} 
-            alt={promo.title || "Promo"} 
-            className="w-full h-auto block object-cover bg-slate-50 min-h-[100px]" 
-            onError={(e) => { e.target.style.display = 'none'; }}
-          />
-          
-          {/* Absolute overlay for text and button */}
-          <div className="absolute inset-0 flex flex-row w-full h-full">
-            {/* Left content (Text & Button) */}
-            <div className="w-[55%] md:w-[50%] p-4 md:p-8 flex flex-col justify-center">
-              <h3
-                className="text-[12px] sm:text-sm md:text-2xl font-bold text-[#3D1F3F] leading-tight mb-1 md:mb-2"
-                style={{ fontFamily: '"Playfair Display", serif', fontStyle: 'italic' }}
-              >
-                {promo.title}
-              </h3>
-              {promo.description && (
-                <p
-                  className="text-[9px] sm:text-[10px] md:text-sm text-[#3D1F3F]/80 leading-snug mb-2 md:mb-4 max-w-[280px] font-medium hidden sm:block"
-                  style={{ fontFamily: '"Outfit", sans-serif' }}
-                >
-                  {promo.description}
-                </p>
-              )}
-              {promo.buttonText && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (promo.buttonUrl) {
-                      if (promo.buttonUrl.startsWith('http')) {
-                        window.open(promo.buttonUrl, '_blank');
-                      } else {
-                        navigate(promo.buttonUrl);
-                      }
-                    }
-                  }}
-                  className="flex items-center gap-1 md:gap-2 bg-[#4A2545] text-white px-3 py-1.5 md:px-5 md:py-2.5 rounded-full w-fit text-[8px] md:text-[12px] font-bold shadow-lg hover:bg-[#3D1F3F] transition-all active:scale-95"
-                  style={{ fontFamily: '"Outfit", sans-serif' }}
-                >
-                  {promo.buttonText}
-                  <span className="w-3 h-3 md:w-5 md:h-5 rounded-full bg-white/20 flex items-center justify-center">
-                    <svg className="w-1.5 h-1.5 md:w-3 md:h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                  </span>
-                </button>
-              )}
-            </div>
-
-            {/* Right side - Dynamic features are hidden on mobile */}
-            <div className="w-[45%] md:w-[50%] relative flex flex-col justify-center items-end hidden md:flex">
-              {promo.features && promo.features.length > 0 && (
-                <div className="grid grid-cols-4 gap-2 lg:gap-3 px-5 py-4 z-10 relative bg-transparent">
-                  {promo.features.map((feat, fi) => (
-                    <div key={fi} className="flex flex-col items-center gap-1">
-                      <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-white/40 backdrop-blur-md flex items-center justify-center border border-[#3D1F3F]/10 shadow-sm hover:scale-110 transition-transform">
-                        <Icon name={feat.icon || 'verified'} size="sm" color="#3D1F3F" />
-                      </div>
-                      <span className="text-[8px] lg:text-[9px] text-[#3D1F3F] font-bold text-center leading-tight max-w-[60px]" style={{ fontFamily: '"Outfit", sans-serif' }}>
-                        {feat.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      ))}
-
-      {/* 2. Wedding Planning Tools - Boutique Arched Cards */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-           <h2 className="text-xl font-bold tracking-tight text-[#3D2B2B]" style={{ fontFamily: '"Playfair Display", serif' }}>
-             Planning Tools
-           </h2>
-           <span className="text-[10px] font-black uppercase tracking-widest text-[#3D2B2B]/30">Editorial Guide</span>
-        </div>
+    <div className="font-sans antialiased text-gray-800 flex justify-center min-h-screen py-0 md:py-6 selection:bg-[#F2BDCD] selection:text-[#4F1325]">
+      {/* Mobile Viewport Container */}
+      <div className="relative w-full max-w-[430px] md:max-w-4xl bg-[#FAF6F0] min-h-screen overflow-x-hidden shadow-2xl md:rounded-[44px] border border-stone-200/60 pb-28 flex flex-col">
         
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-4 px-1 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          {planningTools.map((tool) => (
-            <div
-              key={tool.id}
-              onClick={() => navigate(tool.route)}
-              className="flex-shrink-0 w-36 md:w-44 cursor-pointer active:scale-95 transition-all group"
-            >
-              <div className="relative overflow-hidden rounded-xl aspect-[4/3] shadow-sm ring-1 ring-black/5">
-                <img
-                  src={tool.icon}
-                  alt={tool.title}
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
-                <div className="absolute bottom-3 left-3 right-3">
-                  <h3 className="text-[11px] md:text-[13px] font-bold text-white leading-tight line-clamp-1" style={{ fontFamily: '"Outfit", sans-serif' }}>
-                    {tool.title}
-                  </h3>
-                  <p className="text-[8px] md:text-[9px] font-medium text-white/70 uppercase tracking-widest mt-0.5 line-clamp-1" style={{ fontFamily: '"Outfit", sans-serif' }}>
-                    {tool.subtitle}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))}
+        {/* BEGIN: Watermark & Botanical Accents */}
+        <div className="floral-bg-corner-top-right">
+          <svg className="w-full h-full fill-none opacity-80" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+            <path d="M160 0 C120 20 90 70 85 110 C80 90 110 50 160 0 Z" fill="#93688C" opacity="0.45" />
+            <path d="M160 25 C130 50 110 90 120 135 C110 100 130 60 160 25 Z" fill="#C8A2C8" opacity="0.35" />
+            <path d="M160 60 C135 75 115 115 125 155 C120 120 145 85 160 60 Z" fill="#D4AF37" opacity="0.4" />
+            <path d="M110 0 C95 40 105 85 140 115 C115 80 100 40 110 0 Z" fill="#7D4668" opacity="0.3" />
+          </svg>
         </div>
+        <div className="floral-bg-corner-left">
+          <svg className="w-full h-full fill-none" viewBox="0 0 80 160" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0 60 C35 75 45 105 40 140 C28 110 15 90 0 60 Z" fill="#966F8D" opacity="0.35" />
+            <path d="M0 90 C25 100 35 120 20 155 C15 130 5 115 0 90 Z" fill="#D4AF37" opacity="0.3" />
+          </svg>
+        </div>
+        {/* END: Watermark & Botanical Accents */}
 
-        {/* Family Planning Groups Actions - Minimalist Card */}
-        <div className="relative group">
-          <div 
-            className="p-6 rounded-[2rem] bg-white shadow-sm border border-white overflow-hidden relative"
-          >
-             {/* Subtle Ornament */}
-             <div className="absolute top-0 right-0 w-16 h-16 bg-[#EAE1D8]/20 rounded-bl-full pointer-events-none" />
+        {/* BEGIN: Main Hero Carousel Banner */}
+        <section className="px-4 pt-3 pb-2 relative z-20" data-purpose="hero-carousel">
+          <div className="relative w-full h-[218px] rounded-[24px] overflow-hidden shadow-lg border border-stone-200/50 bg-[#320817]">
+            {/* Right Background Photo (Mandap on Beach sunset with chandelier) */}
+            <img 
+              alt="Wedding floral mandap celebration" 
+              className="absolute inset-0 w-full h-full object-cover object-right" 
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDI0w-im307tmJvKsLMMCJIFpi1Fu-zYWthuk3q3mJO9ACefh9bSBDnmYet6q9DIRgsln6J4pGUYKy-5SOPU2NGJIUEd6gUihnq06FlV3g1x135id-OEYOxT12QJdPXh5cLCFvk0mrUqbeXPP43_LSS9jibKrwGniidu_tHO7z85i7RM7WitiKwa2cNe-rExnz-XXRIaDzhNJU_addF81pr1GHEB-A7u-bnNQzs5a0m7F7fi_2skNPo-Q" 
+            />
+            {/* Left Luxury Maroon Vignette Overlay */}
+            <div className="absolute inset-0 hero-gradient" />
 
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#EAE1D8]/30">
-                 <Icon name="plan" size="sm" style={{ color: '#3D2B2B' }} />
+            {/* Hero Content (Left) */}
+            <div className="absolute inset-y-0 left-0 w-[62%] p-5 flex flex-col justify-between z-10">
+              <div>
+                <h1 className="font-serif text-white text-[22px] leading-[1.18] tracking-tight font-medium drop-shadow-sm">
+                  Beautiful<br />
+                  Celebrations<br />
+                  Brighter Lives
+                </h1>
+                <p className="text-rose-100/80 text-[11px] font-normal leading-snug mt-2 drop-shadow-sm">
+                  Find trusted vendors<br />for your special moments
+                </p>
               </div>
               <div>
-                <h3 className="text-lg font-bold text-[#3D2B2B]" style={{ fontFamily: '"Playfair Display", serif' }}>
-                  Family Planning
-                </h3>
-                <p className="text-[10px] font-black uppercase tracking-widest text-[#3D2B2B]/30" style={{ fontFamily: '"Outfit", sans-serif' }}>
-                   Collaborative Dashboard
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => navigate('/user/family/create-group')}
-                className="flex-1 py-2.5 px-4 rounded-full text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 bg-[#3D2B2B] text-white"
-              >
-                New Group
-              </button>
-              <button
-                onClick={() => navigate('/user/family/groups')}
-                className="flex-1 py-2.5 px-4 rounded-full text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 bg-[#EAE1D8]/40 text-[#3D2B2B] border border-black/5"
-              >
-                View
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. High-Density Vendor Discovery (Venues & Photographers) */}
-      <div className="space-y-10">
-        {/* Venues Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-[#3D2B2B]" style={{ fontFamily: '"Playfair Display", serif' }}>
-              Venues Indore
-            </h2>
-            <button 
-              onClick={() => navigate('/user/vendors')}
-              className="text-[10px] font-black uppercase tracking-widest text-[#3D2B2B]/40 hover:text-[#3D2B2B]"
-            >
-              See All
-            </button>
-          </div>
-          
-          <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
-            {venues.map((venue) => (
-              <div
-                key={venue.id}
-                onClick={() => navigate(venue.route)}
-                className="flex-shrink-0 w-52 cursor-pointer active:scale-95 transition-all group"
-              >
-                <div className="relative overflow-hidden rounded-[2rem] aspect-[4/3] shadow-sm ring-1 ring-black/5">
-                  <img
-                    src={venue.image}
-                    alt={venue.name}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                  />
-                  <div className="absolute top-3 left-3 px-3 py-1 bg-white/90 backdrop-blur-md rounded-full">
-                     <span className="text-[8px] font-black uppercase tracking-widest text-[#3D2B2B]">{venue.location}</span>
-                  </div>
-                </div>
-                <div className="pt-4 px-2 space-y-1">
-                  <h3 className="text-sm font-bold text-[#3D2B2B] line-clamp-1" style={{ fontFamily: '"Playfair Display", serif' }}>{venue.name}</h3>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-black text-[#BE185D]">{venue.price}</span>
-                    <span className="text-[9px] font-black uppercase tracking-widest text-[#3D2B2B]/30">{venue.priceType}</span>
-                  </div>
+                {/* Explore Now Pill Button */}
+                <button 
+                  onClick={() => navigate('/user/vendors')}
+                  className="bg-gradient-to-r from-[#F9E2B2] via-[#E7C78D] to-[#D8B171] text-[#360918] px-4 py-1.5 rounded-full text-xs font-semibold shadow-md flex items-center space-x-1.5 active:scale-95 transition-transform"
+                >
+                  <span>Explore Now</span>
+                  <span className="text-sm font-bold">→</span>
+                </button>
+                {/* Carousel Pagination Dots */}
+                <div className="flex items-center space-x-1.5 mt-3 pl-1">
+                  <span className="w-3.5 h-1.5 rounded-full bg-white" />
+                  <span className="w-1.5 h-1.5 rounded-full border border-white/80" />
+                  <span className="w-1.5 h-1.5 rounded-full border border-white/80" />
+                  <span className="w-1.5 h-1.5 rounded-full border border-white/80" />
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Photographers Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-[#3D2B2B]" style={{ fontFamily: '"Playfair Display", serif' }}>
-              Photographers
-            </h2>
-            <button 
-              onClick={() => navigate('/user/photographers')}
-              className="text-[10px] font-black uppercase tracking-widest text-[#3D2B2B]/40 hover:text-[#3D2B2B]"
-            >
-              See All
-            </button>
-          </div>
-          
-          <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
-            {photographers.map((photographer) => (
-              <div
-                key={photographer.id}
-                onClick={() => navigate(photographer.route)}
-                className="flex-shrink-0 w-52 cursor-pointer active:scale-95 transition-all group"
-              >
-                <div className="relative overflow-hidden rounded-[2rem] aspect-[4/3] shadow-sm ring-1 ring-black/5">
-                  <img
-                    src={photographer.image}
-                    alt={photographer.name}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                  />
-                </div>
-                <div className="pt-4 px-2 space-y-1">
-                  <h3 className="text-sm font-bold text-[#3D2B2B] line-clamp-1" style={{ fontFamily: '"Playfair Display", serif' }}>{photographer.name}</h3>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-black text-[#BE185D]">{photographer.price}</span>
-                    <span className="text-[9px] font-black uppercase tracking-widest text-[#3D2B2B]/30">{photographer.priceType}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* 4. Wedding Checklist - Premium Editorial Card */}
-      <div className="py-6">
-        <div 
-          className="relative overflow-hidden p-8 rounded-[3rem] shadow-xl border border-white"
-          style={{ backgroundColor: 'white' }}
-        >
-          {/* Ornamental Background Circle */}
-          <div className="absolute -top-12 -right-12 w-32 h-32 bg-[#EAE1D8]/40 rounded-full blur-3xl opacity-50" />
-          
-          <div className="relative flex justify-between items-center mb-8">
-            <div className="space-y-1">
-              <h3 className="text-2xl font-bold text-[#3D2B2B]" style={{ fontFamily: '"Playfair Display", serif' }}>
-                Your Checklist
-              </h3>
-              <p className="text-[10px] font-black uppercase tracking-widest text-[#3D2B2B]/30" style={{ fontFamily: '"Outfit", sans-serif' }}>
-                 Tasks & Milestones
-              </p>
             </div>
-            <div className="w-16 h-16 rounded-full border-[3px] border-[#EAE1D8] flex items-center justify-center bg-white shadow-soft">
-              <span className="text-[#3D2B2B] font-black text-sm" style={{ fontFamily: '"Outfit", sans-serif' }}>
-                {checklistStats.total > 0 ? Math.round((checklistStats.completed / checklistStats.total) * 100) : 0}%
+
+            {/* Script Overlay on Banner (Right Side) */}
+            <div className="absolute right-3.5 top-6 text-right pointer-events-none z-10 flex flex-col items-end">
+              <span className="font-script text-white text-[23px] leading-tight tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.7)] transform -rotate-3">
+                More than Events
+              </span>
+              <span className="font-script text-white text-[21px] leading-snug drop-shadow-[0_2px_4px_rgba(0,0,0,0.7)] transform -rotate-3 mt-0.5">
+                Memories for Life ♡
               </span>
             </div>
           </div>
-          
-          <div className="bg-[#EAE1D8]/20 rounded-2xl p-5 border border-[#3D2B2B]/5">
-            <div className="flex justify-between items-center mb-4">
-              <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#3D2B2B]/40" style={{ fontFamily: '"Outfit", sans-serif' }}>Focus Items</h4>
-              <button
-                onClick={() => navigate('/user/tools/checklist')}
-                className="text-[9px] font-black uppercase tracking-widest text-[#3D2B2B]"
-              >
-                OPEN
-              </button>
-            </div>
-            <div className="space-y-3">
-              {[
-                { task: 'Research Planners', done: false },
-                { task: 'Set Budget', done: true }
-              ].map((item, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${item.done ? 'bg-[#3D2B2B] border-[#3D2B2B]' : 'border-[#3D2B2B]/10'}`}>
-                    {item.done && <span className="text-white text-[8px]">✓</span>}
+        </section>
+        {/* END: Main Hero Carousel Banner */}
+
+        {/* BEGIN: What Are You Celebrating Grid */}
+        <section className="px-4 pt-3 pb-2 relative z-10" data-purpose="celebration-categories">
+          {/* Section Header */}
+          <div className="flex justify-between items-baseline mb-2.5">
+            <h2 className="font-serif text-[18.5px] font-semibold text-stone-900 tracking-tight">What are you celebrating?</h2>
+            <button 
+              onClick={() => navigate('/user/vendors')}
+              className="text-[#5B1228] text-[12.5px] font-semibold flex items-center space-x-0.5 hover:underline focus:outline-none"
+            >
+              <span>View All</span>
+              <span className="text-xs">→</span>
+            </button>
+          </div>
+
+          {/* Categories 4x2 Grid */}
+          <div className="grid grid-cols-4 gap-2.5 text-center">
+            {categories.map((cat) => {
+              const isSelected = activeCategory === cat.id;
+              return (
+                <div 
+                  key={cat.id} 
+                  className="flex flex-col items-center"
+                  onClick={() => {
+                    setActiveCategory(cat.id);
+                    navigate(cat.route);
+                  }}
+                >
+                  <div 
+                    className={`w-[72px] h-[72px] rounded-2xl flex items-center justify-center p-2 cursor-pointer active:scale-95 transition-all duration-200 ${
+                      isSelected 
+                        ? 'bg-[#FFF5F6] border-2 border-[#F2BDCD] shadow-sm scale-[1.02]' 
+                        : `${cat.activeBg} border shadow-xs hover:border-stone-300`
+                    }`}
+                  >
+                    {cat.icon}
                   </div>
-                  <span className={`text-[11px] font-bold ${item.done ? 'text-[#3D2B2B]/20 line-through' : 'text-[#3D2B2B]/60'}`}>
-                    {item.task}
+                  <span className="text-[11.5px] font-medium text-stone-800 mt-1.5 leading-tight whitespace-pre-line">
+                    {cat.name}
                   </span>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
-        </div>
-      </div>
+        </section>
+        {/* END: What Are You Celebrating Grid */}
 
-      {/* 7. Photographers Collections in Indore */}
-      <div className="px-4 py-6">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900">
-          Photographers Collections in Indore
-        </h2>
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-          {photographerCollections.map((collection, index) => (
-            <div
-              key={collection.id}
-              onClick={() => navigate(collection.route)}
-              className="flex-shrink-0 w-36 cursor-pointer active:scale-95 transition-transform overflow-hidden"
-              style={{ 
-                backgroundColor: index === 0 ? theme.colors.primary[500] : index === 1 ? theme.colors.secondary[500] : theme.colors.primary[400],
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-                height: '150px'
-              }}
-            >
-              <div className="relative h-full p-3 flex flex-col">
-                <div className="w-16 h-16 rounded-full overflow-hidden mx-auto mb-2 border-4 border-white/30">
-                  <img
-                    src={collection.image}
-                    alt={collection.title}
-                    loading="lazy"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <h3 className="text-xs font-semibold text-white text-center mb-1">{collection.title}</h3>
-                <p className="text-xs text-white/90 text-center">{collection.count}</p>
+        {/* BEGIN: Plan. Connect. Celebrate Banner Card */}
+        <section className="px-4 py-2.5 relative z-10" data-purpose="promo-value-proposition">
+          <div className="w-full bg-[#F3EBE7] rounded-[22px] p-3.5 shadow-sm border border-[#E5D7D1] relative overflow-hidden flex flex-col justify-between">
+            {/* Right Background Floral & Script Accent */}
+            <div className="absolute -right-2 inset-y-0 w-[42%] pointer-events-none overflow-hidden rounded-r-[22px] flex items-center justify-end">
+              <div className="absolute inset-0 bg-gradient-to-l from-transparent via-[#F3EBE7]/40 to-[#F3EBE7] z-10" />
+              <img 
+                alt="Lilac watercolor floral arrangement" 
+                className="w-full h-full object-cover opacity-80" 
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCMuK_RvTy9Yigzv6LdLOYr9PCqV5LI6YawdToMNO3JoV-JnNHAlXUrPvOTIWXImeWckdiQihkAjr3UovkGXccUGUHFsNIbMmxCBeZE06FrMfwTXBxAYTjCiq5ZejlkmAJTlbDlxdfmNGJljNeQmYjPB489pI_zUVxH-RqOMkGM_0DOx3YiN6mAIasrVKedTiWnStb40SRkTmoAgQMaDOsMRGfRhT-4sHFykNzqr43itWrn8RW8v-KKBA" 
+              />
+              {/* Calligraphy Overlay */}
+              <div className="absolute right-3.5 top-6 z-20 text-right leading-tight">
+                <span className="font-script text-[21px] text-[#42111E] drop-shadow-sm block transform -rotate-6">Good Things</span>
+                <span className="font-script text-[18px] text-[#42111E] drop-shadow-sm block transform -rotate-6 mt-0.5">Happen Here ♡</span>
               </div>
             </div>
-          ))}
-        </div>
-      </div>
 
-      {/* NEW: Bridal Makeup Artists */}
-      <div className="px-4 py-6">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900">
-          Bridal Makeup Artists in your city
-        </h2>
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 mb-4">
-          {makeupArtists.map((artist) => (
-            <div
-              key={artist.id}
-              onClick={() => navigate(artist.route)}
-              className="flex-shrink-0 w-52 cursor-pointer active:scale-95 transition-transform"
-              style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}
-            >
-              <div className="relative overflow-hidden">
-                <img
-                  src={artist.image}
-                  alt={artist.name}
-                  loading="lazy"
-                  className="w-full h-36 object-cover"
-                  onError={(e) => handleImageError(e, 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=400&fit=crop&q=80')}
-                />
-                <div className="absolute top-2 right-2 bg-white px-2 py-1 flex items-center gap-1 shadow-sm">
-                  <span className="text-yellow-500 text-xs">⭐</span>
-                  <span className="text-xs font-semibold text-gray-900">{artist.rating}</span>
-                  <span className="text-xs text-gray-500">({artist.reviews})</span>
-                </div>
-              </div>
-              <div className="p-2 bg-white">
-                <h3 className="text-xs font-semibold text-gray-900 mb-1">{artist.name}</h3>
-                <p className="text-xs text-gray-600 mb-1">{artist.location}</p>
-                <p className="text-sm font-semibold text-pink-600">
-                  {artist.price} <span className="text-xs font-normal text-gray-600">{artist.priceType}</span>
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button
-          onClick={() => navigate('/user/vendors/makeup')}
-          className="w-full py-3 text-center text-sm font-semibold text-orange-500 border border-orange-500 active:scale-95 transition-transform"
-        >
-          View all makeup artists →
-        </button>
-      </div>
-
-      {/* NEW: Special Offer Banner */}
-      <div className="px-4 py-6">
-        <div
-          onClick={() => navigate('/user/special-offers')}
-          className="relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
-          style={{ 
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-            background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)'
-          }}
-        >
-          <div className="p-6 text-center">
-            <div className="mb-2">
-              <div className="w-12 h-12 mx-auto rounded-full overflow-hidden">
-                <img src="https://images.unsplash.com/photo-1464349095431-e9a21285b5f3?w=100&h=100&fit=crop&q=80" alt="Offer" className="w-full h-full object-cover" />
-              </div>
-            </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Limited Time Offer!</h3>
-            <p className="text-sm text-gray-700 mb-1">Book 3 vendors and get</p>
-            <p className="text-lg font-bold text-pink-600 mb-3">20% OFF on total booking</p>
-            <button className="px-6 py-2 bg-pink-600 text-white font-semibold text-sm">
-              Claim Offer
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* NEW: Wedding Decorators */}
-      <div className="px-4 py-6 bg-gray-50">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900">
-          Top Wedding Decorators
-        </h2>
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 mb-4">
-          {decorators.map((decorator) => (
-            <div
-              key={decorator.id}
-              onClick={() => navigate(decorator.route)}
-              className="flex-shrink-0 w-52 cursor-pointer active:scale-95 transition-transform"
-              style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}
-            >
-              <div className="relative overflow-hidden">
-                <img
-                  src={decorator.image}
-                  alt={decorator.name}
-                  loading="lazy"
-                  className="w-full h-36 object-cover"
-                  onError={(e) => handleImageError(e, 'https://images.unsplash.com/photo-1519741497674-611481863552?w=600&h=400&fit=crop&q=80')}
-                />
-                <div className="absolute top-2 right-2 bg-white px-2 py-1 flex items-center gap-1 shadow-sm">
-                  <span className="text-yellow-500 text-xs">⭐</span>
-                  <span className="text-xs font-semibold text-gray-900">{decorator.rating}</span>
-                  <span className="text-xs text-gray-500">({decorator.reviews})</span>
-                </div>
-              </div>
-              <div className="p-2 bg-white">
-                <h3 className="text-xs font-semibold text-gray-900 mb-1">{decorator.name}</h3>
-                <p className="text-xs text-gray-600 mb-1">{decorator.location}</p>
-                <p className="text-sm font-semibold text-pink-600">
-                  {decorator.price} <span className="text-xs font-normal text-gray-600">{decorator.priceType}</span>
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button
-          onClick={() => navigate('/user/vendors/decorators')}
-          className="w-full py-3 text-center text-sm font-semibold text-orange-500 border border-orange-500 bg-white active:scale-95 transition-transform"
-        >
-          View all decorators →
-        </button>
-      </div>
-
-      {/* 8. Trending Today */}
-      <div className="px-4 py-6">
-        <h2 className="text-lg font-semibold mb-2 text-gray-900">
-          Trending Today
-        </h2>
-        <p className="text-pink-600 font-medium mb-4">#bridal-jewellery</p>
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 mb-4">
-          {trendingToday.map((item) => (
-            <div
-              key={item.id}
-              onClick={() => navigate(item.route)}
-              className="flex-shrink-0 cursor-pointer active:scale-95 transition-transform"
-              style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}
-            >
-              <div className="relative overflow-hidden w-40">
-                <img
-                  src={item.image}
-                  alt={item.hashtag}
-                  loading="lazy"
-                  className="w-full h-28 object-cover"
-                  onError={(e) => handleImageError(e, 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400&h=300&fit=crop&q=80')}
-                />
-                <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1">
-                  <p className="text-xs font-semibold text-white">{item.hashtag}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button
-          onClick={() => navigate('/user/trending')}
-          className="w-full py-3 text-center text-sm font-semibold text-orange-500 border border-orange-500 active:scale-95 transition-transform"
-        >
-          View all trending today →
-        </button>
-      </div>
-
-      {/* 9. Utsavo Promotional Banner */}
-      <div className="px-4 py-6">
-        <div
-          onClick={() => navigate('/user/venue-booking-offer')}
-          className="relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
-          style={{ 
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-            background: 'linear-gradient(135deg, #f5f5dc 0%, #e8d5b7 100%)'
-          }}
-        >
-          <div className="p-6 text-center">
-            <div className="mb-3">
-              <div className="w-10 h-10 mx-auto rounded-full overflow-hidden">
-                <img src="https://images.unsplash.com/photo-1519167758481-83f29d8ae8e4?w=100&h=100&fit=crop&q=80" alt="Utsavo" className="w-full h-full object-cover" />
-              </div>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">BOOKED your VENUE?</h3>
-            <p className="text-sm text-gray-700 mb-1">Get <span className="font-bold">FREE Wedding Decor</span></p>
-            <p className="text-sm text-gray-700 mb-4"><span className="font-bold">Moodboard</span> for all your functions</p>
-            <button className="px-6 py-2 bg-green-600 text-white font-semibold text-sm">
-              Download Now
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 10. Utsavo Services */}
-      <div className="px-4 py-6">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900">
-          Utsavo Services
-        </h2>
-        
-        {/* Genie Services */}
-        <div
-          onClick={() => navigate('/user/genie-services')}
-          className="relative overflow-hidden cursor-pointer active:scale-95 transition-transform mb-4"
-          style={{ boxShadow: '0 2px 6px rgba(0, 0, 0, 0.15)' }}
-        >
-          <img
-            src="https://images.unsplash.com/photo-1519741497674-611481863552?w=800&h=300&fit=crop&q=80"
-            alt="Genie Services"
-            loading="lazy"
-            className="w-full h-44 object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/60" />
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
-            <h3 className="text-xl font-bold text-white mb-2">Genie Services</h3>
-            <p className="text-sm text-white/95">Plan your dream wedding in your budget</p>
-          </div>
-        </div>
-
-        {/* Venue Booking Service */}
-        <div
-          onClick={() => navigate('/user/venue-booking')}
-          className="relative overflow-hidden cursor-pointer active:scale-95 transition-transform w-56"
-          style={{ boxShadow: '0 2px 6px rgba(0, 0, 0, 0.15)' }}
-        >
-          <img
-            src="https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=400&h=300&fit=crop&q=80"
-            alt="Venue Booking Service"
-            loading="lazy"
-            className="w-full h-36 object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/60" />
-          <div className="absolute bottom-0 left-0 right-0 p-4">
-            <h3 className="text-base font-bold text-white mb-1">Venue Booking Service</h3>
-            <p className="text-xs text-white/95">Best Price Guaranteed</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Remaining sections will be added after next 3 screenshots */}
-
-      {/* 11. Wedding Ideas */}
-      <div className="px-4 py-6">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900">
-          Wedding ideas
-        </h2>
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-          {weddingIdeas.map((idea) => (
-            <div
-              key={idea.id}
-              onClick={() => navigate(idea.route)}
-              className="flex-shrink-0 cursor-pointer active:scale-95 transition-transform"
-              style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}
-            >
-              <div className="relative overflow-hidden w-36">
-                <img
-                  src={idea.image}
-                  alt={idea.title}
-                  loading="lazy"
-                  className="w-full h-44 object-cover"
-                  onError={(e) => handleImageError(e, 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?w=400&h=500&fit=crop&q=80')}
-                />
-              </div>
-              <div className="p-2 bg-white">
-                <p className="text-xs font-medium text-gray-900">{idea.title}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button
-          onClick={() => navigate('/user/inspirations')}
-          className="w-full py-3 mt-4 text-center text-sm font-semibold text-orange-500 border border-orange-500 active:scale-95 transition-transform"
-        >
-          View all wedding ideas →
-        </button>
-      </div>
-
-      {/* NEW: Bridal Looks & Styling */}
-      <div className="px-4 py-6 bg-gray-50">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900">
-          Bridal Looks & Styling Ideas
-        </h2>
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-          {bridalLooks.map((look) => (
-            <div
-              key={look.id}
-              onClick={() => navigate(look.route)}
-              className="flex-shrink-0 cursor-pointer active:scale-95 transition-transform"
-              style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}
-            >
-              <div className="relative overflow-hidden w-32">
-                <img
-                  src={look.image}
-                  alt={look.title}
-                  loading="lazy"
-                  className="w-full h-40 object-cover"
-                  onError={(e) => handleImageError(e, 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&h=500&fit=crop&q=80')}
-                />
-              </div>
-              <div className="p-2 bg-white">
-                <p className="text-xs font-medium text-gray-900">{look.title}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* NEW: Planning Tools Banner */}
-      <div className="px-4 py-6">
-        <div className="grid grid-cols-2 gap-3">
-          <div
-            onClick={() => navigate('/user/tools/budget')}
-            className="relative overflow-hidden cursor-pointer active:scale-95 transition-transform p-4"
-            style={{ 
-              boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
-              background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
-              minHeight: '120px'
-            }}
-          >
-            <div className="w-8 h-8 mb-2 rounded-full overflow-hidden">
-              <img src="https://images.unsplash.com/photo-1554224311-beee415c201f?w=100&h=100&fit=crop&q=80" alt="Budget" className="w-full h-full object-cover" />
-            </div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-1">Budget Planner</h3>
-            <p className="text-xs text-gray-600">Track expenses</p>
-          </div>
-          <div
-            onClick={() => navigate('/user/tools/checklist')}
-            className="relative overflow-hidden cursor-pointer active:scale-95 transition-transform p-4"
-            style={{ 
-              boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
-              background: 'linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%)',
-              minHeight: '120px'
-            }}
-          >
-            <div className="w-8 h-8 mb-2 rounded-full overflow-hidden">
-              <img src="https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?w=100&h=100&fit=crop&q=80" alt="Checklist" className="w-full h-full object-cover" />
-            </div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-1">Checklist</h3>
-            <p className="text-xs text-gray-600">Stay organized</p>
-          </div>
-        </div>
-      </div>
-
-      {/* NEW: Decor Inspirations */}
-      <div className="px-4 py-6">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900">
-          Decor & Theme Inspirations
-        </h2>
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-          {decorInspirations.map((decor) => (
-            <div
-              key={decor.id}
-              onClick={() => navigate(decor.route)}
-              className="flex-shrink-0 cursor-pointer active:scale-95 transition-transform"
-              style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}
-            >
-              <div className="relative overflow-hidden w-32">
-                <img
-                  src={decor.image}
-                  alt={decor.title}
-                  loading="lazy"
-                  className="w-full h-40 object-cover"
-                  onError={(e) => handleImageError(e, 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=500&fit=crop&q=80')}
-                />
-              </div>
-              <div className="p-2 bg-white">
-                <p className="text-xs font-medium text-gray-900">{decor.title}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 12. Featured Video */}
-      <div className="px-4 py-6">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900">
-          Featured Video
-        </h2>
-        <div
-          onClick={() => navigate('/user/featured-video')}
-          className="relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
-          style={{ boxShadow: '0 2px 6px rgba(0, 0, 0, 0.15)' }}
-        >
-          <img
-            src="https://images.unsplash.com/photo-1519741497674-611481863552?w=800&h=500&fit=crop&q=80"
-            alt="Featured Wedding Video"
-            loading="lazy"
-            className="w-full h-64 object-cover"
-          />
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-            <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center">
-              <div className="w-0 h-0 border-t-8 border-t-transparent border-l-12 border-l-pink-600 border-b-8 border-b-transparent ml-1"></div>
-            </div>
-          </div>
-          <div className="absolute top-4 left-4">
-            <p className="text-white/80 text-sm">Utsavo</p>
-          </div>
-        </div>
-      </div>
-
-      {/* 13. Interesting Reads */}
-      <div className="px-4 py-6">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900">
-          Interesting reads
-        </h2>
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 mb-4">
-          {interestingReads.map((read) => (
-            <div
-              key={read.id}
-              onClick={() => navigate(read.route)}
-              className="flex-shrink-0 w-60 cursor-pointer active:scale-95 transition-transform"
-              style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}
-            >
-              <div className="relative overflow-hidden">
-                <img
-                  src={read.image}
-                  alt={read.title}
-                  loading="lazy"
-                  className="w-full h-36 object-cover"
-                  onError={(e) => handleImageError(e, 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?w=400&h=300&fit=crop&q=80')}
-                />
-              </div>
-              <div className="p-2 bg-white">
-                <p className="text-sm font-medium text-gray-900">{read.title}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button
-          onClick={() => navigate('/user/reads')}
-          className="w-full py-3 text-center text-sm font-semibold text-orange-500 border border-orange-500 active:scale-95 transition-transform"
-        >
-          View all interesting reads →
-        </button>
-      </div>
-
-      {/* NEW: Trending Vendors */}
-      <div className="px-4 py-6 bg-gray-50">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Trending Vendors
-          </h2>
-          <span className="text-xs bg-pink-100 text-pink-600 px-2 py-1 font-semibold flex items-center gap-1">
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
-            </svg>
-            HOT
-          </span>
-        </div>
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-          {trendingVendors.map((vendor) => (
-            <div
-              key={vendor.id}
-              onClick={() => navigate(vendor.route)}
-              className="flex-shrink-0 w-44 cursor-pointer active:scale-95 transition-transform"
-              style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}
-            >
-              <div className="relative overflow-hidden">
-                <img
-                  src={vendor.image}
-                  alt={vendor.name}
-                  loading="lazy"
-                  className="w-full h-32 object-cover"
-                  onError={(e) => handleImageError(e, 'https://images.unsplash.com/photo-1606216794074-735e91aa2c92?w=600&h=400&fit=crop&q=80')}
-                />
-                <div className="absolute top-2 left-2 bg-pink-600 text-white px-2 py-1 text-xs font-semibold">
-                  TRENDING
-                </div>
-                <div className="absolute top-2 right-2 bg-white px-2 py-1 flex items-center gap-1 shadow-sm">
-                  <span className="text-yellow-500 text-xs">⭐</span>
-                  <span className="text-xs font-semibold text-gray-900">{vendor.rating}</span>
-                </div>
-              </div>
-              <div className="p-2 bg-white">
-                <h3 className="text-xs font-semibold text-gray-900 mb-1">{vendor.name}</h3>
-                <p className="text-xs text-gray-600">{vendor.city}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* NEW: Wedding Inspiration Feed */}
-      <div className="px-4 py-6">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900">
-          More Wedding Inspiration
-        </h2>
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-          {weddingFeed.map((item) => (
-            <div
-              key={item.id}
-              onClick={() => navigate(item.route)}
-              className="flex-shrink-0 w-36 cursor-pointer active:scale-95 transition-transform"
-              style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}
-            >
-              <div className="relative overflow-hidden">
-                <img
-                  src={item.image}
-                  alt={item.title}
-                  loading="lazy"
-                  className="w-full h-44 object-cover"
-                  onError={(e) => handleImageError(e, 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?w=400&h=500&fit=crop&q=80')}
-                />
-              </div>
-              <div className="p-2 bg-white">
-                <p className="text-xs font-medium text-gray-900">{item.title}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* NEW: Quick Actions */}
-      <div className="px-4 py-6 bg-gradient-to-br from-purple-50 to-pink-50">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900 text-center">
-          Quick Actions
-        </h2>
-        <div className="grid grid-cols-3 gap-3">
-          <div
-            onClick={() => navigate('/user/vendors')}
-            className="bg-white p-4 text-center cursor-pointer active:scale-95 transition-transform"
-            style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}
-          >
-            <div className="w-8 h-8 mx-auto mb-2 rounded-full overflow-hidden">
-              <img src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=100&h=100&fit=crop&q=80" alt="Find Vendors" className="w-full h-full object-cover" />
-            </div>
-            <p className="text-xs font-semibold text-gray-900">Find Vendors</p>
-          </div>
-          <div
-            onClick={() => navigate('/user/shortlist')}
-            className="bg-white p-4 text-center cursor-pointer active:scale-95 transition-transform"
-            style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}
-          >
-            <div className="w-8 h-8 mx-auto mb-2 rounded-full overflow-hidden">
-              <img src="https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?w=100&h=100&fit=crop&q=80" alt="Shortlist" className="w-full h-full object-cover" />
-            </div>
-            <p className="text-xs font-semibold text-gray-900">Shortlist</p>
-          </div>
-          <div
-            onClick={() => navigate('/user/chats')}
-            className="bg-white p-4 text-center cursor-pointer active:scale-95 transition-transform"
-            style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}
-          >
-            <div className="w-8 h-8 mx-auto mb-2 rounded-full overflow-hidden">
-              <img src="https://images.unsplash.com/photo-1577563908411-5077b6dc7624?w=100&h=100&fit=crop&q=80" alt="Chat" className="w-full h-full object-cover" />
-            </div>
-            <p className="text-xs font-semibold text-gray-900">Chat</p>
-          </div>
-        </div>
-      </div>
-
-      {/* 14. Rate Your Experience */}
-      <div className="px-4 py-6">
-        <div 
-          className="p-8 text-center"
-          style={{ 
-            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
-          }}
-        >
-          <h2 className="text-xl font-semibold mb-6 text-white">
-            Rate your experience with us
-          </h2>
-          <div className="flex justify-center gap-3">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <button
-                key={star}
-                className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center active:scale-110 transition-transform"
-                onClick={() => {}}
+            {/* Upper Banner Content */}
+            <div className="relative z-20 max-w-[65%]">
+              <h3 className="font-serif text-[17px] font-bold text-stone-900 tracking-tight">Plan. Connect. Celebrate.</h3>
+              <p className="text-stone-600 text-[11px] leading-snug mt-1">
+                Everything you need for your special day in one place.
+              </p>
+              <button 
+                onClick={() => navigate('/user/planning-dashboard')}
+                className="mt-2.5 bg-[#4F1325] text-white text-[11px] font-medium px-3.5 py-1.5 rounded-full flex items-center space-x-1.5 shadow-sm active:scale-95 transition-transform"
               >
-                <svg className="w-6 h-6 text-white opacity-60" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                <span>See How It Works</span>
+                <svg className="w-3 h-3 fill-current ml-0.5" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
                 </svg>
               </button>
-            ))}
-          </div>
-        </div>
-      </div>
+            </div>
 
-      {/* 15. Real Weddings We Love */}
-      <div className="px-4 py-6">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900">
-          Real weddings we love
-        </h2>
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-          {realWeddings.map((wedding) => (
-            <div
-              key={wedding.id}
-              onClick={() => navigate(wedding.route)}
-              className="flex-shrink-0 cursor-pointer active:scale-95 transition-transform"
-              style={{ boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}
-            >
-              <div className="relative overflow-hidden w-60">
-                <img
-                  src={wedding.image}
-                  alt={`${wedding.coupleName} Wedding`}
-                  loading="lazy"
-                  className="w-full h-64 object-cover"
-                  onError={(e) => handleImageError(e, 'https://images.unsplash.com/photo-1519741497674-611481863552?w=800&h=600&fit=crop&q=80')}
-                />
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/50" />
-                <div className="absolute bottom-0 left-0 right-0 p-3">
-                  <h3 className="text-sm font-semibold text-white">{wedding.coupleName}</h3>
-                  <p className="text-xs text-white/90">{wedding.city}</p>
+            {/* Lower Value Props (4 Pillars) */}
+            <div className="relative z-20 grid grid-cols-4 gap-1 pt-3.5 mt-2 border-t border-stone-300/40 text-center">
+              {/* 1. Verified Vendors */}
+              <div className="flex flex-col items-center">
+                <div className="w-6 h-6 flex items-center justify-center text-[#825325]">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
                 </div>
+                <span className="text-[9.5px] font-semibold text-stone-700 leading-tight mt-0.5">Verified<br />Vendors</span>
+              </div>
+              {/* 2. Transparent Pricing */}
+              <div className="flex flex-col items-center">
+                <div className="w-6 h-6 flex items-center justify-center text-[#825325]">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <span className="text-[9.5px] font-semibold text-stone-700 leading-tight mt-0.5">Transparent<br />Pricing</span>
+              </div>
+              {/* 3. Direct Connect */}
+              <div className="flex flex-col items-center">
+                <div className="w-6 h-6 flex items-center justify-center text-[#825325]">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <span className="text-[9.5px] font-semibold text-stone-700 leading-tight mt-0.5">Direct<br />Connect</span>
+              </div>
+              {/* 4. Hassle Free Experience */}
+              <div className="flex flex-col items-center">
+                <div className="w-6 h-6 flex items-center justify-center text-[#825325]">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <span className="text-[9.5px] font-semibold text-stone-700 leading-tight mt-0.5">Hassle Free<br />Experience</span>
               </div>
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
+        </section>
+        {/* END: Plan. Connect. Celebrate Banner Card */}
 
+        {/* BEGIN: Trending Inspirations Horizontal Carousel */}
+        <section className="pt-2 pb-2.5" data-purpose="trending-inspirations">
+          <div className="px-4 flex justify-between items-baseline mb-2">
+            <h2 className="font-serif text-[18px] font-semibold text-stone-900 tracking-tight">Trending Inspirations</h2>
+            <button 
+              onClick={() => navigate('/user/inspirations')}
+              className="text-[#5B1228] text-[12.5px] font-semibold flex items-center space-x-0.5 hover:underline focus:outline-none"
+            >
+              <span>See All</span>
+              <span className="text-xs">→</span>
+            </button>
+          </div>
+
+          {/* Horizontal Scrollable Cards */}
+          <div className="flex space-x-3 overflow-x-auto px-4 no-scrollbar pb-1">
+            {trendingInspirations.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => navigate(item.route)}
+                className="flex-shrink-0 w-[124px] h-[130px] rounded-xl overflow-hidden relative shadow-sm border border-stone-200 cursor-pointer active:scale-95 transition-transform"
+              >
+                <img 
+                  alt={item.title} 
+                  className="w-full h-full object-cover" 
+                  src={item.image} 
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <button 
+                  aria-label="Favorite" 
+                  onClick={(e) => toggleFavorite(item.id, e)}
+                  className="absolute bottom-2 right-2 text-white/90 hover:text-white transition-colors"
+                >
+                  <svg 
+                    className={`w-3.5 h-3.5 ${favorites.has(item.id) ? 'fill-rose-500 text-rose-500' : 'fill-none'}`} 
+                    stroke="currentColor" 
+                    strokeWidth="2" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <span className="absolute bottom-2 left-2 text-white font-medium text-[11px] leading-tight pr-4">
+                  {item.title}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+        {/* END: Trending Inspirations Horizontal Carousel */}
+
+        {/* BEGIN: Featured Vendors Section */}
+        <section className="pt-2 pb-5" data-purpose="featured-vendors">
+          {/* Section Titles */}
+          <div className="px-4 flex justify-between items-baseline mb-0.5">
+            <div>
+              <h2 className="font-serif text-[18px] font-semibold text-stone-900 tracking-tight">Featured Vendors</h2>
+              <p className="text-stone-500 text-[11.5px] -mt-0.5">Top rated vendors for your special day</p>
+            </div>
+            <button 
+              onClick={() => navigate('/user/vendors')}
+              className="text-[#5B1228] text-[12.5px] font-semibold flex items-center space-x-0.5 hover:underline focus:outline-none"
+            >
+              <span>See All</span>
+              <span className="text-xs">→</span>
+            </button>
+          </div>
+
+          {/* Horizontal Vendor Cards */}
+          <div className="flex space-x-3.5 overflow-x-auto px-4 no-scrollbar pt-2">
+            {featuredVendors.map((vendor) => (
+              <div 
+                key={vendor.id}
+                onClick={() => navigate(vendor.route || `/user/vendor/${vendor.id}`)}
+                className="flex-shrink-0 w-[190px] bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-200/80 cursor-pointer active:scale-95 transition-transform"
+              >
+                <div className="relative h-[98px] w-full">
+                  <img 
+                    alt={vendor.name} 
+                    className="w-full h-full object-cover" 
+                    src={vendor.image} 
+                    loading="lazy"
+                  />
+                  {/* Star Rating Badge */}
+                  <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-xs px-1.5 py-0.5 rounded-full flex items-center space-x-0.5 shadow-xs">
+                    <span className="text-[#D4AF37] text-[10px]">★</span>
+                    <span className="text-[10px] font-bold text-stone-800">{vendor.rating}</span>
+                  </div>
+                  {/* Favorite button */}
+                  <button 
+                    aria-label="Favorite Vendor"
+                    onClick={(e) => toggleFavorite(vendor.id, e)}
+                    className="absolute bottom-2 right-2 text-white drop-shadow-md hover:scale-110 transition-transform"
+                  >
+                    <svg 
+                      className={`w-3.5 h-3.5 ${favorites.has(vendor.id) ? 'fill-rose-500 text-rose-500' : 'fill-none'}`} 
+                      stroke="currentColor" 
+                      strokeWidth="2" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="p-2.5">
+                  <h4 className="font-bold text-[12.5px] text-stone-900 tracking-tight leading-snug truncate">
+                    {vendor.name}
+                  </h4>
+                  <p className="text-[10.5px] text-stone-500 font-medium leading-tight mt-0.5 truncate">
+                    {vendor.category}
+                  </p>
+                  <div className="flex items-center justify-between mt-2 pt-1">
+                    <span className="text-[10px] text-stone-500 flex items-center">
+                      <svg className="w-2.5 h-2.5 mr-0.5 text-stone-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path clipRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" fillRule="evenodd" />
+                      </svg>
+                      {vendor.city}
+                    </span>
+                    <span className="bg-[#F6EED8] text-[#845E1B] text-[9px] font-semibold px-2 py-0.5 rounded-full flex items-center space-x-0.5">
+                      <span>👑</span>
+                      <span>Premium</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+        {/* END: Featured Vendors Section */}
+      </div>
     </div>
-    </>
   );
 };
 

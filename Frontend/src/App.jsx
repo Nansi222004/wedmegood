@@ -32,7 +32,7 @@ function App() {
           <CartProvider>
             <ToastProvider>
               <BrowserRouter>
-                <div className="min-h-screen bg-theme-card">
+                <div className="min-h-screen bg-theme-card overflow-x-hidden max-w-full">
                   {showSplash && (
                     <VendorSplashScreen onComplete={handleSplashComplete} />
                   )}

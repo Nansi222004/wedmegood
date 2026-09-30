@@ -137,27 +137,16 @@ const VendorDetail = () => {
     }
   };
 
-  // Handle Scroll Locking & Lenis toggling when modal is open
+  // Handle Scroll Locking when modal is open
   useEffect(() => {
     if (isRequestModalOpen || isReportModalOpen) {
       document.body.style.overflow = 'hidden';
-      // Use window.lenis.stop() if available to pause smooth scroll
-      if (window.lenis && typeof window.lenis.stop === 'function') {
-        window.lenis.stop();
-      }
     } else {
       document.body.style.overflow = '';
-      // Resume Lenis smooth scroll
-      if (window.lenis && typeof window.lenis.start === 'function') {
-        window.lenis.start();
-      }
     }
 
     return () => {
       document.body.style.overflow = '';
-      if (window.lenis && typeof window.lenis.start === 'function') {
-        window.lenis.start();
-      }
     };
   }, [isRequestModalOpen, isReportModalOpen]);
 

@@ -1,32 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useTheme } from '../../hooks/useTheme';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { userApi } from '../../services/userApi';
-import Button from '../ui/Button';
-import CartIcon from './CartIcon';
 import HamburgerMenu from './HamburgerMenu';
-import Icon from '../ui/Icon';
 
 const Header = () => {
-  const { theme, changeTheme, availableThemes, themeName } = useTheme();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isHamburgerMenuOpen, setIsHamburgerMenuOpen] = useState(false);
-
-  // Dynamic notification unread count
   const [unreadCount, setUnreadCount] = useState(0);
+  const [selectedCity, setSelectedCity] = useState('Hyderabad');
+  const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const formatImageUrl = (url) => {
-    if (!url) return '';
-    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
-      return url;
-    }
-    const backendBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
-    return `${backendBase}${url.startsWith('/') ? '' : '/'}${url}`;
-  };
+  const cities = ['Hyderabad', 'Indore', 'Mumbai', 'Delhi NCR', 'Bangalore', 'Jaipur'];
 
   const fetchUnreadCount = useCallback(async () => {
     if (!isAuthenticated) {
@@ -52,117 +40,138 @@ const Header = () => {
     };
   }, [fetchUnreadCount]);
 
-  const handleNotificationsClick = () => {
-    navigate('/user/notifications');
-  };
-
-  const isDashboard = location.pathname === '/user/dashboard';
   const isChatRoom = location.pathname.startsWith('/user/family/group/') || location.pathname.startsWith('/user/chats/');
 
+  // Hide header only on dedicated full-screen chat rooms
   if (isChatRoom) {
     return null;
   }
 
-  const headerStyles = {
-    backgroundColor: 'transparent',
-  };
-
-  const mobileMenuStyles = {
-    backgroundColor: theme.semantic.background.accent,
-    borderTopColor: theme.semantic.border.accent,
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
+  const handleSearchSubmit = (e) => {
+    e?.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/user/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    } else {
+      navigate('/user/vendors');
+    }
   };
 
   return (
-    <header className="sticky top-0 z-50 transition-all duration-300" style={headerStyles}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-3 space-y-3">
+    <header className="sticky top-0 z-40 bg-[#FAF6F0]/95 backdrop-blur-md border-b border-stone-200/70 transition-all duration-300">
+      <div className="max-w-[430px] md:max-w-4xl mx-auto px-4 sm:px-6 pt-3 pb-2.5 space-y-2">
         {/* Row 1: Top Navigation & Branding */}
-        <div className="flex justify-between items-center h-12">
-          
-          {/* Left: Hamburger Menu */}
+        <div className="flex items-center justify-between">
+          {/* Left: Hamburger Menu Button */}
           <button
-            onClick={() => setIsHamburgerMenuOpen(!isHamburgerMenuOpen)}
-            className="p-1 -ml-1 text-[#3D2B2B] focus:outline-none active:scale-95 transition-transform"
+            onClick={() => setIsHamburgerMenuOpen(true)}
+            aria-label="Open menu"
+            className="text-stone-800 p-1.5 focus:outline-none hover:opacity-80 active:scale-95 transition-transform"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            <svg className="w-6 h-6 stroke-stone-800 stroke-[2]" fill="none" viewBox="0 0 24 24">
+              <path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
 
-          {/* Center: Branding */}
-          <div className="flex flex-col items-center justify-center cursor-pointer" onClick={() => navigate('/user/home')}>
-             <div className="flex items-center">
-                {/* SVG Graphic Approximation for the golden U */}
-                <svg width="24" height="28" viewBox="0 0 40 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-1">
-                   <path d="M20 5 C30 5, 35 15, 30 25 C25 35, 10 35, 10 25 C10 15, 20 15, 20 25" stroke="#C59A5A" strokeWidth="3" strokeLinecap="round" fill="none"/>
-                   <path d="M15 10 L20 0 L25 10 Z" fill="#C59A5A"/>
-                   <path d="M5 15 L10 5 L15 15 Z" fill="#C59A5A"/>
-                   <path d="M25 15 L30 5 L35 15 Z" fill="#C59A5A"/>
-                </svg>
-                <span className="text-2xl font-semibold tracking-tight" style={{ color: '#7A1C43', fontFamily: '"Playfair Display", serif' }}>
-                  Utsavo
-                </span>
-             </div>
-             <span className="text-[5px] font-black uppercase tracking-[0.25em]" style={{ color: '#C59A5A', fontFamily: '"Outfit", sans-serif' }}>
-                Celebrate Every Moment
-             </span>
+          {/* Center: Branding with Golden Lotus */}
+          <div
+            onClick={() => navigate('/user/home')}
+            className="flex items-center space-x-2 cursor-pointer select-none active:scale-[0.98] transition-transform"
+          >
+            <div className="w-8 h-8 flex items-center justify-center text-[#C99839]">
+              <svg className="w-8 h-8 fill-none stroke-current stroke-[1.8]" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 40 40">
+                <path d="M20 7 C21 13 23 21 20 27 C17 21 19 13 20 7 Z" fill="#E2BA62" fillOpacity="0.35" />
+                <path d="M20 14 C25 17 31 22 28 29 C24 29 21 25 20 23 C19 25 16 29 12 29 C9 22 15 17 20 14 Z" fill="#ECC878" fillOpacity="0.25" />
+                <path d="M12 21 C7 21 4 27 7 31 C11 31 15 28 17 25" />
+                <path d="M28 21 C33 21 36 27 33 31 C29 31 25 28 23 25" />
+                <path d="M13 32 C17 34 23 34 27 32" strokeWidth="1.5" />
+              </svg>
+            </div>
+            <div className="flex flex-col text-left">
+              <span className="font-serif font-bold text-[24px] leading-none tracking-tight text-[#4F1325]">Utsavo</span>
+              <span className="text-[7px] uppercase tracking-[0.26em] text-stone-600 font-semibold mt-0.5">Celebrate Every Moment</span>
+            </div>
           </div>
 
           {/* Right: Location & Notifications */}
-          <div className="flex items-center gap-3">
-             <button className="flex items-center gap-1 text-[#3D2B2B] hover:opacity-70 transition-opacity">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <span className="text-[10px] font-semibold">Hyderabad</span>
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-             </button>
-
-             {isAuthenticated && (
+          <div className="flex items-center space-x-2.5">
+            {/* City Selector Pill */}
+            <div className="relative">
               <button
-                onClick={handleNotificationsClick}
-                className="relative p-1 text-[#3D2B2B] active:scale-95 transition-transform"
+                onClick={() => setIsCityDropdownOpen(!isCityDropdownOpen)}
+                className="flex items-center space-x-1 bg-white/90 shadow-sm border border-stone-200/80 px-2.5 py-1 rounded-full text-stone-700 text-xs font-medium cursor-pointer active:scale-95 transition-transform"
               >
-                <Icon name="bell" size="sm" />
-                {unreadCount > 0 && (
-                  <div className="absolute -top-0.5 -right-0.5 min-w-[12px] h-3 px-0.5 rounded-full flex items-center justify-center bg-[#BE185D]">
-                    <span className="text-[8px] font-bold text-white leading-none">
-                      {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
-                  </div>
-                )}
+                <svg className="w-3.5 h-3.5 text-stone-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span className="text-[11px] font-medium text-stone-800">{selectedCity}</span>
+                <svg className={`w-3 h-3 text-stone-500 transition-transform ${isCityDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M19.5 8.25l-7.5 7.5-7.5-7.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </button>
-            )}
+
+              {isCityDropdownOpen && (
+                <div className="absolute right-0 mt-1 w-32 bg-white rounded-xl shadow-lg border border-stone-200/90 py-1.5 z-50 animate-in fade-in zoom-in-95">
+                  {cities.map((city) => (
+                    <button
+                      key={city}
+                      onClick={() => {
+                        setSelectedCity(city);
+                        setIsCityDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 text-xs font-medium transition-colors ${selectedCity === city ? 'bg-[#FFF5F6] text-[#4F1325] font-bold' : 'text-stone-700 hover:bg-stone-50'}`}
+                    >
+                      {city}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Notification Bell */}
+            <button
+              onClick={() => navigate('/user/notifications')}
+              aria-label="Notifications"
+              className="relative p-1 text-stone-700 focus:outline-none hover:opacity-80 active:scale-95 transition-transform"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                <path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 bg-[#5E1229] rounded-full ring-2 ring-[#FAF6F0]" />
+              )}
+            </button>
           </div>
         </div>
 
-        {/* Row 2: Search and Filter */}
-        <div className="flex items-center gap-3">
-           <div className="flex-1 flex items-center gap-2 bg-white/95 backdrop-blur-md rounded-2xl px-4 py-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-white/60">
-              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <input 
-                type="text" 
-                placeholder="Search for vendors, services, venues..." 
-                className="bg-transparent border-none outline-none w-full text-xs text-[#3D2B2B] placeholder-gray-400 font-medium"
-                style={{ fontFamily: '"Outfit", sans-serif' }}
-              />
-           </div>
-           <button className="w-10 h-10 flex-shrink-0 bg-[#FDF2F8] shadow-sm rounded-xl flex items-center justify-center text-[#7A1C43] active:scale-95 transition-transform">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-              </svg>
-           </button>
-        </div>
-
+        {/* Row 2: Search Bar */}
+        <form onSubmit={handleSearchSubmit} className="flex items-center justify-between bg-white border border-stone-200/90 rounded-full px-3.5 py-2 shadow-xs">
+          <div className="flex items-center space-x-2.5 flex-1 pr-2">
+            <svg className="w-4 h-4 text-stone-400 stroke-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search for vendors, services, venues..."
+              className="w-full bg-transparent border-none outline-none text-stone-700 text-[12.5px] tracking-tight placeholder-stone-400 focus:ring-0 p-0"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/user/vendors')}
+            aria-label="Filter Options"
+            className="text-stone-600 pl-1 border-l border-stone-200 focus:outline-none hover:text-stone-900 active:scale-95 transition-transform"
+          >
+            <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+              <path d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </form>
       </div>
 
-      {/* Hamburger Menu */}
+      {/* Hamburger Drawer */}
       <HamburgerMenu
         isOpen={isHamburgerMenuOpen}
         onClose={() => setIsHamburgerMenuOpen(false)}
@@ -171,4 +180,4 @@ const Header = () => {
   );
 };
 
-export default Header;
+export default Header;

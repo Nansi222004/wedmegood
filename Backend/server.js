@@ -5,11 +5,19 @@ const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
 const http = require('http');
+const dns = require('dns');
 const { Server } = require('socket.io');
 const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
 require('dotenv').config();
+
+// Ensure reliable DNS resolution for MongoDB Atlas SRV records on Windows/local networks
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch (dnsErr) {
+  console.warn('⚠️ Could not override DNS servers:', dnsErr.message);
+}
 
 const userRoutes = require('./modules/user');
 const vendorRoutes = require('./modules/vendor');

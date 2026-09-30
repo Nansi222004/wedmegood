@@ -1,56 +1,199 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useTheme } from '../../../hooks/useTheme';
-import Icon from '../../../components/ui/Icon';
 import userApi from '../../../services/userApi';
 
-const getCategoryIcon = (slug) => {
-  const color = "#B08953";
-  switch (slug) {
-    case 'venues':
-      return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>;
-    case 'photographers':
-      return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5"><path d="M6 2L3 8l9 14 9-14-3-6H6z" /><path d="M3 8h18" /><path d="M12 2v20" /><path d="M6 2l6 6" /><path d="M18 2l-6 6" /></svg>;
-    case 'catering':
-      return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5"><path d="M6 13.5V14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-.5"></path><path d="M12 4v2"></path><path d="M4.5 13.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5h15c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5H4.5z"></path></svg>;
-    case 'decorators':
-      return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5"><circle cx="9" cy="9" r="4"></circle><circle cx="15" cy="9" r="4"></circle><path d="M9 13v6"></path><path d="M15 13v6"></path></svg>;
-    case 'makeup-artists':
-    case 'makeup':
-      return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5"><circle cx="12" cy="8" r="5"></circle><path d="M12 13a8 8 0 0 0-8 8h16a8 8 0 0 0-8-8z"></path></svg>;
-    case 'entertainment':
-    case 'music-djs':
-    case 'choreographers':
-      return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>;
-    default:
-      return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>;
+const defaultCategoryMetadata = {
+  venues: {
+    name: 'Wedding Venues',
+    count: '1,420+ Venues',
+    tags: ['Banquet Halls', 'Lawns & Farmhouses', 'Palaces', 'Luxury Resorts'],
+    rating: '4.9',
+    image: 'https://images.unsplash.com/photo-1519167758481-83f29d8ae8e4?w=600&h=450&fit=crop&crop=center',
+    badge: 'Popular'
+  },
+  photographers: {
+    name: 'Photographers',
+    count: '980+ Studios',
+    tags: ['Candid Photography', 'Traditional', 'Cinematic Pre-Wedding', 'Drone'],
+    rating: '4.8',
+    image: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=600&h=450&fit=crop&crop=center',
+    badge: 'Trending'
+  },
+  decorators: {
+    name: 'Decorators & Florists',
+    count: '650+ Designers',
+    tags: ['Mandap Design', 'Floral Styling', 'Ambient Lighting', 'Theme Stages'],
+    rating: '4.9',
+    image: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=600&h=450&fit=crop&crop=center',
+    badge: 'Featured'
+  },
+  'makeup-artists': {
+    name: 'Bridal Makeup',
+    count: '820+ Artists',
+    tags: ['HD Bridal Glam', 'Airbrush Makeup', 'Hairstyling', 'Saree Draping'],
+    rating: '4.9',
+    image: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=600&h=450&fit=crop&crop=center',
+    badge: 'Top Rated'
+  },
+  makeup: {
+    name: 'Bridal Makeup',
+    count: '820+ Artists',
+    tags: ['HD Bridal Glam', 'Airbrush Makeup', 'Hairstyling', 'Saree Draping'],
+    rating: '4.9',
+    image: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=600&h=450&fit=crop&crop=center',
+    badge: 'Top Rated'
+  },
+  catering: {
+    name: 'Catering & Feasts',
+    count: '430+ Caterers',
+    tags: ['Pure Vegetarian', 'Multi-Cuisine', 'Dessert Bars', 'Live Food Stations'],
+    rating: '4.7',
+    image: 'https://images.unsplash.com/photo-1555244162-803834f70033?w=600&h=450&fit=crop&crop=center',
+    badge: 'Verified'
+  },
+  entertainment: {
+    name: 'Entertainment & DJs',
+    count: '310+ Artists',
+    tags: ['Wedding DJs', 'Live Bands', 'Sangeet Choreography', 'Folk Troupe'],
+    rating: '4.8',
+    image: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&h=450&fit=crop&crop=center',
+    badge: 'Curated'
   }
 };
 
+const fallbackCategories = [
+  {
+    id: 'venues',
+    name: 'Wedding Venues',
+    count: '1,420+ Venues',
+    tags: ['Banquet Halls', 'Lawns & Farmhouses', 'Palaces', 'Luxury Resorts'],
+    rating: '4.9',
+    image: 'https://images.unsplash.com/photo-1519167758481-83f29d8ae8e4?w=600&h=450&fit=crop&crop=center',
+    badge: 'Popular',
+    route: '/user/vendors/venues'
+  },
+  {
+    id: 'photographers',
+    name: 'Photographers',
+    count: '980+ Studios',
+    tags: ['Candid Photography', 'Traditional', 'Cinematic Pre-Wedding', 'Drone'],
+    rating: '4.8',
+    image: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?w=600&h=450&fit=crop&crop=center',
+    badge: 'Trending',
+    route: '/user/vendors/photographers'
+  },
+  {
+    id: 'decorators',
+    name: 'Decorators & Florists',
+    count: '650+ Designers',
+    tags: ['Mandap Design', 'Floral Styling', 'Ambient Lighting', 'Theme Stages'],
+    rating: '4.9',
+    image: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=600&h=450&fit=crop&crop=center',
+    badge: 'Featured',
+    route: '/user/vendors/decorators'
+  },
+  {
+    id: 'makeup-artists',
+    name: 'Bridal Makeup',
+    count: '820+ Artists',
+    tags: ['HD Bridal Glam', 'Airbrush Makeup', 'Hairstyling', 'Saree Draping'],
+    rating: '4.9',
+    image: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=600&h=450&fit=crop&crop=center',
+    badge: 'Top Rated',
+    route: '/user/vendors/makeup'
+  },
+  {
+    id: 'catering',
+    name: 'Catering & Feasts',
+    count: '430+ Caterers',
+    tags: ['Pure Vegetarian', 'Multi-Cuisine', 'Dessert Bars', 'Live Food Stations'],
+    rating: '4.7',
+    image: 'https://images.unsplash.com/photo-1555244162-803834f70033?w=600&h=450&fit=crop&crop=center',
+    badge: 'Verified',
+    route: '/user/vendors/catering'
+  },
+  {
+    id: 'entertainment',
+    name: 'Entertainment & DJs',
+    count: '310+ Artists',
+    tags: ['Wedding DJs', 'Live Bands', 'Sangeet Choreography', 'Folk Troupe'],
+    rating: '4.8',
+    image: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&h=450&fit=crop&crop=center',
+    badge: 'Curated',
+    route: '/user/vendors/entertainment'
+  }
+];
+
+const premierVendors = [
+  {
+    id: 'rajadhani-weddings',
+    name: 'Rajadhani Royal Decorators',
+    category: 'Wedding Decorators',
+    rating: 4.9,
+    reviews: 142,
+    startingPrice: '₹1.5 Lakhs',
+    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBP3vmHLpGwX6-J1pT9806eu73KSHxlCscZneWp7xnnYgzHNj5zahRWMGuEkntnTPlBSyG4AdOVPX3tt8zsZz4YP-RtVP2Fxp5fPvBA-3kM27o7UEe7qeqOTu8C4v20DvHVJidlmJ1hEt7KaugMrbBwIZqUa37n2rzYhKDFWC7OIjSOtff-4pBWSD3iRh4QBFiSiRjnAs2XsMJYF7z3AS6MSYf2CCuGQEZGKz6uik5_Gdfxuhr1ApuHWQ',
+    route: '/user/vendors/decorators'
+  },
+  {
+    id: 'moments-photography',
+    name: 'Moments Cinematic Stories',
+    category: 'Photography & Cinema',
+    rating: 4.8,
+    reviews: 98,
+    startingPrice: '₹80,000 / day',
+    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA5TbBQR-ALDzFzf0Ez6fOwT990sV-3giyOJ8YZeGPQJQ8yr9h08EAPlQWiL56MJUR37bTOJka3uBlYwOwMhg09xtIhMyrCEVT8Sj2bmyoam9XXiYVaPe42jOARm2bU_aaF99GjRRGGhJWt1ytddpQLceCQoeUjiBdW09verMndqisF_7d4AJwinAZPqvNDbbMWilEqWD_kv92y3ZfGu638jST2hfHoTGnwLTtZTZd1cSk2QFJvkzZOgw',
+    route: '/user/vendors/photographers'
+  },
+  {
+    id: 'the-grand-venue',
+    name: 'The Grand Heritage Palace',
+    category: 'Palaces & Lawns',
+    rating: 4.9,
+    reviews: 210,
+    startingPrice: '₹2,200 / plate',
+    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBzA86OHAcNR79LRKsKlxPf4X1ZLyLMmO4aYGOtxuCQSi8Yh5pFgIXi131DsGdiRtRX24UvekrvNUJIJHzwSvj_fzAP097El4ApQZGoqbwQZrwKGb1JfB2depmk-8qIE4jMcsTi9ttJz5lvg-Hdvv5ZDJSP69nev9Q4EewzBCLEGhpS618oV29rWRT-6BOrfeG0h1Ew7R37_SpnGgoq_FWPn6MYexn6HwiDEvuRktTwaAvkXt5AIArIXw',
+    route: '/user/vendors/venues'
+  }
+];
+
 const VendorsMain = () => {
-  const { theme } = useTheme();
   const navigate = useNavigate();
-  const [selectedCity] = useState('Indore');
-  const [categories, setCategories] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [selectedCity, setSelectedCity] = useState(() => localStorage.getItem('selectedCity') || 'Hyderabad');
+  const [categories, setCategories] = useState(fallbackCategories);
+  const [activeFilter, setActiveFilter] = useState('All');
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Sync city updates from header
+  useEffect(() => {
+    const handleCityChange = (e) => {
+      if (e?.detail) setSelectedCity(e.detail);
+    };
+    window.addEventListener('city-changed', handleCityChange);
+    return () => window.removeEventListener('city-changed', handleCityChange);
+  }, []);
 
   useEffect(() => {
     const fetchCategories = async () => {
-      setIsLoading(true);
-      setError(null);
       try {
         const res = await userApi.getCategories();
-        if (res.success && Array.isArray(res.data)) {
-          const mapped = res.data.map(cat => {
+        if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+          const mapped = res.data.map((cat) => {
             const slug = cat.slug || cat.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-            const subList = Array.isArray(cat.subCategories) ? cat.subCategories.map(s => s.name).join(', ') : '';
+            const meta = defaultCategoryMetadata[slug] || {};
+            const subList = Array.isArray(cat.subCategories) && cat.subCategories.length > 0
+              ? cat.subCategories.map((s) => s.name)
+              : meta.tags || ['Verified Professionals', 'Exclusive Packages'];
+
             return {
               id: slug,
               dbId: cat._id,
-              name: cat.name,
-              subtitle: subList || cat.description || 'Verified Wedding Professionals',
-              image: cat.image || defaultCategoryImages[slug] || 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&h=400&fit=crop&crop=center',
+              name: cat.name || meta.name,
+              count: meta.count || '500+ Verified',
+              tags: subList,
+              rating: meta.rating || '4.8',
+              image: cat.image || meta.image || defaultCategoryMetadata.venues.image,
+              badge: meta.badge || 'Verified',
               route: `/user/vendors/${slug}`
             };
           });
@@ -58,9 +201,7 @@ const VendorsMain = () => {
         }
       } catch (err) {
         console.error('Error fetching categories:', err);
-        setError('Failed to load marketplace categories');
-      } finally {
-        setIsLoading(false);
+        // Falls back seamlessly to curated fallbackCategories
       }
     };
 
@@ -68,130 +209,226 @@ const VendorsMain = () => {
   }, []);
 
   const handleCategoryClick = (category) => {
-    navigate(category.route, { 
-      state: { 
+    navigate(category.route, {
+      state: {
         category: category.id,
-        categoryTitle: category.name 
-      } 
+        categoryTitle: category.name
+      }
     });
   };
 
-  const handleSearchClick = () => {
-    navigate('/user/search');
-  };
+  const filterOptions = [
+    'All',
+    'Venues',
+    'Photographers',
+    'Decorators',
+    'Makeup',
+    'Catering',
+    'Entertainment'
+  ];
 
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const handleSearchSubmit = (e) => {
-    if (e) e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/user/vendors/all?search=${encodeURIComponent(searchQuery.trim())}`, {
-        state: { category: 'all', categoryTitle: 'All Categories', search: searchQuery.trim() }
-      });
-    } else {
-      navigate('/user/search');
-    }
-  };
+  const filteredCategories = categories.filter((cat) => {
+    if (activeFilter === 'All') return true;
+    const term = activeFilter.toLowerCase();
+    return (
+      cat.name.toLowerCase().includes(term) ||
+      cat.id.toLowerCase().includes(term) ||
+      cat.tags.some((t) => t.toLowerCase().includes(term))
+    );
+  });
 
   return (
-    <div className="min-h-screen pb-32 relative bg-transparent">
-      {/* Background Image for the whole page */}
-      <div className="fixed inset-0 pointer-events-none z-[-1]" style={{ backgroundImage: "url('/uservendorre%20page%20bg.png')", backgroundSize: 'cover', backgroundPosition: 'center', opacity: 1 }} />
+    <div className="bg-[#FAF7F2] min-h-screen text-stone-800 antialiased font-sans selection:bg-[#F2BDCD] selection:text-[#4F1325]">
+      {/* Central Viewport Container */}
+      <div className="max-w-[430px] md:max-w-4xl mx-auto min-h-screen bg-[#FAF7F2] relative overflow-hidden shadow-sm pb-28">
+        
+        {/* Subtle Luxury Corner Watermarks */}
+        <div className="floral-bg-corner-top-right opacity-60 pointer-events-none" />
+        <div className="floral-bg-corner-left opacity-60 pointer-events-none" />
 
-      <div className="px-6 pt-6 pb-12 relative z-10">
-
-        {/* The Atelier Section */}
-        <div className="mb-8">
-           <div className="flex items-center gap-2 mb-2">
-              <span className="w-2 h-2 rounded-full bg-[#BE185D]"></span>
-              <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#6B6C80]">Curation Service</span>
-           </div>
-
-           <div className="flex justify-between items-start">
-             <div>
-               <h1 className="text-[42px] font-bold text-[#301024] leading-none mb-2" style={{ fontFamily: '"Playfair Display", serif' }}>
-                 The Atelier
-               </h1>
-               <div className="flex items-center gap-1.5 text-[#BE185D] mb-6">
-                  <Icon name="location" size="xs" />
-                  <span className="text-[11px] font-bold uppercase tracking-[0.1em]">{selectedCity}</span>
-                  <Icon name="chevronDown" size="xs" />
-               </div>
-             </div>
-             <button className="w-10 h-10 bg-[#FDF4F7] rounded-full flex items-center justify-center shadow-sm border border-white shrink-0 active:scale-95 transition-transform">
-                <Icon name="search" size="xs" className="text-[#301024]" />
-             </button>
-           </div>
-
-           {/* Second Search Bar */}
-           <form onSubmit={handleSearchSubmit} className="relative">
-             <div className="relative flex items-center bg-white/80 backdrop-blur-sm rounded-full shadow-sm border border-white p-1">
-               <Icon name="search" size="sm" className="absolute left-4 text-gray-400" />
-               <input
-                 type="text"
-                 placeholder="Search all vendors, services, or cities..."
-                 value={searchQuery}
-                 onChange={(e) => setSearchQuery(e.target.value)}
-                 className="w-full pl-11 pr-3 py-2.5 bg-transparent text-[13px] font-medium text-[#301024] focus:outline-none placeholder-[#301024]/50"
-               />
-               <button
-                 type="submit"
-                 className="px-6 py-2.5 rounded-full bg-[#BE185D] text-white text-[12px] font-bold shadow-md hover:bg-[#9D174D] active:scale-95 transition-all ml-2"
-               >
-                 Search
-               </button>
-             </div>
-           </form>
-        </div>
-
-        {/* Categories Grid */}
-        <div className="space-y-4">
-          {isLoading ? (
-            <div className="bg-white/60 backdrop-blur-md rounded-[32px] p-12 text-center shadow-sm border border-white">
-              <div className="w-8 h-8 border-3 border-[#BE185D] border-t-transparent animate-spin rounded-full mx-auto mb-3"></div>
-              <p className="text-xs font-bold text-[#301024]/60 uppercase tracking-widest">Loading...</p>
+        <div className="px-4 sm:px-6 pt-4 pb-6 relative z-10 space-y-5">
+          
+          {/* Header & City Title Banner (Clean, no second search bar) */}
+          <div className="pt-1">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-pulse" />
+                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.22em] text-[#651731] font-cinzel">
+                  Royal Wedding Atelier
+                </span>
+              </div>
+              <span className="text-[11px] font-semibold text-stone-600 bg-white/90 border border-stone-200/80 px-2.5 py-0.5 rounded-full shadow-2xs">
+                📍 {selectedCity}
+              </span>
             </div>
-          ) : error ? (
-            <div className="bg-white/60 backdrop-blur-md rounded-[32px] p-8 text-center shadow-sm border border-white text-red-600 text-xs font-semibold">
-              {error}
+
+            <div className="flex items-baseline justify-between">
+              <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#491221] tracking-tight leading-tight">
+                Vendor Marketplace
+              </h1>
+              <span className="text-[11.5px] font-medium text-stone-500 font-cinzel">
+                {categories.length} Disciplines
+              </span>
             </div>
-          ) : categories.length === 0 ? (
-            <div className="bg-white/60 backdrop-blur-md rounded-[32px] p-8 text-center shadow-sm border border-white text-[#301024]/60 text-xs">
-              No categories available.
-            </div>
-          ) : (
-            categories.map((category) => (
+            <p className="text-[12px] sm:text-[13px] text-stone-600 font-normal mt-0.5 leading-relaxed">
+              Curated master artisans, venues, and luxury creators for your special day.
+            </p>
+          </div>
+
+          {/* Quick Discipline Filter Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto py-1 -mx-4 px-4 sm:-mx-6 sm:px-6 no-scrollbar select-none">
+            {filterOptions.map((opt) => {
+              const isActive = activeFilter === opt;
+              return (
+                <button
+                  key={opt}
+                  onClick={() => setActiveFilter(opt)}
+                  className={`px-3.5 py-1.5 rounded-full text-[11.5px] font-semibold tracking-tight whitespace-nowrap transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-[#651731] text-[#FAF6F0] shadow-sm scale-[1.02]'
+                      : 'bg-white/90 text-stone-600 border border-stone-200/80 hover:bg-stone-50 active:scale-95'
+                  }`}
+                >
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Category Cards Showcase */}
+          <div className="space-y-2.5 pt-1">
+            {filteredCategories.map((category) => (
               <div
                 key={category.id}
                 onClick={() => handleCategoryClick(category)}
-                className="relative bg-white/90 backdrop-blur-sm rounded-[32px] p-5 pr-8 flex items-center gap-5 shadow-sm border border-white hover:shadow-md active:scale-95 transition-all group cursor-pointer overflow-hidden"
+                className="group relative bg-white/95 rounded-2xl p-4 sm:p-4.5 border border-[#E8DFC8]/70 hover:border-[#D4AF37] shadow-[0_2px_12px_rgba(74,18,36,0.03)] hover:shadow-[0_6px_20px_rgba(74,18,36,0.07)] transition-all duration-300 cursor-pointer"
               >
-                {/* Background image on the card */}
-                <div className="absolute inset-0 bg-no-repeat opacity-30 pointer-events-none" style={{ backgroundImage: "url('/uservendorre%20page%20bg.png')", backgroundSize: 'cover', backgroundPosition: 'center' }}></div>
+                <div className="flex items-start justify-between gap-3 mb-1.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="font-serif font-bold text-[17px] sm:text-[19px] text-[#4F1325] tracking-tight group-hover:text-[#651731] transition-colors">
+                        {category.name}
+                      </h2>
+                      {category.badge && (
+                        <span className="px-2 py-0.5 rounded-full bg-[#FFF5F6] border border-[#F2BDCD] text-[9px] font-bold text-[#651731] uppercase tracking-wider">
+                          {category.badge}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11.5px] text-stone-500 font-medium leading-relaxed mt-1">
+                      {Array.isArray(category.tags) ? category.tags.join(' • ') : category.tags}
+                    </p>
+                  </div>
 
-                {/* Star icon top right */}
-                <div className="absolute top-5 right-5 text-[#301024]/40">
-                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                  <span className="text-[10.5px] font-bold text-[#8A2846] bg-[#FFF5F6] border border-[#F2BDCD]/70 px-2.5 py-1 rounded-full shrink-0">
+                    {category.count}
+                  </span>
                 </div>
 
-                <div className="w-14 h-14 shrink-0 bg-[#FDFBF9] rounded-full flex items-center justify-center border border-[#F3E8DC] shadow-sm relative z-10">
-                   {getCategoryIcon(category.id)}
-                </div>
-
-                <div className="flex-1 min-w-0 relative z-10 pr-4">
-                  <h3 className="text-[24px] font-bold text-[#2A1B24] mb-0.5 leading-tight truncate" style={{ fontFamily: '"Playfair Display", serif' }}>
-                    {category.name}
-                  </h3>
-                  <p className="text-[10px] font-bold text-[#8E95A4] leading-relaxed uppercase tracking-wider truncate">
-                    {category.subtitle}
-                  </p>
+                {/* Bottom Row */}
+                <div className="flex items-center justify-between pt-2.5 border-t border-stone-100 mt-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold text-[#B38038] flex items-center gap-1">
+                      ★ {category.rating}
+                    </span>
+                    <span className="text-stone-300">•</span>
+                    <span className="text-[10px] text-stone-400 font-semibold uppercase tracking-wider">
+                      Verified Partners
+                    </span>
+                  </div>
+                  
+                  <span className="text-[11.5px] font-bold text-[#651731] flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                    Explore
+                    <svg className="w-3.5 h-3.5 stroke-current stroke-[2.5]" fill="none" viewBox="0 0 24 24">
+                      <path d="M8.25 4.5l7.5 7.5-7.5 7.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
                 </div>
               </div>
-            ))
-          )}
+            ))}
+          </div>
+
+          {/* Top-Rated Premier Wedding Artisans Section */}
+          <div className="pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#651731] font-cinzel">
+                  Handpicked Spotlight
+                </span>
+                <h3 className="font-serif font-bold text-lg text-[#4F1325]">
+                  Featured Wedding Masters
+                </h3>
+              </div>
+              <button
+                onClick={() => navigate('/user/vendors/all')}
+                className="text-[11px] font-bold text-[#8A2846] hover:underline"
+              >
+                View All
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {premierVendors.map((vendor) => (
+                <div
+                  key={vendor.id}
+                  onClick={() => navigate(vendor.route)}
+                  className="bg-white rounded-xl p-2.5 border border-[#E8DFC8]/60 shadow-2xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                >
+                  <div className="relative w-full h-28 rounded-lg overflow-hidden mb-2 bg-stone-100">
+                    <img
+                      src={vendor.image}
+                      alt={vendor.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
+                    />
+                    <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[9.5px] font-semibold text-[#ECC880] flex items-center gap-0.5">
+                      ★ {vendor.rating} ({vendor.reviews})
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-[13px] text-stone-900 tracking-tight leading-snug truncate group-hover:text-[#651731] transition-colors">
+                      {vendor.name}
+                    </h4>
+                    <p className="text-[10.5px] text-stone-500 font-medium truncate mt-0.5">
+                      {vendor.category}
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-stone-100">
+                    <span className="text-[10.5px] font-bold text-[#651731]">
+                      {vendor.startingPrice}
+                    </span>
+                    <span className="text-[10px] font-semibold text-stone-500 group-hover:text-[#651731] flex items-center">
+                      View →
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Complimentary Concierge / Genie Services Card */}
+          <div className="mt-4 rounded-2xl bg-gradient-to-br from-[#4F1325] to-[#651731] p-4 text-white shadow-md flex items-center justify-between gap-3">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#E2BA62] font-cinzel">
+                Personalized Assistance
+              </span>
+              <h4 className="font-serif font-bold text-base text-white leading-tight">
+                Need Help Selecting Vendors?
+              </h4>
+              <p className="text-[11px] text-[#FAF6F0]/80 leading-snug">
+                Let our dedicated Wedding Genie negotiate packages & curate top recommendations.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/user/genie-services')}
+              className="shrink-0 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#ECC880] text-[#4F1325] text-[11px] font-bold shadow-sm hover:opacity-95 active:scale-95 transition-all"
+            >
+              Ask Genie
+            </button>
+          </div>
+
         </div>
       </div>
-      <div className="h-10"></div>
     </div>
   );
 };

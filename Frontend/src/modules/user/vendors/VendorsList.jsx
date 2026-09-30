@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
-import { useLenisContext } from '../../../providers/LenisProvider';
 import { useToast } from '../../../components/ui/Toast';
 import { useAuth } from '../../../contexts/AuthContext';
 import Button from '../../../components/ui/Button';
@@ -17,9 +16,6 @@ const VendorsList = () => {
   const { theme } = useTheme();
   const { user } = useAuth();
   const { showToast, ToastComponent } = useToast();
-
-  // Get global Lenis instance
-  const lenis = useLenisContext();
 
   const categoryTitle = location.state?.categoryTitle || category || 'Vendors';
   const [vendorsList, setVendorsList] = useState([]);
@@ -205,23 +201,23 @@ const VendorsList = () => {
   };
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ backgroundColor: '#EAE1D8' }}
-    >
-      <div className="px-4 py-3 max-w-7xl mx-auto space-y-4">
-        {/* Back Button and Title (WedMeGood Style) */}
-        <div className="flex items-center justify-between pb-2 border-b border-[#3D2B2B]/10">
+    <div className="bg-[#EDE8E1] min-h-screen text-slate-800 antialiased font-sans">
+      <div className="max-w-[430px] md:max-w-4xl mx-auto min-h-screen bg-[#FAF6F0] relative overflow-hidden shadow-2xl pb-28 px-4 py-4 space-y-4">
+        {/* Back Button and Title (Utsavo Royal Style) */}
+        <div className="flex items-center justify-between pb-3 border-b border-[#D4AF37]/25">
           <button
             onClick={() => navigate('/user/vendors')}
-            className="w-10 h-10 rounded-full bg-white/40 flex items-center justify-center text-[#3D2B2B] hover:bg-white/60 transition-all active:scale-90"
+            className="w-10 h-10 rounded-full bg-white/90 border border-[#D4AF37]/35 flex items-center justify-center text-[#4F1325] hover:bg-white transition-all active:scale-90 shadow-xs"
           >
             <Icon name="chevronLeft" size="sm" />
           </button>
 
           <div className="text-center">
-            <h1 className="text-[#3D2B2B] text-base font-black tracking-tight" style={{ fontFamily: '"Playfair Display", serif' }}>
-              Bhopal • {categoryTitle}
+            <span className="text-[10px] font-cinzel uppercase tracking-[0.2em] text-[#D4AF37] block font-bold">
+              Curated Selection
+            </span>
+            <h1 className="text-[#4F1325] text-lg font-serif font-bold tracking-tight">
+              {categoryTitle}
             </h1>
           </div>
 
@@ -230,55 +226,53 @@ const VendorsList = () => {
                onClick={() => navigate('/user/favourites')}
                title="View Saved Favourites"
                aria-label="View Saved Favourites"
-               className="w-10 h-10 rounded-full bg-white/40 flex items-center justify-center text-[#3D2B2B] hover:bg-white/60 transition-all active:scale-90"
+               className="w-10 h-10 rounded-full bg-white/90 border border-[#D4AF37]/35 flex items-center justify-center text-[#4F1325] hover:bg-white transition-all active:scale-90 shadow-xs"
              >
                 <Icon name="heart" size="sm" />
              </button>
           </div>
         </div>
 
-        {/* Search Bar (Pill Style) */}
+        {/* Search Bar (Luxury Pill Style) */}
         <form onSubmit={handleSearchSubmit} className="relative group">
-          <button
-            type="submit"
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-[#3D2B2B]/60 hover:text-[#BE185D] transition-colors cursor-pointer"
-            title="Submit search"
-            aria-label="Submit search"
-          >
-            <Icon name="search" size="sm" />
-          </button>
-          <input
-            type="text"
-            placeholder={`Search ${categoryTitle.toLowerCase()} by name, service, or location...`}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-28 py-3.5 rounded-full border-none text-sm shadow-sm transition-all focus:ring-2 focus:ring-[#3D2B2B]/20"
-            style={{
-              backgroundColor: 'white',
-              color: '#3D2B2B'
-            }}
-          />
-          {searchQuery && (
+          <div className="relative flex items-center bg-white/95 rounded-full shadow-xs border border-[#D4AF37]/35 focus-within:border-[#D4AF37] focus-within:ring-2 focus-within:ring-[#D4AF37]/20 transition-all p-1">
             <button
-              type="button"
-              onClick={() => {
-                setSearchQuery('');
-                setDebouncedSearch('');
-                setCurrentPage(1);
-              }}
-              className="absolute right-20 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs px-2 py-1 cursor-pointer"
-              title="Clear search"
-              aria-label="Clear search"
+              type="submit"
+              className="pl-3.5 pr-2 text-[#D4AF37] hover:text-[#CFA146] transition-colors cursor-pointer"
+              title="Submit search"
+              aria-label="Submit search"
             >
-              ✕
+              <Icon name="search" size="sm" />
             </button>
-          )}
-          <button
-            type="submit"
-            className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 rounded-full bg-[#3D2B2B] text-white text-xs font-bold hover:bg-[#251a1a] active:scale-95 transition-all shadow-xs cursor-pointer"
-          >
-            Search
-          </button>
+            <input
+              type="text"
+              placeholder={`Search ${categoryTitle.toLowerCase()} by name, service, city...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full py-2 bg-transparent text-sm text-[#4F1325] focus:outline-none placeholder-[#4F1325]/45"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setDebouncedSearch('');
+                  setCurrentPage(1);
+                }}
+                className="text-slate-400 hover:text-slate-700 text-xs px-2.5 py-1 cursor-pointer"
+                title="Clear search"
+                aria-label="Clear search"
+              >
+                ✕
+              </button>
+            )}
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-full bg-gradient-to-r from-[#4F1325] to-[#651731] text-[#ECC880] text-xs font-bold active:scale-95 transition-all shadow-xs cursor-pointer ml-1"
+            >
+              Search
+            </button>
+          </div>
         </form>
 
         {/* Dynamic Subcategories Pill Bar */}
@@ -288,8 +282,8 @@ const VendorsList = () => {
               onClick={() => { setSelectedSubCategory('all'); setCurrentPage(1); }}
               className={`px-3.5 py-1.5 rounded-full text-xs font-bold tracking-wide whitespace-nowrap transition-all shadow-xs ${
                 selectedSubCategory === 'all'
-                  ? 'bg-[#3D2B2B] text-white shadow-sm'
-                  : 'bg-white/80 text-[#3D2B2B] hover:bg-white'
+                  ? 'bg-gradient-to-r from-[#4F1325] to-[#651731] text-[#ECC880] shadow-sm'
+                  : 'bg-white/90 border border-[#D4AF37]/25 text-[#4F1325] hover:bg-white'
               }`}
             >
               All {categoryTitle}
@@ -300,8 +294,8 @@ const VendorsList = () => {
                 onClick={() => { setSelectedSubCategory(sub.name); setCurrentPage(1); }}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-bold tracking-wide whitespace-nowrap transition-all shadow-xs ${
                   selectedSubCategory === sub.name
-                    ? 'bg-[#3D2B2B] text-white shadow-sm'
-                    : 'bg-white/80 text-[#3D2B2B] hover:bg-white'
+                    ? 'bg-gradient-to-r from-[#4F1325] to-[#651731] text-[#ECC880] shadow-sm'
+                    : 'bg-white/90 border border-[#D4AF37]/25 text-[#4F1325] hover:bg-white'
                 }`}
               >
                 {sub.name}
@@ -310,13 +304,13 @@ const VendorsList = () => {
           </div>
         )}
 
-        {/* Destination Pricing Toggle (WedMeGood Signature) */}
+        {/* Destination Pricing Toggle */}
         <div className="flex items-center justify-between px-2 mb-2">
-            <span className="text-[11px] font-black uppercase tracking-wider text-[#3D2B2B]/60" style={{ fontFamily: '"Outfit", sans-serif' }}>
-                View Destination Pricing
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#651731]/75 font-cinzel">
+                Destination Availability
             </span>
-            <div className="w-12 h-6 bg-rose-500 rounded-full relative p-1 shadow-inner">
-                <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm" />
+            <div className="w-12 h-6 bg-[#651731] rounded-full relative p-1 shadow-inner cursor-pointer">
+                <div className="absolute right-1 top-1 w-4 h-4 bg-[#ECC880] rounded-full shadow-sm" />
             </div>
         </div>
 
@@ -583,13 +577,13 @@ const VendorsList = () => {
         {/* Content Area: Loading, Error, or Grid */}
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 mb-24">
-            <div className="w-12 h-12 border-4 border-[#E91E63] border-t-transparent animate-spin rounded-full mb-4"></div>
-            <p className="text-sm font-semibold text-slate-500">
-              Loading verified vendors from marketplace...
+            <div className="w-12 h-12 border-4 border-[#D4AF37] border-t-transparent animate-spin rounded-full mb-4"></div>
+            <p className="text-sm font-semibold text-[#4F1325]/70 font-cinzel">
+              Loading curated wedding artisans...
             </p>
           </div>
         ) : error ? (
-          <div className="text-center py-16 px-4 bg-red-50 rounded-2xl border border-red-200 max-w-md mx-auto mb-24">
+          <div className="text-center py-16 px-4 bg-white/80 rounded-2xl border border-red-200 max-w-md mx-auto mb-24">
             <Icon name="alertTriangle" size="lg" className="text-red-500 mx-auto mb-3" />
             <h3 className="text-lg font-bold text-red-900 mb-1">Failed to load vendors</h3>
             <p className="text-sm text-red-600 mb-4">{error}</p>
@@ -616,17 +610,17 @@ const VendorsList = () => {
                 <button
                   disabled={!pagination.hasPreviousPage}
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  className="px-4 py-2 text-xs font-bold rounded-full bg-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 text-[#3D2B2B] transition-all"
+                  className="px-4 py-2 text-xs font-bold rounded-full bg-white shadow-xs border border-[#D4AF37]/30 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 text-[#4F1325] transition-all"
                 >
                   Previous
                 </button>
-                <span className="text-xs font-bold text-[#3D2B2B]/70 px-2">
+                <span className="text-xs font-bold text-[#4F1325]/70 px-2">
                   Page {currentPage} of {pagination.totalPages} ({pagination.total} total)
                 </span>
                 <button
                   disabled={!pagination.hasNextPage}
                   onClick={() => setCurrentPage(prev => Math.min(pagination.totalPages, prev + 1))}
-                  className="px-4 py-2 text-xs font-bold rounded-full bg-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 text-[#3D2B2B] transition-all"
+                  className="px-4 py-2 text-xs font-bold rounded-full bg-white shadow-xs border border-[#D4AF37]/30 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 text-[#4F1325] transition-all"
                 >
                   Next
                 </button>
@@ -636,31 +630,22 @@ const VendorsList = () => {
             {/* Enhanced Empty State */}
             {sortedVendors.length === 0 && (
               <div
-                className="text-center py-12 sm:py-16 mb-24 rounded-lg mx-auto max-w-md"
-                style={{
-                  backgroundColor: theme.semantic.card.background,
-                  borderColor: theme.semantic.card.border,
-                  borderWidth: '1px',
-                  borderStyle: 'solid'
-                }}
+                className="text-center py-12 sm:py-16 mb-24 rounded-2xl mx-auto max-w-md bg-white/90 border border-[#D4AF37]/25 shadow-xs"
               >
                 <div className="mb-6 flex justify-center">
                   <div
-                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: theme.colors.primary[50] }}
+                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center bg-[#FAF6F0] border border-[#D4AF37]/30 text-[#D4AF37]"
                   >
-                    <Icon name="noResults" size="2xl" color="muted" />
+                    <Icon name="noResults" size="2xl" />
                   </div>
                 </div>
                 <h3
-                  className="text-lg sm:text-xl font-semibold mb-2"
-                  style={{ color: theme.semantic.text.primary }}
+                  className="text-lg sm:text-xl font-serif font-bold mb-2 text-[#4F1325]"
                 >
                   No vendors found
                 </h3>
                 <p
-                  className="text-sm sm:text-base mb-6 px-4"
-                  style={{ color: theme.semantic.text.secondary }}
+                  className="text-sm mb-6 px-4 text-[#651731]/70"
                 >
                   {debouncedSearch
                     ? `No matching vendors found for "${debouncedSearch}" in ${categoryTitle}. Try adjusting your search term or filters.`
@@ -683,7 +668,7 @@ const VendorsList = () => {
                   <Button
                     onClick={() => navigate('/user/vendors')}
                     variant="primary"
-                    className="px-6 py-2 text-xs"
+                    className="px-6 py-2 text-xs bg-gradient-to-r from-[#4F1325] to-[#651731] text-[#ECC880]"
                   >
                     Browse All Categories
                   </Button>
@@ -694,16 +679,15 @@ const VendorsList = () => {
         )}
       </div>
 
-      {/* Floating Filter & Genie Buttons (WedMeGood Style) */}
-      <div className="fixed bottom-20 left-1/2 -translate-x-1/2 flex items-center bg-[#3D2B2B] text-white rounded-full px-5 py-2.5 shadow-2xl space-x-4 z-50">
-          <button onClick={() => setShowFilters(!showFilters)} className="flex items-center space-x-2 border-r border-white/20 pr-4">
+      {/* Floating Filter & Genie Buttons (Royal Utsavo Style) */}
+      <div className="fixed bottom-22 left-1/2 -translate-x-1/2 flex items-center bg-gradient-to-r from-[#4F1325] to-[#651731] text-[#ECC880] rounded-full px-5 py-2.5 shadow-2xl border border-[#D4AF37]/40 space-x-4 z-50">
+          <button onClick={() => setShowFilters(!showFilters)} className="flex items-center space-x-2 border-r border-white/20 pr-4 hover:opacity-90 active:scale-95 transition-all">
               <Icon name="filter" size="sm" />
-              <span className="text-xs font-bold uppercase tracking-wider">Filter</span>
+              <span className="text-xs font-bold uppercase tracking-wider font-cinzel">Filter</span>
           </button>
-          <button className="flex items-center space-x-2">
-              <img src="/assets/icons/genie.png" alt="Genie" className="w-5 h-5 invert" onError={(e) => e.target.style.display = 'none'} />
-              <Icon name="sparkles" size="sm" />
-              <span className="text-xs font-bold uppercase tracking-wider">Genie</span>
+          <button onClick={() => navigate('/user/ai-assistant')} className="flex items-center space-x-2 hover:opacity-90 active:scale-95 transition-all">
+              <Icon name="sparkles" size="sm" className="text-[#ECC880]" />
+              <span className="text-xs font-bold uppercase tracking-wider font-cinzel">AI Concierge</span>
           </button>
       </div>
 

@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../../../contexts/CartContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useTheme } from '../../../hooks/useTheme';
-import { useLenisContext } from '../../../providers/LenisProvider';
 import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import Input from '../../../components/ui/Input';
@@ -32,9 +31,6 @@ const Checkout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Get Lenis instance to disable it for this page
-  const lenis = useLenisContext();
-  
   // Passed booking from MyBookings or cart items
   const bookingData = location.state?.booking;
   const bookingId = location.state?.bookingId || bookingData?._id;
@@ -52,19 +48,6 @@ const Checkout = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-
-  // Disable Lenis smooth scrolling for checkout page
-  useEffect(() => {
-    if (lenis) {
-      lenis.stop();
-    }
-
-    return () => {
-      if (lenis) {
-        lenis.start();
-      }
-    };
-  }, [lenis]);
 
   // Redirect if no items and no booking
   useEffect(() => {

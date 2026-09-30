@@ -6,6 +6,24 @@ export const LenisProvider = ({ children }) => {
   const lenisRef = useRef(null);
 
   useEffect(() => {
+    // Completely disable Lenis in user app / user portal
+    const isUserApp = typeof window !== 'undefined' && (
+      window.location.pathname.startsWith('/user') ||
+      window.location.pathname.startsWith('/family') ||
+      window.location.pathname.startsWith('/invite') ||
+      window.location.pathname === '/' ||
+      window.location.pathname === '/login' ||
+      window.location.pathname === '/signup' ||
+      window.location.pathname === '/register'
+    );
+
+    if (isUserApp) {
+      if (document.documentElement.classList.contains('lenis')) {
+        document.documentElement.classList.remove('lenis');
+      }
+      return;
+    }
+
     // Dynamic import for better code splitting
     const initializeLenis = async () => {
       try {
