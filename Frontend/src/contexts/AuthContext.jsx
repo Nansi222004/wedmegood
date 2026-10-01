@@ -120,6 +120,25 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
+  const continueAsGuest = () => {
+    const guestUser = {
+      _id: 'guest_user',
+      name: 'Guest User',
+      email: 'guest@utsavo.com',
+      role: 'guest',
+      isGuest: true,
+      isAuthenticated: true,
+      city: 'Hyderabad'
+    };
+    try {
+      localStorage.setItem('user', JSON.stringify(guestUser));
+    } catch (e) {
+      console.error('Failed to set guest user in localStorage', e);
+    }
+    setUser(guestUser);
+    return guestUser;
+  };
+
   const isAuthenticated = user && user.isAuthenticated;
 
   // Memoize the context value to prevent unnecessary re-renders
@@ -130,6 +149,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     updateUser,
+    continueAsGuest,
     isAuthenticated
   }), [user, isLoading, isAuthenticated]);
 

@@ -284,12 +284,23 @@ const AppRouter = () => {
                     backgroundPosition: 'center', 
                     backgroundColor: (location.pathname.startsWith('/user/family/group/') || location.pathname.startsWith('/user/chats/'))
                       ? '#ffffff'
-                      : '#EDE8E1',
+                      : (location.pathname.startsWith('/user/vendor/') || location.pathname.startsWith('/user/photographer/') || location.pathname.startsWith('/user/decorator/') || location.pathname.startsWith('/user/makeup/'))
+                        ? '#FAF7F2'
+                        : '#EDE8E1',
                     backgroundRepeat: 'no-repeat'
                   }} 
                 />
                 <Header />
-                <main className={(location.pathname.startsWith('/user/family/group/') || location.pathname.startsWith('/user/chats/') || location.pathname === '/user/home' || location.pathname === '/user/dashboard') ? "relative z-0 min-h-[calc(100vh-140px)] overflow-x-hidden" : "pb-16 md:pb-0 relative z-0 min-h-[calc(100vh-140px)] overflow-x-hidden"}>
+                <main className={(
+                  location.pathname.startsWith('/user/family/group/') ||
+                  location.pathname.startsWith('/user/chats/') ||
+                  location.pathname.startsWith('/user/vendor/') ||
+                  location.pathname.startsWith('/user/photographer/') ||
+                  location.pathname.startsWith('/user/decorator/') ||
+                  location.pathname.startsWith('/user/makeup/') ||
+                  location.pathname === '/user/home' ||
+                  location.pathname === '/user/dashboard'
+                ) ? "relative z-0 min-h-[calc(100vh-140px)] overflow-x-hidden" : "pb-16 md:pb-0 relative z-0 min-h-[calc(100vh-140px)] overflow-x-hidden"}>
                   <AnimatePresence mode="wait" custom={direction} initial={false}>
                     <motion.div
                       key={location.pathname}

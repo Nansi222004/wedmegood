@@ -13,7 +13,7 @@ import { userApi } from '../../../services/userApi';
 const Account = () => {
   const { theme } = useTheme();
   const { cartState } = useCart();
-  const { user, login, logout, isAuthenticated, updateUser } = useAuth();
+  const { user, login, logout, isAuthenticated, updateUser, continueAsGuest } = useAuth();
   const navigate = useNavigate();
 
   // Login form state
@@ -71,7 +71,7 @@ const Account = () => {
   if (!isAuthenticated) {
     return (
       <div className="bg-[#EDE8E1] min-h-screen text-slate-800 antialiased font-sans flex items-center justify-center px-4 py-8 pb-28">
-        <div className="w-full max-w-md bg-[#FAF6F0] rounded-[28px] border border-[#D4AF37]/30 shadow-2xl overflow-hidden relative">
+        <div className="w-full max-w-md bg-[#FAF6F0] rounded-[28px] border border-stone-200/80 shadow-2xl overflow-hidden relative">
           {/* Visual Login Header */}
           <div className="relative h-36 overflow-hidden">
             <img
@@ -81,10 +81,10 @@ const Account = () => {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#4F1325]/90 via-[#4F1325]/40 to-transparent" />
             <div className="absolute bottom-3 left-5">
-              <span className="text-[10px] font-cinzel uppercase tracking-[0.2em] text-[#ECC880] block font-bold">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-[#ECC880] block">
                 Royal Guest Access
               </span>
-              <h2 className="text-xl font-serif font-bold text-white">Welcome to Utsavo</h2>
+              <h2 className="text-xl font-bold tracking-tight text-white">Welcome to Utsavo</h2>
             </div>
           </div>
 
@@ -97,7 +97,7 @@ const Account = () => {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#4F1325] mb-1 font-cinzel">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-stone-700 mb-1.5">
                   Email Address
                 </label>
                 <input
@@ -107,12 +107,12 @@ const Account = () => {
                   onChange={handleChange}
                   placeholder="Enter your email"
                   required
-                  className="w-full px-4 py-2.5 rounded-full bg-white border border-[#D4AF37]/35 text-sm text-[#4F1325] focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30"
+                  className="w-full px-4 py-2.5 rounded-full bg-white border border-stone-200 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#8B1E3F]/30"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#4F1325] mb-1 font-cinzel">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-stone-700 mb-1.5">
                   Password
                 </label>
                 <input
@@ -122,30 +122,37 @@ const Account = () => {
                   onChange={handleChange}
                   placeholder="Enter your password"
                   required
-                  className="w-full px-4 py-2.5 rounded-full bg-white border border-[#D4AF37]/35 text-sm text-[#4F1325] focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30"
+                  className="w-full px-4 py-2.5 rounded-full bg-white border border-stone-200 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#8B1E3F]/30"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 rounded-full bg-gradient-to-r from-[#4F1325] to-[#651731] text-[#ECC880] font-bold text-xs uppercase tracking-widest shadow-md hover:opacity-95 active:scale-95 transition-all mt-2"
+                className="w-full py-3 rounded-full bg-gradient-to-r from-[#4F1325] to-[#651731] text-[#ECC880] font-semibold text-sm shadow-md hover:opacity-95 active:scale-95 transition-all mt-2 cursor-pointer"
               >
                 {isLoading ? 'Signing In...' : 'Sign In'}
               </button>
             </form>
 
             <div className="mt-6 text-center space-y-3">
-              <p className="text-xs text-[#651731]/70">
+              <p className="text-xs text-stone-600">
                 Don't have an account?{' '}
-                <Link to="/signup" className="font-bold text-[#4F1325] underline hover:text-[#651731]">
+                <Link to="/signup" className="font-semibold text-[#651731] underline hover:text-[#4F1325]">
                   Sign up
                 </Link>
               </p>
 
-              <Link to="/user/home" className="block text-xs font-semibold text-[#8E95A4] hover:text-[#4F1325]">
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof continueAsGuest === 'function') continueAsGuest();
+                  navigate('/user/home');
+                }}
+                className="block text-xs font-medium text-stone-500 hover:text-stone-800 mx-auto cursor-pointer"
+              >
                 Continue as guest
-              </Link>
+              </button>
             </div>
           </div>
         </div>
@@ -285,18 +292,19 @@ const Account = () => {
 
         {/* Profile Card Section */}
         <div className="px-5 pt-6 mb-6 relative z-10">
-          <div className="p-6 rounded-[28px] shadow-sm border border-[#D4AF37]/30 relative overflow-hidden bg-white/95 backdrop-blur-sm">
-            {/* Top Right Script Calligraphy */}
-            <div className="absolute top-4 right-5 text-right pointer-events-none">
-              <span className="font-script text-[#D4AF37] text-2xl leading-none block -rotate-6">
-                Celebrating Love
+          <div className="p-6 rounded-[28px] shadow-sm border border-stone-200/80 relative overflow-hidden bg-white/95 backdrop-blur-sm">
+            {/* Top Right Status Badge */}
+            <div className="absolute top-4 right-4 pointer-events-none">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF6F0] border border-stone-200/80 text-[11px] font-semibold text-[#4F1325]">
+                <span className="text-[#D4AF37]">✦</span>
+                <span>Utsavo Member</span>
               </span>
             </div>
 
             <div className="flex flex-col items-center text-center">
               {/* Profile Avatar */}
               <div className="relative group mt-1 mb-3">
-                <div className="w-20 h-20 rounded-full overflow-hidden shadow-sm flex items-center justify-center border-2 border-[#D4AF37]">
+                <div className="w-20 h-20 rounded-full overflow-hidden shadow-sm flex items-center justify-center border-2 border-stone-200/90">
                   {userData.profileImage && !imageError ? (
                     <img
                       src={formatImageUrl(userData.profileImage)}
@@ -305,14 +313,14 @@ const Account = () => {
                       onError={() => setImageError(true)}
                     />
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-[#4F1325] to-[#651731] flex items-center justify-center text-[#ECC880] text-3xl font-serif font-bold">
+                    <div className="w-full h-full bg-gradient-to-br from-[#4F1325] to-[#651731] flex items-center justify-center text-[#ECC880] text-3xl font-bold font-sans">
                       {userData.name ? userData.name.charAt(0).toUpperCase() : 'U'}
                     </div>
                   )}
                 </div>
                 <button
                   onClick={() => handleNavigation('/user/profile/edit')}
-                  className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-[#4F1325] shadow-md flex items-center justify-center text-[#ECC880] active:scale-90 transition-all border border-white"
+                  className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-[#4F1325] shadow-md flex items-center justify-center text-[#ECC880] active:scale-90 transition-all border border-white cursor-pointer"
                   title="Change Photo"
                 >
                   <Icon name="camera" size="xs" />
@@ -320,23 +328,24 @@ const Account = () => {
               </div>
 
               {/* User Identity */}
-              <div className="space-y-1 w-full">
-                <h1 className="text-2xl font-serif font-bold text-[#4F1325] leading-tight">
+              <div className="space-y-1.5 w-full">
+                <h1 className="text-2xl font-bold tracking-tight text-stone-900 leading-tight">
                   {userData.name}
                 </h1>
 
-                <div className="flex flex-col items-center gap-0.5">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#8E95A4]">
-                    {userData.phone || '+91 98765 43210'}
-                  </div>
-                  <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#8E95A4] truncate max-w-[220px]">
-                    {userData.email}
-                  </div>
+                <div className="flex items-center justify-center flex-wrap gap-2 text-xs text-stone-500 font-medium">
+                  {userData.phone && <span>{userData.phone}</span>}
+                  {userData.phone && userData.email && <span className="text-stone-300">•</span>}
+                  <span className="truncate max-w-[240px] text-stone-500">{userData.email}</span>
                 </div>
 
                 <div className="pt-2">
-                  <span className="inline-block px-4 py-1.5 rounded-full bg-[#FAF6F0] text-[9px] font-bold uppercase tracking-widest text-[#651731] border border-[#D4AF37]/35 shadow-2xs font-cinzel">
-                    Location: {userData.city}
+                  <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#FAF6F0] text-xs font-semibold text-stone-700 border border-stone-200/80">
+                    <svg className="w-3.5 h-3.5 text-[#8B1E3F]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <span>{userData.city}</span>
                   </span>
                 </div>
               </div>
@@ -346,10 +355,10 @@ const Account = () => {
 
         {/* Wedding Budget Overview */}
         <div className="px-5 space-y-4 relative z-10">
-          <div className="p-5 rounded-[24px] bg-white/95 backdrop-blur-sm shadow-xs border border-[#D4AF37]/25">
+          <div className="p-5 rounded-[24px] bg-white/95 backdrop-blur-sm shadow-xs border border-stone-200/80">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-[#FAF6F0] border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37]">
+                <div className="w-9 h-9 rounded-full bg-[#FAF6F0] border border-amber-200/70 flex items-center justify-center text-[#B38728]">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M18 20V10" />
                     <path d="M12 20V4" />
@@ -357,29 +366,29 @@ const Account = () => {
                   </svg>
                 </div>
                 <div>
-                  <span className="text-[9px] font-cinzel uppercase tracking-[0.2em] text-[#D4AF37] block font-bold">
+                  <span className="text-[10px] uppercase tracking-wider text-[#A8741A] block font-bold">
                     Financial Planner
                   </span>
-                  <h3 className="text-base font-serif font-bold text-[#4F1325]">Wedding Budget</h3>
+                  <h3 className="text-base font-bold text-stone-900 tracking-tight">Wedding Budget</h3>
                 </div>
               </div>
               <button
                 onClick={() => handleNavigation('/user/budget')}
-                className="text-xs font-bold text-[#651731] hover:text-[#4F1325] flex items-center gap-1 font-cinzel"
+                className="text-xs font-semibold text-[#8B1E3F] hover:text-[#4F1325] flex items-center gap-1 cursor-pointer transition-colors"
               >
                 Manage <Icon name="chevronRight" size="xs" />
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 mb-4 divide-x divide-[#D4AF37]/20">
+            <div className="grid grid-cols-3 gap-2 mb-4 divide-x divide-stone-200/70">
               {[
-                { label: 'Total', val: formatCurrency(budgetData.totalBudget), color: '#4F1325' },
+                { label: 'Total', val: formatCurrency(budgetData.totalBudget), color: '#1C1917' },
                 { label: 'Spent', val: formatCurrency(budgetData.spent), color: '#651731' },
                 { label: 'Remaining', val: formatCurrency(budgetData.remaining), color: '#0F766E' }
               ].map((item, i) => (
-                <div key={i} className="text-center">
-                  <div className="text-[10px] text-[#8E95A4] uppercase tracking-wider mb-0.5">{item.label}</div>
-                  <div className="text-base font-bold font-serif" style={{ color: item.color }}>
+                <div key={i} className="text-center px-1">
+                  <div className="text-[11px] font-medium text-stone-500 uppercase tracking-wider mb-1">{item.label}</div>
+                  <div className="text-lg font-bold font-sans tracking-tight" style={{ color: item.color }}>
                     {item.val}
                   </div>
                 </div>
@@ -388,62 +397,62 @@ const Account = () => {
 
             {/* Progress Bar */}
             <div className="relative pt-1">
-              <div className="w-full h-2 bg-[#FAF6F0] rounded-full overflow-hidden border border-[#D4AF37]/20">
+              <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden border border-stone-200/60">
                 <div
                   className="h-full bg-gradient-to-r from-[#4F1325] to-[#651731] rounded-full transition-all duration-500"
                   style={{ width: `${getBudgetProgress()}%` }}
                 />
               </div>
-              <p className="text-[9px] font-bold text-[#8E95A4] text-right mt-1.5 uppercase tracking-widest font-cinzel">
+              <p className="text-xs font-semibold text-stone-500 text-right mt-1.5 tracking-tight">
                 {getBudgetProgress().toFixed(0)}% Utilized
               </p>
             </div>
           </div>
 
           {/* Wedding Details Card */}
-          <div className="p-5 rounded-[24px] bg-white/95 backdrop-blur-sm shadow-xs border border-[#D4AF37]/25">
+          <div className="p-5 rounded-[24px] bg-white/95 backdrop-blur-sm shadow-xs border border-stone-200/80">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-[#FAF6F0] border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37]">
+                <div className="w-9 h-9 rounded-full bg-[#FAF6F0] border border-amber-200/70 flex items-center justify-center text-[#B38728]">
                   <Icon name="calendar" size="xs" />
                 </div>
-                <h3 className="text-base font-serif font-bold text-[#4F1325]">Celebration Itinerary</h3>
+                <h3 className="text-base font-bold text-stone-900 tracking-tight">Celebration Itinerary</h3>
               </div>
               <button
                 onClick={() => handleNavigation('/user/wedding/details')}
-                className="px-3 py-1 rounded-full border border-[#D4AF37]/35 text-[11px] font-bold text-[#651731] flex items-center gap-1 bg-[#FAF6F0] hover:bg-white transition-all"
+                className="px-3 py-1 rounded-full border border-stone-200 text-xs font-semibold text-stone-700 flex items-center gap-1.5 bg-white hover:bg-stone-50 transition-all shadow-2xs cursor-pointer"
               >
                 <Icon name="edit" size="xs" /> Edit
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 divide-x divide-[#D4AF37]/20">
-              <div className="flex flex-col items-center text-center">
+            <div className="grid grid-cols-3 gap-2 divide-x divide-stone-200/70">
+              <div className="flex flex-col items-center text-center px-1">
                 <div className="w-8 h-8 rounded-full bg-[#FFF5F6] flex items-center justify-center mb-1 text-[#651731]">
                   <Icon name="calendar" size="xs" />
                 </div>
-                <p className="text-[11px] font-bold text-[#4F1325] leading-tight mb-0.5">
+                <p className="text-xs font-bold text-stone-900 leading-tight mb-0.5">
                   {formatWeddingDate(userData.weddingDate)}
                 </p>
-                <p className="text-[9px] text-[#8E95A4] uppercase tracking-wider">Date</p>
+                <p className="text-[10px] text-stone-400 uppercase tracking-wider font-semibold">Date</p>
               </div>
 
-              <div className="flex flex-col items-center text-center">
-                <div className="w-8 h-8 rounded-full bg-[#FAF6F0] flex items-center justify-center mb-1 text-[#D4AF37]">
+              <div className="flex flex-col items-center text-center px-1">
+                <div className="w-8 h-8 rounded-full bg-[#FAF6F0] flex items-center justify-center mb-1 text-[#B38728]">
                   <Icon name="location" size="xs" />
                 </div>
-                <p className="text-[11px] font-bold text-[#4F1325] leading-tight mb-0.5">{userData.city}</p>
-                <p className="text-[9px] text-[#8E95A4] uppercase tracking-wider">Destination</p>
+                <p className="text-xs font-bold text-stone-900 leading-tight mb-0.5">{userData.city}</p>
+                <p className="text-[10px] text-stone-400 uppercase tracking-wider font-semibold">Destination</p>
               </div>
 
-              <div className="flex flex-col items-center text-center">
+              <div className="flex flex-col items-center text-center px-1">
                 <div className="w-8 h-8 rounded-full bg-[#FAF6F0] flex items-center justify-center mb-1 text-[#4F1325]">
                   <Icon name="users" size="xs" />
                 </div>
-                <p className="text-[11px] font-bold text-[#4F1325] leading-tight mb-0.5">
+                <p className="text-xs font-bold text-stone-900 leading-tight mb-0.5">
                   {userData.functionsCount} Events
                 </p>
-                <p className="text-[9px] text-[#8E95A4] uppercase tracking-wider">Ceremonies</p>
+                <p className="text-[10px] text-stone-400 uppercase tracking-wider font-semibold">Ceremonies</p>
               </div>
             </div>
           </div>
@@ -453,7 +462,7 @@ const Account = () => {
         <div className="px-5 pt-6 pb-2 relative z-10">
           <div className="flex items-center gap-2 mb-3">
             <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37]"></span>
-            <h2 className="text-lg font-serif font-bold text-[#4F1325]">Celebration Services</h2>
+            <h2 className="text-base font-bold text-stone-900 tracking-tight">Celebration Services</h2>
           </div>
 
           <div className="space-y-2.5">
@@ -491,21 +500,21 @@ const Account = () => {
             ].map((tool, idx) => (
               <div
                 key={idx}
-                className="p-4 rounded-[20px] bg-white/95 backdrop-blur-sm shadow-xs border border-[#D4AF37]/20 hover:border-[#D4AF37] cursor-pointer active:scale-[0.99] transition-all flex items-center justify-between group"
+                className="p-4 rounded-[20px] bg-white/95 backdrop-blur-sm shadow-xs border border-stone-200/80 hover:border-stone-300 cursor-pointer active:scale-[0.99] transition-all flex items-center justify-between group"
                 onClick={() => handleNavigation(tool.path)}
               >
                 <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#FFF5F6] to-[#FAF6F0] border border-[#D4AF37]/30 flex items-center justify-center text-[#4F1325] group-hover:scale-105 transition-transform">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#FFF5F6] to-[#FAF6F0] border border-amber-200/50 flex items-center justify-center text-[#4F1325] group-hover:scale-105 transition-transform">
                     <Icon name={tool.icon} size="sm" />
                   </div>
                   <div>
-                    <h3 className="font-serif font-bold text-sm text-[#4F1325] group-hover:text-[#651731] transition-colors">
+                    <h3 className="font-semibold text-sm text-stone-800 group-hover:text-[#651731] transition-colors">
                       {tool.title}
                     </h3>
-                    <p className="text-[10px] text-[#8E95A4]">{tool.subtitle}</p>
+                    <p className="text-xs text-stone-500">{tool.subtitle}</p>
                   </div>
                 </div>
-                <div className="text-[#D4AF37] opacity-60 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
+                <div className="text-stone-400 group-hover:text-[#4F1325] group-hover:translate-x-0.5 transition-all">
                   <Icon name="chevronRight" size="xs" />
                 </div>
               </div>
@@ -517,24 +526,24 @@ const Account = () => {
         <div className="px-5 pt-4 pb-4 relative z-10">
           <div className="flex items-center gap-2 mb-3">
             <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37]"></span>
-            <h2 className="text-lg font-serif font-bold text-[#4F1325]">Account & Preferences</h2>
+            <h2 className="text-base font-bold text-stone-900 tracking-tight">Account & Preferences</h2>
           </div>
 
           <div className="space-y-2.5">
             <div
-              className="p-4 rounded-[20px] bg-white/95 backdrop-blur-sm shadow-xs border border-[#D4AF37]/20 hover:border-[#D4AF37] cursor-pointer active:scale-[0.99] transition-all flex items-center justify-between group"
+              className="p-4 rounded-[20px] bg-white/95 backdrop-blur-sm shadow-xs border border-stone-200/80 hover:border-stone-300 cursor-pointer active:scale-[0.99] transition-all flex items-center justify-between group"
               onClick={() => handleNavigation('/user/profile/edit')}
             >
               <div className="flex items-center gap-3.5">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#FFF5F6] to-[#FAF6F0] border border-[#D4AF37]/30 flex items-center justify-center text-[#4F1325]">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#FFF5F6] to-[#FAF6F0] border border-amber-200/50 flex items-center justify-center text-[#4F1325]">
                   <Icon name="account" size="sm" />
                 </div>
                 <div>
-                  <h3 className="font-serif font-bold text-sm text-[#4F1325]">Personal Profile</h3>
-                  <p className="text-[10px] text-[#8E95A4]">Manage your personal details</p>
+                  <h3 className="font-semibold text-sm text-stone-800">Personal Profile</h3>
+                  <p className="text-xs text-stone-500">Manage your personal details</p>
                 </div>
               </div>
-              <Icon name="chevronRight" size="xs" className="text-[#D4AF37]" />
+              <Icon name="chevronRight" size="xs" className="text-stone-400" />
             </div>
 
             <div
@@ -546,8 +555,8 @@ const Account = () => {
                   <Icon name="logout" size="sm" />
                 </div>
                 <div>
-                  <h3 className="font-serif font-bold text-sm text-red-600">Logout</h3>
-                  <p className="text-[10px] text-[#8E95A4]">Sign out from this device</p>
+                  <h3 className="font-semibold text-sm text-red-600">Logout</h3>
+                  <p className="text-xs text-stone-500">Sign out from this device</p>
                 </div>
               </div>
               <Icon name="chevronRight" size="xs" className="text-red-400" />

@@ -6,7 +6,7 @@ import { useTheme } from '../../../hooks/useTheme';
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth();
+  const { login, continueAsGuest } = useAuth();
   const { theme } = useTheme();
   const [formData, setFormData] = useState({
     username: '',
@@ -35,6 +35,13 @@ const Login = () => {
     } else {
       setError(result.error);
     }
+  };
+
+  const handleGuestLogin = () => {
+    if (typeof continueAsGuest === 'function') {
+      continueAsGuest();
+    }
+    navigate(redirectUrl || '/user/home');
   };
 
   return (
@@ -147,8 +154,8 @@ const Login = () => {
         <div className="w-full max-w-sm px-6 relative z-10">
           <button 
             type="button"
-            onClick={() => navigate('/user/dashboard')}
-            className="w-full flex items-center justify-center gap-2 border border-[#59233D]/30 rounded-full py-3.5 text-[#59233D] text-[11px] font-bold bg-transparent active:scale-95 transition-transform hover:bg-[#59233D]/5 mb-6"
+            onClick={handleGuestLogin}
+            className="w-full flex items-center justify-center gap-2 border border-[#59233D]/30 rounded-full py-3.5 text-[#59233D] text-[11px] font-bold bg-transparent active:scale-95 transition-transform hover:bg-[#59233D]/5 mb-6 cursor-pointer"
           >
              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
              Continue as Guest

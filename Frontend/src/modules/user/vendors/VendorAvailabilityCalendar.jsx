@@ -103,7 +103,7 @@ const VendorAvailabilityCalendar = ({ vendorId, vendorName, vendorCity, onSelect
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
-            <Icon name="calendar" size="sm" className="text-[#E91E63]" />
+            <Icon name="calendar" size="sm" className="text-[#4F1325]" />
             <span>Availability & Weather Forecast</span>
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -193,7 +193,7 @@ const VendorAvailabilityCalendar = ({ vendorId, vendorName, vendorCity, onSelect
                 isPast
                   ? 'bg-slate-50 border-transparent text-slate-300 cursor-not-allowed'
                   : isSelected
-                  ? 'ring-2 ring-[#E91E63] border-[#E91E63] bg-rose-50/40 shadow-sm'
+                  ? 'ring-2 ring-[#4F1325] border-[#4F1325] bg-[#FAF6F0] shadow-sm'
                   : isUnavailable
                   ? 'bg-rose-50/50 border-rose-100 text-slate-700 hover:bg-rose-100/50'
                   : 'bg-white border-slate-200 text-slate-800 hover:border-slate-300 hover:bg-slate-50'
@@ -202,7 +202,7 @@ const VendorAvailabilityCalendar = ({ vendorId, vendorName, vendorCity, onSelect
               {/* Day Number and status pill */}
               <div className="flex items-center justify-between w-full">
                 <span className={`text-xs font-bold ${
-                  isPast ? 'text-slate-300' : isToday ? 'text-[#E91E63]' : 'text-slate-700'
+                  isPast ? 'text-slate-300' : isToday ? 'text-[#4F1325]' : 'text-slate-700'
                 }`}>
                   {day}
                 </span>
@@ -233,7 +233,7 @@ const VendorAvailabilityCalendar = ({ vendorId, vendorName, vendorCity, onSelect
 
               {/* Today Badge */}
               {isToday && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#E91E63]" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#4F1325]" />
               )}
             </button>
           );
@@ -242,7 +242,7 @@ const VendorAvailabilityCalendar = ({ vendorId, vendorName, vendorCity, onSelect
 
       {/* Selected Date Summary & Rainfall Advisory Panel */}
       {selectedDateStr && (
-        <div className="mt-5 p-4 rounded-xl border border-slate-200 bg-slate-50 transition-all">
+        <div className="mt-5 p-4 rounded-xl border border-stone-200 bg-[#FAF6F0]/60 transition-all">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
@@ -281,13 +281,12 @@ const VendorAvailabilityCalendar = ({ vendorId, vendorName, vendorCity, onSelect
             </div>
 
             {onSelectDate && !isSelectedDateBooked && (
-              <Button
-                size="sm"
-                className="self-start sm:self-auto rounded-xl px-4 text-xs font-bold"
+              <button
+                className="self-start sm:self-auto rounded-full px-4 py-2 text-xs font-bold text-white bg-[#4F1325] hover:bg-[#651731] shadow-xs active:scale-95 transition-all"
                 onClick={() => onSelectDate(selectedDateStr, true, selectedWeather)}
               >
                 Inquire for This Date
-              </Button>
+              </button>
             )}
           </div>
 

@@ -11,7 +11,11 @@ const BottomNav = () => {
     location.pathname.startsWith('/family/join') ||
     location.pathname.includes('/chats/') ||
     location.pathname.startsWith('/invite/') ||
-    location.pathname === '/user/wedding-details'
+    location.pathname === '/user/wedding-details' ||
+    location.pathname.startsWith('/user/vendor/') ||
+    location.pathname.startsWith('/user/photographer/') ||
+    location.pathname.startsWith('/user/decorator/') ||
+    location.pathname.startsWith('/user/makeup/')
   ) {
     return null;
   }

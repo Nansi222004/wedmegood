@@ -66,10 +66,10 @@ const HamburgerMenu = ({ isOpen, onClose }) => {
             {/* Luxury Header */}
             <div className="bg-gradient-to-br from-[#4F1325] via-[#651731] to-[#4F1325] px-6 pt-8 pb-6 rounded-b-[2rem] shadow-sm flex items-center justify-between border-b border-[#D4AF37]/30">
               <div>
-                <span className="text-[9px] font-cinzel uppercase tracking-[0.2em] text-[#ECC880] block font-bold">
+                <span className="text-[10px] uppercase tracking-wider text-[#ECC880] block font-semibold">
                   The Royal Collection
                 </span>
-                <h2 className="text-xl font-serif font-bold text-white">Utsavo Menu</h2>
+                <h2 className="text-xl font-bold tracking-tight text-white">Utsavo Menu</h2>
               </div>
               <button
                 onClick={onClose}
@@ -84,9 +84,9 @@ const HamburgerMenu = ({ isOpen, onClose }) => {
             <div className="overflow-y-auto h-[calc(100vh-100px)] p-4 space-y-3.5 no-scrollbar">
               {/* Section 1: Member Card */}
               {isAuthenticated && user && (
-                <div className="bg-white/95 rounded-[1.5rem] p-3.5 space-y-3 shadow-xs border border-[#D4AF37]/25">
+                <div className="bg-white/95 rounded-[1.5rem] p-3.5 space-y-3 shadow-xs border border-stone-200/80">
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-[#D4AF37] shadow-xs shrink-0">
+                    <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-stone-200 shadow-xs shrink-0">
                       <img
                         src={user.profileImage}
                         className="w-full h-full object-cover"
@@ -98,17 +98,17 @@ const HamburgerMenu = ({ isOpen, onClose }) => {
                       />
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-base font-serif font-bold text-[#4F1325] truncate">
+                      <h3 className="text-base font-bold text-stone-900 truncate">
                         {user.name}
                       </h3>
-                      <p className="text-[9px] font-bold uppercase tracking-wider text-[#651731] font-cinzel">
+                      <p className="text-xs font-medium text-stone-500">
                         {user.city || 'Indore'} • Celebration Host
                       </p>
                     </div>
                   </div>
                   <button
                     onClick={() => handleNavigation('/user/account')}
-                    className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#4F1325] to-[#651731] text-[#ECC880] text-[9px] font-bold uppercase tracking-widest shadow-xs active:scale-95 transition-all font-cinzel cursor-pointer"
+                    className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#4F1325] to-[#651731] text-[#ECC880] text-xs font-semibold shadow-xs active:scale-95 transition-all cursor-pointer"
                   >
                     View Profile
                   </button>
@@ -118,17 +118,17 @@ const HamburgerMenu = ({ isOpen, onClose }) => {
               {/* Section 2: Conversational Hub */}
               <div
                 onClick={() => handleNavigation('/user/chats')}
-                className="bg-white/95 rounded-[1.25rem] p-3 flex items-center justify-between shadow-xs cursor-pointer border border-[#D4AF37]/25 hover:border-[#D4AF37] active:scale-98 transition-all"
+                className="bg-white/95 rounded-[1.25rem] p-3 flex items-center justify-between shadow-xs cursor-pointer border border-stone-200/80 hover:border-stone-300 active:scale-98 transition-all"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-[#FAF6F0] border border-[#D4AF37]/30 flex items-center justify-center text-[#4F1325]">
+                  <div className="w-9 h-9 rounded-xl bg-[#FAF6F0] border border-amber-200/50 flex items-center justify-center text-[#4F1325]">
                     <Icon name="chat" size="xs" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-serif font-bold text-[#4F1325]">
+                    <h4 className="text-xs font-bold text-stone-900">
                       Artisan Conversations
                     </h4>
-                    <p className="text-[8px] uppercase tracking-wider text-[#8E95A4] font-cinzel">
+                    <p className="text-[10px] text-stone-500 font-medium">
                       Direct Inquiries
                     </p>
                   </div>
@@ -139,13 +139,13 @@ const HamburgerMenu = ({ isOpen, onClose }) => {
                       {cartVendors.length}
                     </span>
                   )}
-                  <Icon name="chevronRight" size="xs" className="text-[#D4AF37]" />
+                  <Icon name="chevronRight" size="xs" className="text-stone-400" />
                 </div>
               </div>
 
               {/* Section 3: Curation Tools */}
               <div className="space-y-2">
-                <h5 className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#651731] px-2 font-cinzel">
+                <h5 className="text-[11px] font-bold uppercase tracking-wider text-stone-600 px-2">
                   Celebration Essentials
                 </h5>
                 <div className="space-y-1.5">
@@ -161,20 +161,20 @@ const HamburgerMenu = ({ isOpen, onClose }) => {
                     <button
                       key={i}
                       onClick={() => handleNavigation(item.path)}
-                      className="w-full flex items-center justify-between p-2.5 rounded-[1.25rem] bg-white/95 shadow-xs border border-[#D4AF37]/20 hover:border-[#D4AF37] hover:bg-[#FFF5F6] active:scale-98 transition-all group cursor-pointer"
+                      className="w-full flex items-center justify-between p-2.5 rounded-[1.25rem] bg-white/95 shadow-xs border border-stone-200/80 hover:border-stone-300 hover:bg-[#FFF5F6] active:scale-98 transition-all group cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-7 h-7 rounded-lg bg-[#FAF6F0] flex items-center justify-center text-[#4F1325] group-hover:text-[#651731]">
                           <Icon name={item.icon} size="xs" />
                         </div>
-                        <span className="text-xs font-serif font-bold text-[#4F1325] group-hover:text-[#651731]">
+                        <span className="text-xs font-semibold text-stone-800 group-hover:text-[#651731]">
                           {item.title}
                         </span>
                       </div>
                       <Icon
                         name="chevronRight"
                         size="xs"
-                        className="text-[#D4AF37] opacity-60 group-hover:opacity-100"
+                        className="text-stone-400 group-hover:text-stone-600"
                       />
                     </button>
                   ))}
@@ -182,11 +182,11 @@ const HamburgerMenu = ({ isOpen, onClose }) => {
               </div>
 
               {/* Section 4: Global Settings & Sign Out */}
-              <div className="pt-3 border-t border-[#D4AF37]/20 flex items-center justify-between px-1">
+              <div className="pt-3 border-t border-stone-200/80 flex items-center justify-between px-1">
                 {isAuthenticated ? (
                   <button
                     onClick={handleLogout}
-                    className="flex items-center gap-2 text-red-700 hover:text-red-800 text-[11px] font-bold uppercase tracking-wider font-cinzel cursor-pointer"
+                    className="flex items-center gap-2 text-red-600 hover:text-red-700 text-xs font-semibold cursor-pointer"
                   >
                     <Icon name="logout" size="sm" />
                     <span>Sign Out</span>
@@ -194,7 +194,7 @@ const HamburgerMenu = ({ isOpen, onClose }) => {
                 ) : (
                   <button
                     onClick={() => handleNavigation('/login')}
-                    className="flex items-center gap-2 text-[#4F1325] hover:text-[#651731] text-[11px] font-bold uppercase tracking-wider font-cinzel cursor-pointer"
+                    className="flex items-center gap-2 text-stone-800 hover:text-[#4F1325] text-xs font-semibold cursor-pointer"
                   >
                     <Icon name="account" size="sm" />
                     <span>Sign In</span>

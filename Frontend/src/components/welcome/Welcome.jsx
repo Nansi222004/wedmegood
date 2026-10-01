@@ -79,34 +79,14 @@ const Welcome = () => {
       {/* 4. CENTERED HERO CONTENT CONTAINER */}
       <div className="relative z-20 w-full max-w-sm sm:max-w-md min-h-[100dvh] flex flex-col justify-between items-center px-6 py-8 sm:py-11 mx-auto text-center">
         
-        {/* BRAND HEADER: Gold Emblem, Wordmark, and Tagline */}
+        {/* BRAND HEADER: Official Complete Utsavo Brand Logo (With Rainbow Arch) */}
         <div className={`pt-1 sm:pt-2 transition-all duration-1000 transform ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
           <div className="flex flex-col items-center justify-center">
-            {/* Elegant Gold Emblem: Interlocking wedding knot & hearts */}
-            <svg width="34" height="40" viewBox="0 0 36 44" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-[#C19A5B] mb-1">
-              {/* Top smaller heart */}
-              <path d="M18 15 C16 12 12.5 8 12.5 5 C12.5 2.5 14.5 1 17 1 C18 1 18.8 1.6 19 2.2 C19.2 1.6 20 1 21 1 C23.5 1 25.5 2.5 25.5 5 C25.5 8 22 12 18 15 Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-              {/* Interlocking bottom larger heart */}
-              <path d="M18 39 C15 34 5.5 26 5.5 17 C5.5 10 10 7 14.5 7 C16.5 7 18 8.2 19 9.5 C20 8.2 21.5 7 23.5 7 C28 7 32.5 10 32.5 17 C32.5 26 23 34 18 39 Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-              {/* Inner ring circle */}
-              <circle cx="18" cy="18" r="2.8" stroke="currentColor" strokeWidth="1.4" fill="none"/>
-            </svg>
-
-            {/* "Utsavo" Wordmark in deep plum serif */}
-            <span 
-              className="text-[28px] sm:text-[30px] font-bold tracking-tight text-[#3E1430] leading-none"
-              style={{ fontFamily: '"Playfair Display", Georgia, serif' }}
-            >
-              Utsavo
-            </span>
-
-            {/* "CELEBRATE EVERY MOMENT" in gold uppercase */}
-            <span 
-              className="text-[7.5px] sm:text-[8px] font-bold uppercase tracking-[0.28em] text-[#C19A5B] mt-1.5"
-              style={{ fontFamily: '"Poppins", sans-serif' }}
-            >
-              Celebrate Every Moment
-            </span>
+            <img
+              src="/utsavo_logo_transparent.png"
+              alt="Utsavo - Celebrate Every Moment"
+              className="w-40 sm:w-48 md:w-52 h-auto object-contain drop-shadow-[0_6px_20px_rgba(236,26,103,0.12)]"
+            />
           </div>
         </div>
 

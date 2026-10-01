@@ -2,7 +2,7 @@
 @import "tailwindcss";
 
 :root {
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 html, body {
@@ -12,7 +12,7 @@ html, body {
 }
 
 body {
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

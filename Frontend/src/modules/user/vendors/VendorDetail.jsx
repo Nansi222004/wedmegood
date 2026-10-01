@@ -451,793 +451,678 @@ const VendorDetail = () => {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50">
-        <div className="w-12 h-12 border-4 border-[#E91E63] border-t-transparent animate-spin rounded-full mb-3"></div>
-        <p className="text-sm font-semibold text-slate-500">Loading vendor details...</p>
+      <div className="flex flex-col items-center justify-center min-h-[70vh] bg-[#FAF7F2]">
+        <div className="w-10 h-10 border-3 border-[#4F1325] border-t-transparent animate-spin rounded-full mb-3" />
+        <p className="text-xs font-semibold text-stone-600 tracking-wide">Loading vendor profile...</p>
       </div>
     );
   }
 
   if (fetchError || !vendor) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen px-4 text-center bg-slate-50">
-        <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
-          <Icon name="alertTriangle" size="lg" className="text-red-500" />
+      <div className="flex flex-col items-center justify-center min-h-[70vh] px-4 text-center bg-[#FAF7F2]">
+        <div className="w-14 h-14 rounded-full bg-[#4F1325]/10 text-[#4F1325] flex items-center justify-center mb-4">
+          <Icon name="alertTriangle" size="md" />
         </div>
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Vendor Not Found</h2>
-        <p className="text-sm text-slate-500 mb-6 max-w-sm">
+        <h2 className="text-2xl font-serif font-bold text-[#4F1325] mb-2">Vendor Not Found</h2>
+        <p className="text-sm text-stone-500 mb-6 max-w-sm">
           {fetchError || 'The vendor you are looking for does not exist or has not yet been approved.'}
         </p>
-        <Button onClick={() => navigate('/user/vendors')}>Return to Vendors Marketplace</Button>
+        <button
+          onClick={() => navigate('/user/vendors')}
+          className="px-6 py-2.5 rounded-full bg-[#4F1325] text-white text-xs font-bold shadow-md hover:bg-[#651731] transition-all cursor-pointer"
+        >
+          Return to Marketplace
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: theme.semantic.background.primary }}>
-      {/* Hero Image Section */}
-      <div className="relative">
-        <div className="w-full h-72 sm:h-96 overflow-hidden">
-          <img
-            src={vendorImages[currentImageIndex]}
-            alt={vendor.name}
-            className="w-full h-full object-cover"
-          />
-          {/* Video Overlay - Bottom Left */}
-          <div className="absolute bottom-4 left-4">
-            <div className="w-10 h-10 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30">
-              <Icon name="play" size="sm" color="white" />
+    <div className="min-h-screen bg-[#FAF7F2] text-stone-800 pb-28">
+      <div className="max-w-[430px] md:max-w-4xl mx-auto">
+        {/* Hero Image Section */}
+        <div className="relative">
+          <div className="w-full h-72 sm:h-96 md:h-[400px] overflow-hidden md:rounded-b-3xl shadow-xs bg-stone-900">
+            <img
+              src={vendorImages[currentImageIndex] || '/dashboardbackgroundimage.png'}
+              alt={vendor?.businessName || vendor?.name}
+              className="w-full h-full object-cover"
+            />
+            {/* Video Overlay - Bottom Left */}
+            {videoStories.length > 0 && (
+              <div className="absolute bottom-4 left-4">
+                <div className="w-10 h-10 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 text-white">
+                  <Icon name="play" size="sm" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Top Left Verified Badge */}
+          <div className="absolute top-3 left-3 flex items-center gap-2 z-20">
+            <div className="bg-white/90 backdrop-blur-md px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm border border-white/50 text-[11px] font-bold text-stone-800">
+              <span className="text-[#D4AF37]">★</span>
+              <span>Utsavo Verified</span>
             </div>
           </div>
-        </div>
 
-        {/* Top Control Bar Overlay */}
-        <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-20">
-          <button
-            onClick={() => navigate(-1)}
-            className="w-10 h-10 bg-black/30 backdrop-blur-md text-white rounded-full flex items-center justify-center border border-white/20"
-          >
-            <Icon name="arrowLeft" size="sm" />
-          </button>
-
-          <div className="flex gap-2">
+          {/* Top Right Action Pills (Clean glassmorphism, no redundant back button) */}
+          <div className="absolute top-3 right-3 flex items-center gap-2 z-20">
             <button
               onClick={() => setIsReportModalOpen(true)}
               title="Report Vendor"
-              className="w-10 h-10 bg-black/30 backdrop-blur-md text-white hover:text-red-400 rounded-full flex items-center justify-center border border-white/20 transition-colors"
+              className="w-9 h-9 bg-black/40 hover:bg-black/60 backdrop-blur-md text-white rounded-full flex items-center justify-center border border-white/20 transition-all cursor-pointer"
             >
-              <Icon name="alertTriangle" size="sm" />
+              <Icon name="alertTriangle" size="xs" />
             </button>
-            <button className="w-10 h-10 bg-black/30 backdrop-blur-md text-white rounded-full flex items-center justify-center border border-white/20">
-              <Icon name="share" size="sm" />
-            </button>
-          </div>
-        </div>
-
-        {/* Hired & Save Overlay - Top Right over image */}
-        <div className="absolute top-16 right-4 flex items-center gap-3 z-10">
-          <button className="bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2 shadow-lg border border-gray-100">
-            <Icon name="verified" size="xs" color="primary" />
-            <span className="text-[10px] font-bold text-gray-800">Hired?</span>
-          </button>
-          <button
-            onClick={handleToggleFavorite}
-            disabled={isFavoriteLoading}
-            title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
-            className={`w-9 h-9 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg border border-gray-100 transition-all ${
-              isFavorite ? 'bg-red-50 text-red-500 scale-105' : 'bg-white/90 text-gray-400 hover:text-red-500'
-            }`}
-          >
-            {isFavoriteLoading ? (
-              <div className="w-4 h-4 border-2 border-red-500 border-t-transparent animate-spin rounded-full" />
-            ) : (
-              <Icon name="heart" size="sm" style={{ color: isFavorite ? '#ef4444' : undefined }} />
-            )}
-          </button>
-        </div>
-
-        {/* Image Counter - Bottom Right */}
-        <div className="absolute bottom-4 right-4 bg-black/40 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs border border-white/30">
-          {currentImageIndex + 1} / {vendorImages.length}
-        </div>
-      </div>
-
-      {/* Urgency Banner */}
-      <div className="px-4 py-3 border-b" style={{ backgroundColor: '#f0f9ff', borderColor: '#e0f2fe' }}>
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
-            <Icon name="party" size="xs" style={{ color: '#f97316' }} />
-          </div>
-          <p className="text-xs font-medium" style={{ color: '#0369a1' }}>
-            One couple is considering this venue right now. <button className="font-bold underline">Save your date</button>
-          </p>
-        </div>
-      </div>
-
-      {/* Main Vendor Details */}
-      <div className="px-5 pt-6 pb-2">
-        <h1
-          className="text-2xl font-bold mb-3"
-          style={{ color: theme.semantic.text.primary }}
-        >
-          {vendor?.businessName || vendor?.name}
-        </h1>
-
-        <div className="flex flex-col gap-3">
-          {/* Rating Section */}
-          <div className="flex items-center gap-2">
-            <span className="text-[#E91E63] text-sm font-black">
-              {vendor?.rating && vendor.rating > 0 ? `★ ${vendor.rating}` : '★ New'}
-            </span>
-            <span className="text-xs font-semibold" style={{ color: theme.semantic.text.secondary }}>
-              ({vendor?.reviewCount ?? vendor?.reviews?.length ?? 0} verified reviews)
-            </span>
-          </div>
-
-          {/* Location Section */}
-          <div className="flex items-center gap-2">
-            <Icon name="location" size="sm" style={{ color: theme.semantic.text.tertiary }} />
-            <span className="text-sm font-medium" style={{ color: theme.semantic.text.secondary }}>
-              {vendor?.city || vendor?.location || 'Indore'}
-            </span>
-          </div>
-
-          {/* Promotion Section */}
-          {vendor?.pricing?.notes && (
-            <div className="flex items-center gap-2">
-              <Icon name="sparkles" size="sm" style={{ color: theme.colors.primary[500] }} />
-              <span className="text-xs font-bold tracking-wide" style={{ color: theme.colors.primary[600] }}>
-                {vendor.pricing.notes}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Highlight Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
-          <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-white shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center">
-                <Icon name="money" size="sm" style={{ color: theme.semantic.text.secondary }} />
-              </div>
-              <p className="text-sm font-medium" style={{ color: theme.semantic.text.primary }}>
-                {vendor?.pricing?.range ? `₹${vendor.pricing.range}` : (vendor?.startingPrice ? `Starting ₹${vendor.startingPrice.toLocaleString()}` : (vendor?.price || 'Contact for price'))}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-white shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center">
-                <Icon name="users" size="sm" style={{ color: theme.semantic.text.secondary }} />
-              </div>
-              <p className="text-sm font-medium" style={{ color: theme.semantic.text.primary }}>
-                {vendor?.businessDetails?.teamSize ? `${vendor.businessDetails.teamSize} team members` : (vendor?.experience ? `${vendor.experience} experience` : 'Verified Vendor')}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Popular Badge */}
-        <div className="mt-4 flex items-center gap-2">
-          <Icon name="arrow" size="xs" className="rotate-45" style={{ color: theme.semantic.text.secondary }} />
-          <span className="text-xs font-semibold text-gray-500 italic">Popular in your area</span>
-        </div>
-      </div>
-
-      {/* Tab Navigation */}
-      <div
-        ref={tabsRef}
-        className={`px-4 py-3 ${isSticky ? 'shadow-md' : ''}`}
-        style={{ backgroundColor: theme.semantic.background.primary }}
-      >
-        <div className="flex gap-4 sm:gap-6 overflow-x-auto scrollbar-hide">
-          {[
-            { key: 'pricing', label: 'Pricing' },
-            { key: 'projects', label: 'Projects' },
-            { key: 'about', label: 'About' },
-            { key: 'reviews', label: 'Reviews' }
-          ].map((tab) => (
             <button
-              key={tab.key}
-              onClick={() => handleTabClick(tab.key)}
-              className={`whitespace-nowrap pb-2 border-b-2 transition-colors text-sm sm:text-base ${activeTab === tab.key
-                ? 'border-current font-medium'
-                : 'border-transparent'
-                }`}
-              style={{
-                color: activeTab === tab.key
-                  ? theme.colors.primary[600]
-                  : theme.semantic.text.secondary
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Content Sections */}
-      <div className="px-4 pb-40">
-        {/* Pricing Section */}
-        <div
-          ref={el => sectionsRef.current['pricing'] = el}
-          className="mb-6 sm:mb-8"
-        >
-          <h2
-            className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4"
-            style={{ color: theme.semantic.text.primary }}
-          >
-            Pricing Info
-          </h2>
-
-          <div
-            className="rounded-2xl p-4 sm:p-6 space-y-3 sm:space-y-4"
-            style={{ backgroundColor: theme.semantic.card.background }}
-          >
-            {pricingData.length === 0 ? (
-              <div className="text-center py-6">
-                <p className="text-sm font-medium text-slate-500">
-                  {vendor?.startingPrice ? `Starting from ₹${vendor.startingPrice.toLocaleString()}` : 'No fixed packages listed. Custom pricing available.'}
-                </p>
-                <p className="text-xs text-slate-400 mt-1">Submit an inquiry or contact vendor for a customized proposal.</p>
-              </div>
-            ) : (
-              pricingData.map((item) => (
-                <div key={item.id} className="flex items-center justify-between py-2 sm:py-3 border-b border-gray-100 last:border-b-0">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div
-                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: theme.colors.primary[100] }}
-                    >
-                      <Icon name={item.icon} size="sm" color="primary" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3
-                        className="font-medium text-sm sm:text-base line-clamp-1"
-                        style={{ color: theme.semantic.text.primary }}
-                      >
-                        {item.name}
-                      </h3>
-                      {item.description && (
-                        <p
-                          className="text-xs sm:text-sm line-clamp-1"
-                          style={{ color: theme.semantic.text.secondary }}
-                        >
-                          {item.description}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
-                    <div
-                      className="font-bold text-sm sm:text-lg"
-                      style={{ color: theme.semantic.text.primary }}
-                    >
-                      {item.price}
-                    </div>
-                    <div
-                      className="text-xs sm:text-sm"
-                      style={{ color: theme.semantic.text.secondary }}
-                    >
-                      {item.unit}
-                    </div>
-                    <button
-                      onClick={() => handleInquireService(item)}
-                      className="px-3 py-1 text-xs font-semibold rounded-lg shadow-xs hover:opacity-90 active:scale-95 transition-all mt-1"
-                      style={{ backgroundColor: theme.colors.primary[600], color: 'white' }}
-                    >
-                      Request Quote
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Vendor Availability Calendar with Weather Forecast & Rainfall Alerts */}
-          <div className="mt-4 sm:mt-6">
-            <VendorAvailabilityCalendar
-              vendorId={vendor?._id || vendorId}
-              vendorName={vendor?.businessName}
-              vendorCity={vendor?.city}
-              initialDate={selectedEventDate}
-              onSelectDate={(dateStr, isAvail, weather) => {
-                setSelectedEventDate(dateStr);
-                setFormData(prev => ({ ...prev, eventDate: dateStr }));
-                setAvailabilityStatus({
-                  available: isAvail,
-                  message: isAvail
-                    ? `Selected date (${dateStr}) is available for booking!`
-                    : `Selected date (${dateStr}) is booked or unavailable.`
-                });
-                if (isAvail) {
-                  toast.success(`Date selected: ${dateStr}. Ready to submit inquiry!`);
+              onClick={() => {
+                if (navigator.share) {
+                  navigator.share({ title: vendor?.businessName || 'Utsavo Vendor', url: window.location.href });
+                } else {
+                  navigator.clipboard.writeText(window.location.href);
+                  toast.info('Vendor link copied to clipboard!');
                 }
               }}
-            />
+              title="Share Vendor"
+              className="w-9 h-9 bg-black/40 hover:bg-black/60 backdrop-blur-md text-white rounded-full flex items-center justify-center border border-white/20 transition-all cursor-pointer"
+            >
+              <Icon name="share" size="xs" />
+            </button>
+            <button
+              onClick={handleToggleFavorite}
+              disabled={isFavoriteLoading}
+              title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+              className={`w-9 h-9 backdrop-blur-md rounded-full flex items-center justify-center shadow-md border transition-all cursor-pointer ${
+                isFavorite
+                  ? 'bg-red-500 border-red-400 text-white scale-105'
+                  : 'bg-black/40 hover:bg-black/60 border-white/20 text-white'
+              }`}
+            >
+              {isFavoriteLoading ? (
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent animate-spin rounded-full" />
+              ) : (
+                <Icon name="heart" size="xs" style={{ color: isFavorite ? '#ffffff' : undefined }} />
+              )}
+            </button>
+          </div>
+
+          {/* Image Counter - Bottom Right */}
+          <div className="absolute bottom-3 right-3 bg-black/50 backdrop-blur-md text-white px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-white/20">
+            {currentImageIndex + 1} / {vendorImages.length || 1}
           </div>
         </div>
 
-        {/* Projects Section */}
-        <div
-          ref={el => sectionsRef.current['projects'] = el}
-          className="mb-6 sm:mb-8"
-        >
-          <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <h2
-              className="text-lg sm:text-xl font-semibold"
-              style={{ color: theme.semantic.text.primary }}
-            >
-              Albums {albumsData.length > 0 && <span className="text-sm font-normal">({albumsData.length} items)</span>}
-            </h2>
-          </div>
-
-          {albumsData.length === 0 ? (
-            <div
-              className="rounded-2xl p-6 text-center border border-dashed border-slate-200 mb-6"
-              style={{ backgroundColor: theme.semantic.card.background }}
-            >
-              <Icon name="image" size="md" color="gray" className="mx-auto mb-2" />
-              <p className="text-sm font-medium text-slate-500">No portfolio albums uploaded yet.</p>
-              <p className="text-xs text-slate-400 mt-1">Vendor will upload past wedding photography and media soon.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-4 sm:mb-6">
-              {albumsData.map((album) => (
-                <div key={album.id} className="relative">
-                  <div className="aspect-square rounded-xl overflow-hidden">
-                    <img
-                      src={album.coverImage}
-                      alt={album.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-
-                  {/* Image Count Badge */}
-                  <div className="absolute top-2 right-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-xs flex items-center gap-1">
-                    <Icon name="image" size="xs" />
-                    {album.imageCount}
-                  </div>
-
-                  {/* Album Name */}
-                  <div className="absolute bottom-2 left-2">
-                    <span className="text-white font-medium text-xs sm:text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
-                      {album.name}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <Button
-            variant="outline"
-            className="w-full mb-4 sm:mb-6 text-sm sm:text-base"
-          >
-            View All Albums →
-          </Button>
-
-          {/* Video Stories */}
-          <h3
-            className="text-base sm:text-lg font-semibold mb-3 sm:mb-4"
-            style={{ color: theme.semantic.text.primary }}
-          >
-            Video Stories
-          </h3>
-
-          <div className="flex gap-3 overflow-x-auto">
-            {videoStories.map((video) => (
-              <div key={video.id} className="relative flex-shrink-0">
-                <div className="w-24 h-36 sm:w-32 sm:h-48 rounded-xl overflow-hidden">
-                  <img
-                    src={video.thumbnail}
-                    alt="Video story"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-
-                {/* Play Button */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
-                    <Icon name="play" size="sm" color="white" />
-                  </div>
-                </div>
-              </div>
+        {/* Thumbnail Carousel if multiple images */}
+        {vendorImages.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto p-2.5 scrollbar-hide bg-white/70 border-b border-stone-200/70">
+            {vendorImages.map((img, idx) => (
+              <button
+                key={idx}
+                onClick={() => setCurrentImageIndex(idx)}
+                className={`w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 border-2 transition-all cursor-pointer ${
+                  currentImageIndex === idx ? 'border-[#4F1325] scale-105 shadow-xs' : 'border-transparent opacity-60 hover:opacity-100'
+                }`}
+              >
+                <img src={img} alt="Thumbnail" className="w-full h-full object-cover" />
+              </button>
             ))}
           </div>
+        )}
 
-          {/* Custom Quote CTA */}
-          <div
-            className="rounded-2xl p-3 sm:p-4 mt-4 sm:mt-6 border-2 border-dashed"
-            style={{ borderColor: theme.colors.primary[300] }}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                <div
-                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: theme.colors.primary[100] }}
-                >
-                  <Icon name="message" size="sm" color="primary" />
-                </div>
-                <span
-                  className="font-medium text-sm sm:text-base"
-                  style={{ color: theme.semantic.text.primary }}
-                >
-                  Require Custom quote?
-                </span>
+        {/* Urgency & Social Proof Banner */}
+        <div className="bg-gradient-to-r from-[#FFF5F6] via-[#FAF6F0] to-[#FFF5F6] border-b border-stone-200/80 px-4 sm:px-6 py-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-full bg-[#4F1325]/10 flex items-center justify-center flex-shrink-0 text-[#4F1325]">
+                <Icon name="sparkles" size="xs" />
               </div>
-              <Button
-                size="sm"
-                className="text-sm"
-                style={{
-                  backgroundColor: theme.colors.primary[500],
-                  color: 'white'
-                }}
-              >
-                Chat Now
-              </Button>
+              <p className="text-xs font-medium text-stone-700 truncate">
+                High demand for upcoming wedding dates • Fast responses
+              </p>
             </div>
+            <button
+              onClick={() => handleTabClick('pricing')}
+              className="text-xs font-bold text-[#4F1325] underline decoration-[#4F1325]/40 hover:opacity-80 flex-shrink-0 cursor-pointer"
+            >
+              Check Dates
+            </button>
           </div>
         </div>
 
-        {/* About Section */}
-        <div
-          ref={el => sectionsRef.current['about'] = el}
-          className="mb-6 sm:mb-8"
-        >
-          <h2
-            className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4"
-            style={{ color: theme.semantic.text.primary }}
-          >
-            About
-          </h2>
+        {/* Main Vendor Details Header */}
+        <div className="px-4 sm:px-6 pt-5 pb-3">
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 bg-[#4F1325] text-white text-xs font-bold px-2.5 py-0.5 rounded-full shadow-xs">
+                <span className="text-[#ECC880]">★</span> {vendor?.rating && vendor.rating > 0 ? vendor.rating : '4.9'}
+              </span>
+              <span className="text-xs font-semibold text-stone-500">
+                ({vendor?.reviewCount ?? vendor?.reviews?.length ?? 0} reviews)
+              </span>
+              <span className="inline-flex items-center gap-1 text-xs text-stone-600 bg-white border border-stone-200/80 px-2.5 py-0.5 rounded-full font-medium">
+                <Icon name="location" size="xs" className="text-[#4F1325]" />
+                <span>{vendor?.city || vendor?.location || 'Indore'}</span>
+              </span>
+              {vendor?.category && (
+                <span className="inline-flex items-center text-xs text-[#4F1325] bg-[#FAF6F0] border border-[#4F1325]/15 px-2.5 py-0.5 rounded-full font-semibold">
+                  {typeof vendor.category === 'object' ? vendor.category.name : vendor.category}
+                </span>
+              )}
+            </div>
 
-          <div
-            className="rounded-2xl p-4 sm:p-6"
-            style={{ backgroundColor: theme.semantic.card.background }}
-          >
-            <p className="mb-3 sm:mb-4 text-sm sm:text-base">
-              <span className="font-medium">Been on </span>
-              <span style={{ color: theme.colors.primary[600] }}>Utsavo</span>
-              <span className="font-medium"> Since {vendor?.businessDetails?.years ? `${vendor.businessDetails.years} years` : (vendor?.experience || 'Verified Partner')}</span>
-            </p>
+            <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#4F1325] tracking-tight leading-snug mt-1">
+              {vendor?.businessName || vendor?.name}
+            </h1>
 
-            <p
-              className="text-sm sm:text-base leading-relaxed mb-3 sm:mb-4"
-              style={{ color: theme.semantic.text.secondary }}
-            >
-              {vendor?.description || `${vendor?.businessName || vendor?.name || 'This vendor'} is a professional wedding service provider in ${vendor?.city || vendor?.location || 'Indore'}. Dedicated to making your wedding memorable.`}
-            </p>
-
-            {vendor?.services && vendor.services.length > 0 && (
-              <div>
-                <h4
-                  className="font-medium mb-2 text-sm sm:text-base"
-                  style={{ color: theme.semantic.text.primary }}
-                >
-                  Services provided by {vendor?.businessName || vendor?.name}
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {vendor.services.map((service, index) => {
-                    const label = typeof service === 'object' ? (service?.name || service?.category || 'Service') : service;
-                    return (
-                      <span
-                        key={index}
-                        className="px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-full"
-                        style={{
-                          backgroundColor: theme.colors.primary[100],
-                          color: theme.colors.primary[700]
-                        }}
-                      >
-                        {label}
-                      </span>
-                    );
-                  })}
-                </div>
+            {vendor?.pricing?.notes && (
+              <div className="flex items-center gap-2">
+                <Icon name="sparkles" size="xs" className="text-[#4F1325]" />
+                <span className="text-xs font-bold text-[#4F1325] tracking-wide">
+                  {vendor.pricing.notes}
+                </span>
               </div>
             )}
           </div>
+
+          {/* Highlight Cards */}
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            <div className="flex items-center gap-3 p-3.5 rounded-2xl border border-stone-200/80 bg-white shadow-xs">
+              <div className="w-10 h-10 rounded-xl bg-[#FAF6F0] text-[#4F1325] flex items-center justify-center flex-shrink-0">
+                <Icon name="money" size="sm" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase font-bold text-stone-400 tracking-wider">Starting Price</p>
+                <p className="text-sm sm:text-base font-serif font-bold text-[#4F1325] truncate">
+                  {vendor?.pricing?.range ? `₹${vendor.pricing.range}` : (vendor?.startingPrice ? `₹${vendor.startingPrice.toLocaleString()}` : (vendor?.price || 'Upon Request'))}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 p-3.5 rounded-2xl border border-stone-200/80 bg-white shadow-xs">
+              <div className="w-10 h-10 rounded-xl bg-[#FAF6F0] text-[#4F1325] flex items-center justify-center flex-shrink-0">
+                <Icon name="users" size="sm" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase font-bold text-stone-400 tracking-wider">Experience</p>
+                <p className="text-sm sm:text-base font-semibold text-stone-800 truncate">
+                  {vendor?.businessDetails?.teamSize ? `${vendor.businessDetails.teamSize} team members` : (vendor?.experience ? `${vendor.experience} exp` : 'Verified Partner')}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Reviews Section */}
+        {/* Tab Navigation */}
         <div
-          ref={el => sectionsRef.current['reviews'] = el}
-          className="mb-6 sm:mb-8"
+          ref={tabsRef}
+          className="sticky top-[53px] z-30 bg-[#FAF7F2]/95 backdrop-blur-md border-y border-stone-200/80 px-4 sm:px-6 transition-all"
         >
-          <h2
-            className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4"
-            style={{ color: theme.semantic.text.primary }}
-          >
-            Reviews
-          </h2>
+          <div className="flex gap-6 overflow-x-auto scrollbar-hide">
+            {[
+              { key: 'pricing', label: 'Pricing & Packages' },
+              { key: 'projects', label: `Portfolio (${albumsData.length || '0'})` },
+              { key: 'about', label: 'About Vendor' },
+              { key: 'reviews', label: `Reviews (${reviewsData.length})` }
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => handleTabClick(tab.key)}
+                className={`whitespace-nowrap py-3 border-b-2 text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                  activeTab === tab.key
+                    ? 'border-[#4F1325] text-[#4F1325] font-bold'
+                    : 'border-transparent text-stone-500 hover:text-stone-800'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-          {reviewsData.length === 0 ? (
-            <div
-              className="rounded-2xl p-6 text-center border border-dashed border-slate-200"
-              style={{ backgroundColor: theme.semantic.card.background }}
-            >
-              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
-                <Icon name="star" size="md" color="gray" />
-              </div>
-              <h3 className="font-semibold text-sm mb-1" style={{ color: theme.semantic.text.primary }}>
-                No Reviews Yet
-              </h3>
-              <p className="text-xs max-w-xs mx-auto" style={{ color: theme.semantic.text.secondary }}>
-                Book this vendor through Utsavo to be the first couple to share verified feedback!
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3 sm:space-y-4">
-              {reviewsData.map((review) => (
-                <div
-                  key={review.id}
-                  className="rounded-2xl p-4 sm:p-6"
-                  style={{ backgroundColor: theme.semantic.card.background }}
-                >
-                  <div className="flex items-start gap-3 mb-3">
-                    <div
-                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white font-medium text-sm flex-shrink-0"
-                      style={{ backgroundColor: theme.colors.primary[500] }}
-                    >
-                      {review.initial}
+        {/* Content Sections */}
+        <div className="px-4 sm:px-6 py-5 space-y-8">
+          {/* Pricing Section */}
+          <div ref={el => sectionsRef.current['pricing'] = el} className="scroll-mt-28">
+            <h2 className="text-lg sm:text-xl font-serif font-bold text-[#4F1325] mb-3">
+              Pricing & Packages
+            </h2>
+
+            <div className="bg-white rounded-2xl p-4 sm:p-6 border border-stone-200/80 shadow-xs space-y-4">
+              {pricingData.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-sm font-semibold text-stone-700">
+                    {vendor?.startingPrice ? `Starting from ₹${vendor.startingPrice.toLocaleString()}` : 'Custom proposals tailored for your celebration.'}
+                  </p>
+                  <p className="text-xs text-stone-500 mt-1">Submit an inquiry or contact vendor directly to discuss custom dates & packages.</p>
+                </div>
+              ) : (
+                pricingData.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between py-3 border-b border-stone-100 last:border-b-0 gap-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-[#FAF6F0] text-[#4F1325] flex items-center justify-center flex-shrink-0">
+                        <Icon name={item.icon} size="sm" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-sm sm:text-base text-stone-800 line-clamp-1">
+                          {item.name}
+                        </h3>
+                        {item.description && (
+                          <p className="text-xs text-stone-500 line-clamp-1 mt-0.5">
+                            {item.description}
+                          </p>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span
-                          className="font-medium text-sm sm:text-base truncate"
-                          style={{ color: theme.semantic.text.primary }}
-                        >
-                          {review.name}
-                        </span>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          {[...Array(5)].map((_, i) => (
-                            <Icon
-                              key={i}
-                              name="star"
-                              size="xs"
-                              color={i < review.rating ? "secondary" : "gray"}
-                            />
-                          ))}
-                          <span className="text-xs sm:text-sm ml-1">{review.rating}</span>
+                    <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
+                      <div className="font-serif font-bold text-base sm:text-lg text-[#4F1325]">
+                        {item.price}
+                      </div>
+                      <div className="text-[11px] text-stone-400 font-medium">
+                        {item.unit}
+                      </div>
+                      <button
+                        onClick={() => handleInquireService(item)}
+                        className="px-3.5 py-1.5 text-xs font-bold rounded-full bg-[#4F1325] hover:bg-[#651731] text-white shadow-xs active:scale-95 transition-all cursor-pointer mt-0.5"
+                      >
+                        Request Quote
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Vendor Availability Calendar with Weather Forecast & Rainfall Alerts */}
+            <div className="mt-5">
+              <VendorAvailabilityCalendar
+                vendorId={vendor?._id || vendorId}
+                vendorName={vendor?.businessName}
+                vendorCity={vendor?.city}
+                initialDate={selectedEventDate}
+                onSelectDate={(dateStr, isAvail, weather) => {
+                  setSelectedEventDate(dateStr);
+                  setFormData(prev => ({ ...prev, eventDate: dateStr, date: dateStr }));
+                  setAvailabilityStatus({
+                    available: isAvail,
+                    message: isAvail
+                      ? `Selected date (${dateStr}) is available for booking!`
+                      : `Selected date (${dateStr}) is booked or unavailable.`
+                  });
+                  if (isAvail) {
+                    toast.success(`Date selected: ${dateStr}. Ready to submit inquiry!`);
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Projects / Albums Section */}
+          <div ref={el => sectionsRef.current['projects'] = el} className="scroll-mt-28">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg sm:text-xl font-serif font-bold text-[#4F1325]">
+                Portfolio & Albums {albumsData.length > 0 && <span className="text-xs font-normal text-stone-500">({albumsData.length} albums)</span>}
+              </h2>
+            </div>
+
+            {albumsData.length === 0 ? (
+              <div className="rounded-2xl p-6 text-center border border-dashed border-stone-200 bg-white mb-6">
+                <Icon name="image" size="md" className="mx-auto mb-2 text-stone-400" />
+                <p className="text-sm font-semibold text-stone-600">No portfolio albums uploaded yet.</p>
+                <p className="text-xs text-stone-400 mt-1">Vendor will upload past wedding photography and media soon.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {albumsData.map((album) => (
+                  <div key={album.id} className="relative group rounded-2xl overflow-hidden shadow-xs border border-stone-200/80 bg-stone-100">
+                    <div className="aspect-square w-full overflow-hidden">
+                      <img
+                        src={album.coverImage}
+                        alt={album.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    </div>
+
+                    {/* Image Count Badge */}
+                    <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-xs text-white px-2.5 py-0.5 rounded-full text-[11px] font-medium flex items-center gap-1">
+                      <Icon name="image" size="xs" />
+                      <span>{album.imageCount}</span>
+                    </div>
+
+                    {/* Album Name */}
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3">
+                      <span className="text-white font-medium text-xs line-clamp-1">
+                        {album.name}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Video Stories */}
+            {videoStories.length > 0 && (
+              <div className="mt-5">
+                <h3 className="text-base font-serif font-bold text-[#4F1325] mb-3">
+                  Video Highlights
+                </h3>
+                <div className="flex gap-3 overflow-x-auto pb-2">
+                  {videoStories.map((video) => (
+                    <div key={video.id} className="relative flex-shrink-0 w-28 h-44 rounded-2xl overflow-hidden shadow-xs border border-stone-200/80 bg-stone-900">
+                      <img
+                        src={video.thumbnail}
+                        alt="Video story"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                        <div className="w-10 h-10 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-[#4F1325] shadow-md">
+                          <Icon name="play" size="sm" />
                         </div>
                       </div>
-
-                      <p
-                        className="text-xs sm:text-sm mb-2"
-                        style={{ color: theme.semantic.text.secondary }}
-                      >
-                        Reviewed {review.timeAgo}
-                      </p>
                     </div>
-
-                    <button className="flex-shrink-0">
-                      <Icon name="share" size="sm" />
-                    </button>
-                  </div>
-
-                  <p
-                    className="text-sm sm:text-base leading-relaxed"
-                    style={{ color: theme.semantic.text.primary }}
-                  >
-                    {review.review}
-                  </p>
-
-                  {review.photos?.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      {review.photos.map((p, pIdx) => (
-                        <img
-                          key={pIdx}
-                          src={p}
-                          alt="Review attachment"
-                          className="w-16 h-16 rounded-xl object-cover border border-slate-200"
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {review.review.length > 100 && (
-                    <button
-                      className="text-sm mt-2"
-                      style={{ color: theme.colors.primary[600] }}
-                    >
-                      Read More
-                    </button>
-                  )}
+                  ))}
                 </div>
-              ))}
+              </div>
+            )}
+
+            {/* Custom Quote CTA */}
+            <div className="rounded-2xl p-4 mt-5 bg-gradient-to-r from-[#FAF6F0] to-[#FFF5F6] border border-[#4F1325]/15 flex items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-[#4F1325]/10 text-[#4F1325] flex items-center justify-center flex-shrink-0">
+                  <Icon name="message" size="sm" />
+                </div>
+                <div>
+                  <p className="font-bold text-sm text-stone-800">Require custom requirements?</p>
+                  <p className="text-xs text-stone-500">Chat with vendor for personalized proposals</p>
+                </div>
+              </div>
+              <button
+                onClick={handleMessage}
+                className="px-4 py-2 rounded-full bg-[#4F1325] hover:bg-[#651731] text-white text-xs font-bold shadow-xs active:scale-95 transition-all flex-shrink-0 cursor-pointer"
+              >
+                Chat Now
+              </button>
+            </div>
+          </div>
+
+          {/* About Section */}
+          <div ref={el => sectionsRef.current['about'] = el} className="scroll-mt-28">
+            <h2 className="text-lg sm:text-xl font-serif font-bold text-[#4F1325] mb-3">
+              About Vendor
+            </h2>
+
+            <div className="bg-white rounded-2xl p-5 sm:p-6 border border-stone-200/80 shadow-xs space-y-4">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#4F1325] bg-[#FAF6F0] px-3 py-1.5 rounded-xl border border-[#4F1325]/10 w-fit">
+                <Icon name="verified" size="xs" />
+                <span>Verified on Utsavo Since {vendor?.businessDetails?.years ? `${vendor.businessDetails.years} years` : (vendor?.experience || 'Official Partner')}</span>
+              </div>
+
+              <p className="text-sm text-stone-600 leading-relaxed">
+                {vendor?.description || `${vendor?.businessName || vendor?.name || 'This vendor'} is a premium wedding service provider in ${vendor?.city || vendor?.location || 'Indore'}. Dedicated to crafting unforgettable moments for your celebration.`}
+              </p>
+
+              {vendor?.services && vendor.services.length > 0 && (
+                <div className="pt-2">
+                  <h4 className="font-semibold text-xs text-stone-700 uppercase tracking-wider mb-2">
+                    Services & Expertise
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {vendor.services.map((service, index) => {
+                      const label = typeof service === 'object' ? (service?.name || service?.category || 'Service') : service;
+                      return (
+                        <span
+                          key={index}
+                          className="px-3 py-1 text-xs font-medium rounded-full bg-[#FAF6F0] text-[#4F1325] border border-[#4F1325]/15"
+                        >
+                          {label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Reviews Section */}
+          <div ref={el => sectionsRef.current['reviews'] = el} className="scroll-mt-28">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg sm:text-xl font-serif font-bold text-[#4F1325]">
+                Verified Reviews
+              </h2>
+            </div>
+
+            {reviewsData.length === 0 ? (
+              <div className="rounded-2xl p-6 text-center border border-dashed border-stone-200 bg-white">
+                <div className="w-12 h-12 rounded-full bg-[#FAF6F0] text-[#4F1325] flex items-center justify-center mx-auto mb-3">
+                  <Icon name="star" size="md" />
+                </div>
+                <h3 className="font-bold text-sm text-stone-800 mb-1">
+                  No Reviews Yet
+                </h3>
+                <p className="text-xs text-stone-500 max-w-xs mx-auto">
+                  Book this vendor through Utsavo to be the first couple to share verified feedback!
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {reviewsData.map((review) => (
+                  <div key={review.id} className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/80 shadow-xs space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#4F1325] to-[#7B1D3A] text-white font-bold flex items-center justify-center text-sm shadow-xs">
+                          {review.initial}
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-sm text-stone-800">{review.name}</h4>
+                          <p className="text-[11px] text-stone-400">Reviewed {review.timeAgo}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/70 px-2 py-0.5 rounded-full text-xs font-bold text-amber-800">
+                        <span>★</span> {review.rating}
+                      </div>
+                    </div>
+
+                    <p className="text-xs sm:text-sm text-stone-600 leading-relaxed pt-1">
+                      {review.review}
+                    </p>
+
+                    {review.photos?.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        {review.photos.map((p, pIdx) => (
+                          <img
+                            key={pIdx}
+                            src={p}
+                            alt="Review attachment"
+                            className="w-14 h-14 rounded-xl object-cover border border-stone-200"
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* FAQ Section */}
+          {faqData.length > 0 && (
+            <div>
+              <h2 className="text-lg sm:text-xl font-serif font-bold text-[#4F1325] mb-3">
+                Frequently Asked Questions
+              </h2>
+
+              <div className="space-y-2.5">
+                {faqData.map((faq) => (
+                  <details
+                    key={faq.id}
+                    className="group rounded-2xl bg-white border border-stone-200/80 shadow-xs overflow-hidden"
+                  >
+                    <summary className="p-4 cursor-pointer font-semibold text-xs sm:text-sm text-stone-800 flex items-center justify-between group-open:text-[#4F1325]">
+                      <span>{faq.question}</span>
+                      <span className="text-stone-400 group-open:rotate-180 transition-transform text-sm">▾</span>
+                    </summary>
+                    <div className="px-4 pb-4 text-xs sm:text-sm text-stone-600 border-t border-stone-100 pt-3 leading-relaxed">
+                      {faq.answer}
+                    </div>
+                  </details>
+                ))}
+              </div>
             </div>
           )}
         </div>
 
-        {/* FAQ Section */}
-        <div className="mb-6 sm:mb-8">
-          <h2
-            className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4"
-            style={{ color: theme.semantic.text.primary }}
-          >
-            Frequently Asked Questions
-          </h2>
+        {/* Sticky Action Footer - Fixed at bottom-0 without gap */}
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200/80 shadow-[0_-4px_25px_rgba(0,0,0,0.06)] px-4 py-3">
+          <div className="flex items-center gap-3 max-w-[430px] md:max-w-4xl mx-auto">
+            {/* Call Button */}
+            <button
+              onClick={handleCall}
+              aria-label="Call Vendor"
+              className="w-12 h-12 rounded-full border border-stone-200 bg-[#FAF6F0] text-[#4F1325] flex items-center justify-center hover:bg-[#FAF0E4] active:scale-95 transition-transform flex-shrink-0 cursor-pointer shadow-xs"
+            >
+              <Icon name="phone" size="sm" />
+            </button>
 
-          <div className="space-y-2 sm:space-y-3">
-            {faqData.map((faq) => (
-              <details
-                key={faq.id}
-                className="rounded-2xl overflow-hidden"
-                style={{ backgroundColor: theme.semantic.card.background }}
-              >
-                <summary
-                  className="p-3 sm:p-4 cursor-pointer font-medium text-sm sm:text-base"
-                  style={{ color: theme.semantic.text.primary }}
-                >
-                  {faq.question}
-                </summary>
-                <div
-                  className="px-3 sm:px-4 pb-3 sm:pb-4 text-xs sm:text-sm"
-                  style={{ color: theme.semantic.text.secondary }}
-                >
-                  {faq.answer}
-                </div>
-              </details>
-            ))}
+            {/* Request Pricing Button */}
+            <button
+              onClick={() => setIsRequestModalOpen(true)}
+              className="flex-1 h-12 rounded-full font-bold text-white bg-gradient-to-r from-[#4F1325] via-[#651731] to-[#4F1325] shadow-md shadow-[#4F1325]/25 hover:shadow-lg active:scale-95 transition-all text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>Request Pricing</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                <path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+
+            {/* Message Button */}
+            <button
+              onClick={handleMessage}
+              aria-label="Message Vendor"
+              className="w-12 h-12 rounded-full border border-stone-200 bg-[#FAF6F0] text-[#4F1325] flex items-center justify-center hover:bg-[#FAF0E4] active:scale-95 transition-transform relative flex-shrink-0 cursor-pointer shadow-xs"
+            >
+              <Icon name="chat" size="sm" />
+            </button>
           </div>
         </div>
-      </div>
 
-      {/* Sticky Action Footer */}
-      <div
-        className="fixed bottom-20 left-0 right-0 p-4 z-50"
-        style={{
-          backgroundColor: theme.semantic.background.primary,
-          borderColor: theme.semantic.border.light
-        }}
-      >
-        <div className="flex items-center gap-4 max-w-md mx-auto">
-          {/* Call Button */}
-          <button
-            onClick={handleCall}
-            className="w-12 h-12 rounded-full border flex items-center justify-center transition-transform active:scale-95"
-            style={{ borderColor: theme.semantic.border.light, backgroundColor: theme.semantic.background.accent }}
-          >
-            <Icon name="phone" size="sm" style={{ color: theme.colors.primary[500] }} />
-          </button>
-
-          {/* Main Pricing Button */}
-          <button
-            onClick={() => setIsRequestModalOpen(true)}
-            className="flex-1 h-12 rounded-full font-bold text-white shadow-lg transition-transform active:scale-95"
-            style={{
-              backgroundColor: theme.colors.primary[500],
-              boxShadow: `0 4px 15px ${theme.colors.primary[500]}40`
-            }}
-          >
-            Request pricing
-          </button>
-
-          {/* Message Button */}
-          <button
-            onClick={handleMessage}
-            className="w-12 h-12 rounded-full border flex items-center justify-center relative transition-transform active:scale-95"
-            style={{ borderColor: theme.semantic.border.light, backgroundColor: theme.semantic.background.accent }}
-          >
-            <Icon name="chat" size="sm" style={{ color: theme.colors.primary[500] }} />
-            {/* Notification Badge if any */}
-            <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
-              <span className="text-[8px] text-white">1</span>
-            </div>
-          </button>
-        </div>
       </div>
 
       {/* Request Pricing Modal - True Bottom Sheet Internal Scroll */}
       {isRequestModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md p-0 sm:p-4">
-          <div className="w-full max-w-md bg-white rounded-t-[40px] sm:rounded-[32px] overflow-hidden flex flex-col h-[85vh] sm:h-auto sm:max-h-[85vh] shadow-2xl animate-in slide-in-from-bottom duration-500">
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4">
+          <div className="w-full max-w-md bg-white rounded-t-[32px] sm:rounded-3xl overflow-hidden flex flex-col h-[85vh] sm:h-auto sm:max-h-[85vh] shadow-2xl animate-in slide-in-from-bottom duration-300">
             {/* Modal Header - Fixed at top of white card */}
-            <div className="shrink-0 px-8 pt-10 pb-6 border-b border-gray-50 flex items-start justify-between bg-white">
+            <div className="shrink-0 px-6 pt-6 pb-4 border-b border-stone-100 flex items-start justify-between bg-[#FAF6F0]/80">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-1 leading-none">{vendor.name}</p>
-                <h2 className="text-2xl font-black text-gray-900 tracking-tight">Request pricing</h2>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-0.5">{vendor?.businessName || vendor?.name}</p>
+                <h2 className="text-xl sm:text-2xl font-serif font-bold text-[#4F1325]">Request Pricing</h2>
               </div>
               <button
                 onClick={() => setIsRequestModalOpen(false)}
-                className="w-11 h-11 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
+                className="w-9 h-9 rounded-full bg-white border border-stone-200 flex items-center justify-center text-stone-500 hover:text-stone-800 transition-colors cursor-pointer"
               >
-                <Icon name="close" size="sm" />
+                <Icon name="close" size="xs" />
               </button>
             </div>
 
             {/* Modal Body - Scrollable white page area */}
-            <div className="flex-1 overflow-y-auto px-8 pt-6 pb-6 min-h-0" data-lenis-prevent>
+            <div className="flex-1 overflow-y-auto px-6 py-5 min-h-0 space-y-5" data-lenis-prevent>
               {requestStatus === 'success' ? (
-                <div className="py-24 flex flex-col items-center justify-center text-center">
-                  <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mb-8 shadow-sm">
-                    <Icon name="check" size="lg" style={{ color: '#10b981' }} />
+                <div className="py-16 flex flex-col items-center justify-center text-center">
+                  <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-4 text-emerald-600 shadow-xs">
+                    <Icon name="check" size="md" />
                   </div>
-                  <h3 className="text-2xl font-black text-gray-900 mb-3">Request Sent!</h3>
-                  <p className="text-gray-500 font-bold text-base px-4">The vendor will contact you shortly.</p>
+                  <h3 className="text-xl font-serif font-bold text-stone-900 mb-2">Inquiry Submitted!</h3>
+                  <p className="text-stone-500 text-xs sm:text-sm max-w-xs">
+                    {vendor?.businessName || vendor?.name} has received your details and will get back to you with tailored pricing.
+                  </p>
                   <button
                     onClick={() => setIsRequestModalOpen(false)}
-                    className="mt-12 w-full h-15 bg-gray-900 text-white rounded-2xl font-black shadow-lg"
+                    className="mt-6 px-8 py-3 rounded-full bg-[#4F1325] text-white text-xs font-bold shadow-md hover:bg-[#651731] transition-all cursor-pointer"
                   >
                     Done
                   </button>
                 </div>
               ) : (
-                <div className="space-y-8">
-                  <p className="text-[14px] text-gray-400 leading-relaxed font-semibold">
-                    Fill this form and <span className="font-extrabold text-gray-700">{vendor.name}</span> will contact you shortly. All the information provided will be treated confidentially.
+                <>
+                  <p className="text-xs text-stone-500 leading-relaxed font-medium">
+                    Fill this form and <span className="font-bold text-stone-800">{vendor?.businessName || vendor?.name}</span> will contact you with package availability.
                   </p>
 
-                  <div className="space-y-7">
+                  <div className="space-y-4">
                     {/* Input Groups */}
-                    <div className="relative">
-                      <label className="text-[11px] uppercase font-bold text-gray-400 mb-3 block tracking-widest px-1">Full Name</label>
+                    <div>
+                      <label className="text-[11px] uppercase font-bold text-stone-500 mb-1.5 block tracking-wider">Full Name</label>
                       <input
                         type="text"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full h-15 bg-gray-50/20 rounded-2xl border border-gray-100 focus:border-primary-500 focus:bg-white outline-none px-6 transition-all text-base font-bold text-gray-800 placeholder:text-gray-400"
-                        placeholder="e.g. Jai Sri Ram"
+                        className="w-full h-11 bg-[#FAF7F2]/60 rounded-xl border border-stone-200 focus:border-[#4F1325] focus:bg-white outline-none px-4 text-sm font-semibold text-stone-800 transition-all placeholder:text-stone-400"
+                        placeholder="Your Name"
                       />
                     </div>
 
-                    <div className="relative">
-                      <label className="text-[11px] uppercase font-bold text-gray-400 mb-3 block tracking-widest px-1">Email Address</label>
-                      <input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="w-full h-15 bg-gray-50/20 rounded-2xl border border-gray-100 focus:border-primary-500 focus:bg-white outline-none px-6 transition-all text-base font-bold text-gray-800 placeholder:text-gray-400"
-                        placeholder="nana@na.com"
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] uppercase font-bold text-stone-500 mb-1.5 block tracking-wider">Phone Number *</label>
+                        <input
+                          type="tel"
+                          value={formData.phone}
+                          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                          className="w-full h-11 bg-[#FAF7F2]/60 rounded-xl border border-stone-200 focus:border-[#4F1325] focus:bg-white outline-none px-4 text-sm font-semibold text-stone-800 transition-all placeholder:text-stone-400"
+                          placeholder="Your number"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] uppercase font-bold text-stone-500 mb-1.5 block tracking-wider">Email Address</label>
+                        <input
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          className="w-full h-11 bg-[#FAF7F2]/60 rounded-xl border border-stone-200 focus:border-[#4F1325] focus:bg-white outline-none px-4 text-sm font-semibold text-stone-800 transition-all placeholder:text-stone-400"
+                          placeholder="name@email.com"
+                        />
+                      </div>
                     </div>
 
-                    <div className="relative">
-                      <label className="text-[11px] uppercase font-bold text-gray-400 mb-3 block tracking-widest px-1">Phone Number</label>
-                      <input
-                        type="tel"
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        className="w-full h-15 bg-gray-50/20 rounded-2xl border border-gray-100 focus:border-primary-500 focus:bg-white outline-none px-6 transition-all text-base font-bold text-gray-800 placeholder:text-gray-400"
-                        placeholder="Your number"
-                      />
-                    </div>
-
-                    <div className="relative">
-                      <label className="text-[11px] uppercase font-bold text-gray-400 mb-3 block tracking-widest px-1">Wedding Date</label>
+                    <div>
+                      <label className="text-[11px] uppercase font-bold text-stone-500 mb-1.5 block tracking-wider">Event Date *</label>
                       <input
                         type="date"
                         value={formData.date}
                         onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                        className="w-full h-15 bg-gray-50/20 rounded-2xl border border-gray-100 focus:border-primary-500 focus:bg-white outline-none px-6 transition-all text-base font-bold text-gray-800"
+                        className="w-full h-11 bg-[#FAF7F2]/60 rounded-xl border border-stone-200 focus:border-[#4F1325] focus:bg-white outline-none px-4 text-sm font-semibold text-stone-800 transition-all"
+                        required
                       />
-                      <div className="flex items-center gap-4 mt-5 px-1">
+                      <div className="flex items-center gap-2 mt-2">
                         <input
                           type="checkbox"
                           id="openToOtherDates"
                           checked={formData.openToOtherDates}
                           onChange={(e) => setFormData({ ...formData, openToOtherDates: e.target.checked })}
-                          className="w-6 h-6 rounded-md border-gray-100 text-primary-500 focus:ring-primary-500"
+                          className="w-4 h-4 rounded text-[#4F1325] focus:ring-[#4F1325] border-stone-300"
                         />
-                        <label htmlFor="openToOtherDates" className="text-[15px] font-bold text-gray-600">I am open to other dates</label>
+                        <label htmlFor="openToOtherDates" className="text-xs text-stone-600 font-medium">I am open to nearby dates</label>
                       </div>
-                      <button className="text-[14px] font-black text-primary-600 mt-5 px-1 hover:underline underline-offset-8">I haven't decided on a date yet</button>
                     </div>
 
                     <div>
-                      <label className="text-[11px] uppercase font-bold text-gray-400 mb-4 block tracking-widest px-1">Approx. Guest Count</label>
-                      <div className="grid grid-cols-4 gap-3">
+                      <label className="text-[11px] uppercase font-bold text-stone-500 mb-2 block tracking-wider">Approx. Guest Count</label>
+                      <div className="grid grid-cols-4 gap-2">
                         {['0-100', '100-200', '200-300', '300+'].map(count => (
                           <button
                             key={count}
+                            type="button"
                             onClick={() => setFormData({ ...formData, guestCount: count })}
-                            className={`h-14 rounded-2xl text-[13px] font-black border-2 transition-all ${formData.guestCount === count
-                                ? 'bg-primary-50 border-primary-500 text-primary-600 shadow-md transform scale-105'
-                                : 'bg-gray-50/50 border-transparent text-gray-400'
-                              }`}
+                            className={`h-10 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                              formData.guestCount === count
+                                ? 'bg-[#4F1325] border-[#4F1325] text-white shadow-xs'
+                                : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100'
+                            }`}
                           >
                             {count}
                           </button>
@@ -1245,24 +1130,24 @@ const VendorDetail = () => {
                       </div>
                     </div>
 
-                    <div className="relative">
-                      <label className="text-[11px] uppercase font-bold text-gray-400 mb-3 block tracking-widest px-1">
+                    <div>
+                      <label className="text-[11px] uppercase font-bold text-stone-500 mb-2 block tracking-wider">
                         Venue Setup (Indoor / Outdoor)
                       </label>
                       <div className="grid grid-cols-3 gap-2">
                         {[
-                          { id: 'Indoor', label: '🏛️ Indoor', sub: 'Hall / Banquet' },
-                          { id: 'Outdoor', label: '🌿 Outdoor', sub: 'Lawn / Open Air' },
-                          { id: 'Both', label: '✨ Both', sub: 'Hybrid Setup' }
+                          { id: 'Indoor', label: '🏛️ Indoor', sub: 'Banquet' },
+                          { id: 'Outdoor', label: '🌿 Outdoor', sub: 'Lawn' },
+                          { id: 'Both', label: '✨ Hybrid', sub: 'Both' }
                         ].map((item) => (
                           <button
                             key={item.id}
                             type="button"
                             onClick={() => setFormData(prev => ({ ...prev, venueType: item.id }))}
-                            className={`py-2.5 px-2 rounded-2xl text-xs font-bold border transition-all cursor-pointer flex flex-col items-center gap-0.5 ${
+                            className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex flex-col items-center gap-0.5 ${
                               formData.venueType === item.id
-                                ? 'bg-rose-50 border-[#e11d48] text-[#e11d48] shadow-sm'
-                                : 'bg-gray-50/50 border-gray-100 text-gray-600 hover:bg-gray-50'
+                                ? 'bg-[#FAF6F0] border-[#4F1325] text-[#4F1325] shadow-xs'
+                                : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100'
                             }`}
                           >
                             <span>{item.label}</span>
@@ -1272,40 +1157,40 @@ const VendorDetail = () => {
                       </div>
                     </div>
 
-                    <div className="relative">
-                      <label className="text-[11px] uppercase font-bold text-gray-400 mb-3 block tracking-widest px-1">Message for vendor</label>
+                    <div>
+                      <label className="text-[11px] uppercase font-bold text-stone-500 mb-1.5 block tracking-wider">Message for Vendor</label>
                       <textarea
                         value={formData.message}
                         onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                        className="w-full bg-gray-50/20 rounded-[28px] border border-gray-100 focus:border-primary-500 focus:bg-white outline-none p-7 transition-all text-base font-bold text-gray-700 min-h-[120px] resize-none leading-relaxed"
+                        className="w-full bg-[#FAF7F2]/60 rounded-xl border border-stone-200 focus:border-[#4F1325] focus:bg-white outline-none p-3.5 text-xs sm:text-sm font-medium text-stone-800 transition-all min-h-[90px] resize-none leading-relaxed placeholder:text-stone-400"
                         placeholder="Tell them more about your dream wedding..."
                       />
                     </div>
 
-                    <div className="relative">
-                      <label className="text-[11px] uppercase font-bold text-gray-400 mb-2 block tracking-widest px-1">
+                    <div>
+                      <label className="text-[11px] uppercase font-bold text-stone-500 mb-1.5 block tracking-wider">
                         Inspiration / Reference Photos (Optional)
                       </label>
-                      <div className="flex items-center gap-3 mb-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {referencePhotos.map((url, idx) => (
-                          <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border border-gray-200">
+                          <div key={idx} className="relative w-14 h-14 rounded-xl overflow-hidden border border-stone-200">
                             <img src={url} alt="Reference" className="w-full h-full object-cover" />
                             <button
                               type="button"
                               onClick={() => setReferencePhotos(prev => prev.filter((_, i) => i !== idx))}
-                              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center text-xs shadow"
+                              className="absolute top-1 right-1 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center text-[10px] shadow"
                             >
                               ×
                             </button>
                           </div>
                         ))}
-                        <label className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-300 hover:border-primary-500 flex flex-col items-center justify-center cursor-pointer transition-colors bg-gray-50/50">
+                        <label className="w-14 h-14 rounded-xl border-2 border-dashed border-stone-300 hover:border-[#4F1325] flex flex-col items-center justify-center cursor-pointer transition-colors bg-stone-50/60">
                           {isUploadingPhoto ? (
-                            <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent animate-spin rounded-full" />
+                            <div className="w-4 h-4 border-2 border-[#4F1325] border-t-transparent animate-spin rounded-full" />
                           ) : (
                             <>
-                              <Icon name="camera" size="xs" className="text-gray-400" />
-                              <span className="text-[9px] font-bold text-gray-500 mt-1">+ Photo</span>
+                              <Icon name="camera" size="xs" className="text-stone-400" />
+                              <span className="text-[9px] font-bold text-stone-500 mt-0.5">+ Photo</span>
                             </>
                           )}
                           <input
@@ -1335,32 +1220,27 @@ const VendorDetail = () => {
                           />
                         </label>
                       </div>
-                      <span className="text-[11px] text-gray-400 px-1">Upload reference outfits, decor themes, or venue style</span>
+                      <span className="text-[10.5px] text-stone-400">Upload reference outfits, decor themes, or venue style</span>
                     </div>
-
-                    {/* Button moved to footer */}
                   </div>
-                </div>
+                </>
               )}
             </div>
 
             {/* Sticky Footer for Button */}
             {requestStatus !== 'success' && (
-              <div className="shrink-0 px-8 py-6 bg-white border-t border-gray-50">
+              <div className="shrink-0 px-6 py-4 bg-white border-t border-stone-100">
                 <button
                   onClick={handleSendRequest}
                   disabled={requestStatus === 'sending'}
-                  style={{ backgroundColor: '#e11d48' }}
-                  className="w-full py-5 text-white rounded-[24px] font-black text-xl shadow-[0_20px_40px_-15px_rgba(225,29,72,0.4)] flex items-center justify-between px-9 transition-all active:scale-[0.95]"
+                  className="w-full py-3.5 text-white rounded-2xl font-bold text-sm bg-gradient-to-r from-[#4F1325] via-[#651731] to-[#4F1325] shadow-lg shadow-[#4F1325]/25 hover:shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {requestStatus === 'sending' ? (
-                    <div className="w-7 h-7 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
                     <>
-                      <span className="tracking-tight text-white">Send Request</span>
-                      <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center -mr-2 shadow-inner pointer-events-none">
-                        <Icon name="send" size="xs" color="white" />
-                      </div>
+                      <span>Submit Inquiry</span>
+                      <Icon name="send" size="xs" />
                     </>
                   )}
                 </button>
@@ -1373,20 +1253,20 @@ const VendorDetail = () => {
       {/* Report / Complaint Modal */}
       {isReportModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-100 animate-scale-up">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-slate-50/80">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-stone-200 animate-scale-up">
+            <div className="p-5 border-b border-stone-100 flex items-center justify-between bg-[#FAF6F0]/80">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center shadow-sm">
-                  <Icon name="alertTriangle" size="sm" />
+                <div className="w-9 h-9 rounded-xl bg-red-100 text-red-600 flex items-center justify-center shadow-xs">
+                  <Icon name="alertTriangle" size="xs" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-800">Report Vendor</h3>
-                  <p className="text-xs text-slate-500">Official dispute submission to Utsavo Trust & Safety</p>
+                  <h3 className="text-base font-serif font-bold text-stone-800">Report Vendor</h3>
+                  <p className="text-[11px] text-stone-500">Official dispute submission to Utsavo Trust & Safety</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsReportModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-200/60 hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors"
+                className="w-8 h-8 rounded-full bg-stone-200/60 hover:bg-stone-200 flex items-center justify-center text-stone-600 transition-colors cursor-pointer"
               >
                 ✕
               </button>
@@ -1394,11 +1274,11 @@ const VendorDetail = () => {
 
             {reportStatus === 'success' ? (
               <div className="p-8 text-center">
-                <div className="w-16 h-16 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-4">
+                <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3">
                   <Icon name="check" size="md" />
                 </div>
-                <h4 className="text-xl font-bold text-slate-800 mb-2">Complaint Submitted</h4>
-                <p className="text-sm text-slate-600 mb-6">
+                <h4 className="text-lg font-serif font-bold text-stone-800 mb-2">Complaint Submitted</h4>
+                <p className="text-xs text-stone-600 mb-6">
                   Your grievance against <span className="font-semibold">{vendor?.businessName || vendor?.name}</span> has been logged under ID review. Our grievance officer will review and update your account.
                 </p>
                 <button
@@ -1406,7 +1286,7 @@ const VendorDetail = () => {
                     setIsReportModalOpen(false);
                     setReportStatus('idle');
                   }}
-                  className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 transition-colors"
+                  className="px-6 py-2 rounded-full bg-[#4F1325] text-white text-xs font-bold hover:bg-[#651731] transition-colors cursor-pointer"
                 >
                   Done
                 </button>
@@ -1414,13 +1294,13 @@ const VendorDetail = () => {
             ) : (
               <form onSubmit={handleReportSubmit} className="p-6 space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+                  <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
                     Complaint Category <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={reportCategory}
                     onChange={(e) => setReportCategory(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 outline-none focus:border-red-500 focus:bg-white transition-all"
+                    className="w-full px-3.5 py-2.5 bg-[#FAF7F2]/60 border border-stone-200 rounded-xl text-xs font-medium text-stone-700 outline-none focus:border-[#4F1325] focus:bg-white transition-all"
                   >
                     <option value="Unprofessional Behavior">Unprofessional Behavior</option>
                     <option value="Pricing Dispute">Pricing Dispute / Overcharging</option>
@@ -1432,7 +1312,7 @@ const VendorDetail = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+                  <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
                     Detailed Explanation <span className="text-red-500">*</span>
                   </label>
                   <textarea
@@ -1441,17 +1321,17 @@ const VendorDetail = () => {
                     placeholder="Describe what occurred, including dates, missed commitments, or financial discrepancies..."
                     rows={4}
                     required
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 outline-none focus:border-red-500 focus:bg-white transition-all resize-none"
+                    className="w-full px-3.5 py-2.5 bg-[#FAF7F2]/60 border border-stone-200 rounded-xl text-xs font-medium text-stone-700 outline-none focus:border-[#4F1325] focus:bg-white transition-all resize-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
+                  <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
                     Evidence / Proof (Screenshots, Receipts)
                   </label>
-                  <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-2.5 flex-wrap">
                     {reportEvidence.map((url, idx) => (
-                      <div key={idx} className="relative w-14 h-14 rounded-xl overflow-hidden border border-slate-200 group">
+                      <div key={idx} className="relative w-12 h-12 rounded-xl overflow-hidden border border-stone-200 group">
                         <img src={url} alt="Evidence" className="w-full h-full object-cover" />
                         <button
                           type="button"
@@ -1462,13 +1342,13 @@ const VendorDetail = () => {
                         </button>
                       </div>
                     ))}
-                    <label className="w-14 h-14 rounded-xl border-2 border-dashed border-slate-300 hover:border-red-500 flex flex-col items-center justify-center cursor-pointer transition-colors bg-slate-50">
+                    <label className="w-12 h-12 rounded-xl border-2 border-dashed border-stone-300 hover:border-red-500 flex flex-col items-center justify-center cursor-pointer transition-colors bg-stone-50">
                       {isUploadingEvidence ? (
                         <div className="w-4 h-4 border-2 border-red-500 border-t-transparent animate-spin rounded-full" />
                       ) : (
                         <>
-                          <Icon name="camera" size="xs" className="text-slate-400" />
-                          <span className="text-[9px] font-bold text-slate-500 mt-0.5">+ Add</span>
+                          <Icon name="camera" size="xs" className="text-stone-400" />
+                          <span className="text-[9px] font-bold text-stone-500 mt-0.5">+ Add</span>
                         </>
                       )}
                       <input
@@ -1500,18 +1380,18 @@ const VendorDetail = () => {
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                <div className="pt-3 border-t border-stone-100 flex items-center justify-end gap-3">
                   <button
                     type="button"
                     onClick={() => setIsReportModalOpen(false)}
-                    className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={reportStatus === 'sending'}
-                    className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 shadow-md shadow-red-200 transition-all flex items-center gap-2"
+                    className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-700 shadow-sm transition-all flex items-center gap-2 cursor-pointer"
                   >
                     {reportStatus === 'sending' ? (
                       <>
