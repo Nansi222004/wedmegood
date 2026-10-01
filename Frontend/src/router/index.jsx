@@ -226,8 +226,8 @@ const AppRouter = () => {
 
   return (
     <Routes>
-      {/* Root - Show Home page on load */}
-      <Route path="/" element={<Navigate to="/user/home" replace />} />
+      {/* Root - Home for logged-in users, Welcome otherwise (ProtectedRoute redirects guests here, so this must not redirect back) */}
+      <Route path="/" element={isAuthenticated ? <Navigate to="/user/home" replace /> : <Welcome />} />
 
       {/* Public Digital Wedding Invitation Route (No Auth Required) */}
       <Route path="/invite/:slug" element={<PublicInvite />} />
