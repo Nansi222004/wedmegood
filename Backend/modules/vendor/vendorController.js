@@ -745,7 +745,7 @@ exports.updateBookingStatus = async (req, res, next) => {
             });
         }
 
-        const allowedTransitions = ['In Progress', 'Completed', 'Cancelled'];
+        const allowedTransitions = ['Confirmed', 'In Progress', 'Completed', 'Cancelled'];
         if (!allowedTransitions.includes(status)) {
             return res.status(400).json({
                 success: false,
@@ -799,8 +799,55 @@ exports.updateBookingStatus = async (req, res, next) => {
             });
         }
 
+        // Payments happen outside the app, so the vendor confirms the booking (date locked) themselves
+        if (status === 'Confirmed') {
+            if (booking.status !== 'Pending') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Only a pending booking can be confirmed'
+                });
+            }
+
+            const startOfDay = new Date(booking.eventDate);
+            startOfDay.setUTCHours(0, 0, 0, 0);
+            const endOfDay = new Date(booking.eventDate);
+            endOfDay.setUTCHours(23, 59, 59, 999);
+            const conflictingBooking = await Booking.findOne({
+                _id: { $ne: booking._id },
+                vendorId: req.vendor.id,
+                eventDate: { $gte: startOfDay, $lte: endOfDay },
+                status: { $in: ['Confirmed', 'In Progress'] }
+            });
+            if (conflictingBooking) {
+                return res.status(409).json({
+                    success: false,
+                    message: 'You already have a confirmed booking on this date'
+                });
+            }
+        }
+
         booking.status = status;
         await booking.save();
+
+        if (booking.userId && (status === 'Confirmed' || status === 'Completed')) {
+            try {
+                const { notifyAndLogActivity } = require('../../services/notification.service');
+                await notifyAndLogActivity({
+                    userId: booking.userId,
+                    notificationTitle: status === 'Confirmed' ? 'Booking Confirmed' : 'Booking Completed',
+                    notificationMessage: status === 'Confirmed'
+                        ? `Your booking for ${new Date(booking.eventDate).toLocaleDateString('en-IN')} has been confirmed by the vendor.`
+                        : `Your booking for ${new Date(booking.eventDate).toLocaleDateString('en-IN')} has been marked completed. You can now leave a review.`,
+                    notificationType: 'booking',
+                    activityType: status === 'Confirmed' ? 'booking_confirmed' : 'booking_completed',
+                    activityTitle: status === 'Confirmed' ? 'Booking Confirmed' : 'Booking Completed',
+                    activityMessage: `Booking status changed to ${status} by the vendor.`,
+                    entityType: 'Booking',
+                    entityId: booking._id,
+                    eventKey: `booking_${status.toLowerCase()}_${booking._id}`
+                });
+            } catch (_) { /* notification is best effort */ }
+        }
 
         // Auto-settle earnings to available balance when booking is marked Completed
         if (status === 'Completed') {
@@ -812,6 +859,173 @@ exports.updateBookingStatus = async (req, res, next) => {
             success: true,
             data: booking
         });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// Booking payments are not taken in the app. The vendor keeps the finalised amount and the
+// payments received (cash, UPI, bank...) here, for reference only.
+const PAYMENT_ENTRY_MODES = ['Cash', 'UPI', 'Bank Transfer', 'Cheque', 'Card', 'Other'];
+
+const recordedTotal = (booking) =>
+    (booking.paymentEntries || []).reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+
+// Keep the stored payment fields in step with the entries (lists and admin views read them)
+function syncBookingPaymentFields(booking) {
+    const paid = recordedTotal(booking);
+    const total = Number(booking.totalPrice) || 0;
+    booking.paidAmount = paid;
+    booking.outstandingBalance = Math.max(0, total - paid);
+    if (booking.paymentStatus !== 'Refunded') {
+        booking.paymentStatus = paid <= 0 ? 'Pending' : (paid >= total && total > 0 ? 'Paid' : 'Partial');
+    }
+}
+
+async function loadVendorBookingForPayments(req, res) {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+        res.status(400).json({ success: false, message: 'Invalid booking ID format' });
+        return null;
+    }
+    const booking = await Booking.findOne({ _id: req.params.id, vendorId: req.vendor.id });
+    if (!booking) {
+        res.status(404).json({ success: false, message: 'Booking not found' });
+        return null;
+    }
+    if (booking.status === 'Cancelled') {
+        res.status(400).json({ success: false, message: 'This booking is cancelled' });
+        return null;
+    }
+    return booking;
+}
+
+async function respondWithBooking(res, booking, message) {
+    const payments = await Payment.find({ bookingId: booking._id }).lean();
+    const plain = booking.toObject();
+    res.status(200).json({
+        success: true,
+        message,
+        data: { ...plain, ...reconcileBookingPayments(plain, payments) }
+    });
+}
+
+// @desc    Set the finalised booking amount
+// @route   PUT /api/vendor/bookings/:id/final-amount
+// @access  Private
+exports.setBookingFinalAmount = async (req, res, next) => {
+    try {
+        const booking = await loadVendorBookingForPayments(req, res);
+        if (!booking) return;
+
+        const amount = Number(req.body.finalAmount);
+        if (!Number.isFinite(amount) || amount <= 0) {
+            return res.status(400).json({ success: false, message: 'Please enter a valid finalised amount' });
+        }
+        const finalAmount = Math.round(amount * 100) / 100;
+        if (finalAmount < recordedTotal(booking)) {
+            return res.status(400).json({
+                success: false,
+                message: `Finalised amount cannot be less than the ₹${recordedTotal(booking).toLocaleString('en-IN')} already recorded as received`
+            });
+        }
+
+        const onlinePayments = await Payment.countDocuments({ bookingId: booking._id, status: { $in: ['Completed', 'Paid', 'PartiallyRefunded'] } });
+        if (onlinePayments > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'This booking has online payments, so its amount cannot be changed'
+            });
+        }
+
+        const { calculateActiveCommission } = require('../../services/commission.service');
+        const commCalc = await calculateActiveCommission(finalAmount);
+        booking.totalPrice = finalAmount;
+        booking.commission = commCalc.commissionAmount || 0;
+        booking.vendorEarning = commCalc.vendorEarning !== null ? commCalc.vendorEarning : Math.max(0, finalAmount - (commCalc.commissionAmount || 0));
+        syncBookingPaymentFields(booking);
+        await booking.save();
+
+        await respondWithBooking(res, booking, 'Finalised amount updated');
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Record a payment received outside the app
+// @route   POST /api/vendor/bookings/:id/payment-entries
+// @access  Private
+exports.addBookingPaymentEntry = async (req, res, next) => {
+    try {
+        const booking = await loadVendorBookingForPayments(req, res);
+        if (!booking) return;
+
+        const amount = Math.round(Number(req.body.amount) * 100) / 100;
+        if (!Number.isFinite(amount) || amount <= 0) {
+            return res.status(400).json({ success: false, message: 'Please enter a valid amount' });
+        }
+        const balance = Math.max(0, (Number(booking.totalPrice) || 0) - recordedTotal(booking));
+        if (amount > balance) {
+            return res.status(400).json({
+                success: false,
+                message: `Amount is more than the balance of ₹${balance.toLocaleString('en-IN')}. Update the finalised amount first if it has changed.`
+            });
+        }
+
+        const mode = PAYMENT_ENTRY_MODES.includes(req.body.mode) ? req.body.mode : 'Other';
+        const paidOn = req.body.paidOn ? new Date(req.body.paidOn) : new Date();
+        if (isNaN(paidOn.getTime())) {
+            return res.status(400).json({ success: false, message: 'Invalid payment date' });
+        }
+
+        booking.paymentEntries.push({
+            amount,
+            mode,
+            paidOn,
+            note: typeof req.body.note === 'string' ? req.body.note.trim().slice(0, 300) : ''
+        });
+        syncBookingPaymentFields(booking);
+        await booking.save();
+
+        if (booking.userId) {
+            try {
+                const { notifyAndLogActivity } = require('../../services/notification.service');
+                await notifyAndLogActivity({
+                    userId: booking.userId,
+                    notificationTitle: 'Payment Recorded',
+                    notificationMessage: `Your vendor recorded a payment of ₹${amount.toLocaleString('en-IN')} (${mode}). Balance: ₹${booking.outstandingBalance.toLocaleString('en-IN')}.`,
+                    notificationType: 'payment',
+                    activityType: 'payment_recorded',
+                    activityTitle: 'Payment Recorded',
+                    activityMessage: `₹${amount.toLocaleString('en-IN')} recorded by the vendor (${mode}).`,
+                    entityType: 'Booking',
+                    entityId: booking._id
+                });
+            } catch (_) { /* notification is best effort */ }
+        }
+
+        await respondWithBooking(res, booking, 'Payment recorded');
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Remove a recorded payment entry
+// @route   DELETE /api/vendor/bookings/:id/payment-entries/:entryId
+// @access  Private
+exports.deleteBookingPaymentEntry = async (req, res, next) => {
+    try {
+        const booking = await loadVendorBookingForPayments(req, res);
+        if (!booking) return;
+
+        const entry = booking.paymentEntries.id(req.params.entryId);
+        if (!entry) {
+            return res.status(404).json({ success: false, message: 'Payment entry not found' });
+        }
+        entry.deleteOne();
+        syncBookingPaymentFields(booking);
+        await booking.save();
+
+        await respondWithBooking(res, booking, 'Payment entry removed');
     } catch (err) {
         next(err);
     }
@@ -1164,11 +1378,15 @@ exports.verifySubscriptionPayment = async (req, res, next) => {
 
         // Payment success - activate subscription
         const updatedVendor = await Vendor.findByIdAndUpdate(req.vendor.id, {
-            'subscription.status': 'Active',
-            'subscription.paymentId': razorpay_payment_id,
-            'subscription.orderId': razorpay_order_id,
-            'subscription.startDate': startDate,
-            'subscription.endDate': endDate
+            $set: {
+                'subscription.status': 'Active',
+                'subscription.paymentId': razorpay_payment_id,
+                'subscription.orderId': razorpay_order_id,
+                'subscription.startDate': startDate,
+                'subscription.endDate': endDate
+            },
+            // Keep only the first payment date ($min also sets the field when it is missing)
+            $min: { 'subscription.firstPaidAt': startDate }
         }, { new: true });
 
         res.status(200).json({

@@ -42,6 +42,9 @@ const {
 
     getDashboardBanners,
     updateBookingStatus,
+    setBookingFinalAmount,
+    addBookingPaymentEntry,
+    deleteBookingPaymentEntry,
     updatePortfolio,
     createBooking,
     getServices,
@@ -131,6 +134,10 @@ router.get('/bookings', protectVendor, requireSubscription, requireVendorApprova
 router.get('/bookings/:id', protectVendor, requireSubscription, requireVendorApproval, getBookingById);
 router.post('/bookings', protectVendor, requireSubscription, requireVendorApproval, createBooking);
 router.put('/bookings/:id/status', protectVendor, requireSubscription, requireVendorApproval, updateBookingStatus);
+// Finalised amount and payments received outside the app (reference entries)
+router.put('/bookings/:id/final-amount', protectVendor, requireSubscription, requireVendorApproval, setBookingFinalAmount);
+router.post('/bookings/:id/payment-entries', protectVendor, requireSubscription, requireVendorApproval, addBookingPaymentEntry);
+router.delete('/bookings/:id/payment-entries/:entryId', protectVendor, requireSubscription, requireVendorApproval, deleteBookingPaymentEntry);
 
 // Calendar Blocked Dates
 router.get('/calendar/blocked-dates', protectVendor, requireSubscription, requireVendorApproval, getBlockedDates);

@@ -457,3 +457,11 @@ body.modal-open .vendor-bottom-nav {
 }
 
 
+
+/* User app: photos and videos cannot be saved (see blockMediaSave in router) */
+.protect-media img,
+.protect-media video {
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}

@@ -13,6 +13,11 @@ const VendorBookings = () => {
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [toast, setToast] = useState(null);
+  // Payments are made outside the app; the vendor records them on the booking
+  const [paymentForm, setPaymentForm] = useState({ amount: '', mode: 'Cash', paidOn: new Date().toISOString().split('T')[0], note: '' });
+  const [finalAmountInput, setFinalAmountInput] = useState('');
+  const [isEditingAmount, setIsEditingAmount] = useState(false);
+  const [savingPayment, setSavingPayment] = useState(false);
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2500);
@@ -23,15 +28,6 @@ const VendorBookings = () => {
     const paidAmount = Number(booking.paidAmount ?? 0);
     const totalRefunded = Number(booking.totalRefunded ?? 0);
     const outstanding = Number(booking.outstandingBalance ?? Math.max(0, totalAmount - paidAmount));
-    const commission = Number(booking.commission ?? 0);
-    const commissionPercent = booking.commissionRatePercent ?? (booking.commissionRate ? Math.round(booking.commissionRate * 100) : null);
-    const commissionBasis = booking.commissionBasis || 'Gross Package Total';
-    const commissionSource = booking.commissionConfigSource || 'System Record';
-    const vendorNet = Number(booking.vendorEarning ?? Math.max(0, totalAmount - commission));
-    const vendorAmountSettled = Number(booking.vendorAmountSettled ?? 0);
-    const escrowHeldAmount = Number(booking.escrowHeldAmount ?? 0);
-    const escrowStatus = booking.escrowStatus || (escrowHeldAmount > 0 ? 'Held in Escrow' : 'None Held');
-    const settlementStatus = booking.settlementStatus || (vendorAmountSettled > 0 ? 'Settled' : 'Pending');
 
     const d = booking.eventDate ? new Date(booking.eventDate) : null;
     const fullDateStr = d ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Date Pending';
@@ -49,15 +45,24 @@ const VendorBookings = () => {
       ? booking.payments.filter(p => p.status === 'Completed' || p.status === 'Paid' || p.status === 'PartiallyRefunded')
       : [];
 
+    // Payments received outside the app, recorded by the vendor
+    const entryRowsHtml = (booking.paymentEntries || []).map((e) => `
+        <tr>
+          <td>${e.mode || 'Payment'} received${e.paidOn ? ` on ${new Date(e.paidOn).toLocaleDateString('en-IN')}` : ''}${e.note ? ` — ${e.note}` : ''}</td>
+          <td><span class="status-paid">Received</span></td>
+          <td class="amount">₹${Number(e.amount || 0).toLocaleString('en-IN')}</td>
+        </tr>
+      `).join('');
+
     let paymentsRowsHtml = '';
-    if (paymentsList.length > 0) {
+    if (paymentsList.length > 0 || entryRowsHtml) {
       paymentsRowsHtml = paymentsList.map((p, idx) => `
         <tr>
           <td>Payment #${idx + 1} (${p.paymentMethod || 'Razorpay'}) — Ref: ${p.razorpayPaymentId || p.transactionId || 'Verified'}</td>
           <td><span class="status-paid">${p.status === 'PartiallyRefunded' ? 'Partial Refund' : 'Paid & Verified'}</span></td>
           <td class="amount">₹${Number(p.amount || 0).toLocaleString('en-IN')}</td>
         </tr>
-      `).join('');
+      `).join('') + entryRowsHtml;
     } else if (paidAmount > 0) {
       paymentsRowsHtml = `
         <tr>
@@ -143,13 +148,9 @@ const VendorBookings = () => {
   <table>
     <thead><tr><th>Description</th><th>Status</th><th class="amount">Amount</th></tr></thead>
     <tbody>
-      <tr><td><strong>Agreed Package Total</strong></td><td><span class="badge">${booking.status || 'Confirmed'}</span></td><td class="amount">₹${totalAmount.toLocaleString('en-IN')}</td></tr>
+      <tr><td><strong>Finalised Amount</strong></td><td><span class="badge">${booking.status || 'Confirmed'}</span></td><td class="amount">₹${totalAmount.toLocaleString('en-IN')}</td></tr>
       ${paymentsRowsHtml}
       <tr class="outstanding-row"><td><strong>Outstanding Customer Balance</strong></td><td>${outstanding === 0 ? '<span class="status-paid">Fully Settled</span>' : '<span class="status-due">Due</span>'}</td><td class="amount">₹${outstanding.toLocaleString('en-IN')}</td></tr>
-      <tr class="settlement-row"><td>Platform Commission (${commissionPercent !== null ? commissionPercent + '%' : 'Unconfigured'} on ${commissionBasis})</td><td><span class="badge">${commissionSource}</span></td><td class="amount">- ₹${commission.toLocaleString('en-IN')}</td></tr>
-      <tr class="settlement-row"><td><strong>Vendor Net Payable Earnings</strong></td><td><span class="badge">${settlementStatus}</span></td><td class="amount"><strong>₹${vendorNet.toLocaleString('en-IN')}</strong></td></tr>
-      <tr class="settlement-row"><td>Actual Vendor Settlement Paid Out</td><td><span class="badge">${vendorAmountSettled > 0 ? 'Disbursed' : 'Pending'}</span></td><td class="amount">₹${vendorAmountSettled.toLocaleString('en-IN')}</td></tr>
-      <tr class="settlement-row"><td>Escrow Custody Balance</td><td><span class="badge">${escrowStatus}</span></td><td class="amount">₹${escrowHeldAmount.toLocaleString('en-IN')}</td></tr>
     </tbody>
   </table>
   <div class="footer">Thank you for choosing ${vendorBrand} · Official System Generated Invoice</div>
@@ -234,6 +235,11 @@ const VendorBookings = () => {
     fetchBookings();
   }, []);
 
+  // Opening another booking resets the amount editor
+  useEffect(() => {
+    setIsEditingAmount(false);
+  }, [selectedBooking?._id]);
+
   useEffect(() => {
     if (selectedBooking) {
       document.body.style.overflow = 'hidden';
@@ -249,6 +255,9 @@ const VendorBookings = () => {
   }, [selectedBooking]);
 
   const handleStatusUpdate = async (bookingId, newStatus) => {
+    if (newStatus === 'Cancelled' && !window.confirm('Cancel this booking? The customer will be notified.')) {
+      return;
+    }
     try {
       const token = localStorage.getItem('vendorToken');
       const res = await vendorApi.updateBookingStatus(bookingId, newStatus, token);
@@ -256,10 +265,95 @@ const VendorBookings = () => {
         setBookings(prev => prev.map(b => b._id === bookingId ? { ...b, status: res.data.status } : b));
         setSelectedBooking(prev => prev && prev._id === bookingId ? { ...prev, status: res.data.status } : prev);
         setOpenMenu(null);
+        showToast(`Booking marked ${res.data.status}`);
         refreshData();
+      } else {
+        showToast(res.message || 'Could not update the booking');
       }
     } catch (err) {
       console.error('Failed to update booking status:', err);
+      showToast('Could not update the booking');
+    }
+  };
+
+  // Server returns the booking with recalculated amounts; keep the populated customer details
+  const applyBookingUpdate = (updated) => {
+    const merge = (b) => ({
+      ...b,
+      ...updated,
+      userId: b.userId,
+      leadId: b.leadId,
+      quoteId: b.quoteId,
+      vendorId: b.vendorId,
+      customerName: b.customerName,
+      customerPhone: b.customerPhone,
+      customerEmail: b.customerEmail
+    });
+    setBookings(prev => prev.map(b => (b._id === updated._id ? merge(b) : b)));
+    setSelectedBooking(prev => (prev && prev._id === updated._id ? merge(prev) : prev));
+  };
+
+  const handleSaveFinalAmount = async (bookingId) => {
+    const amount = Number(finalAmountInput);
+    if (!amount || amount <= 0) {
+      showToast('Enter a valid amount');
+      return;
+    }
+    setSavingPayment(true);
+    try {
+      const res = await vendorApi.setBookingFinalAmount(bookingId, amount, localStorage.getItem('vendorToken'));
+      if (res.success) {
+        applyBookingUpdate(res.data);
+        setIsEditingAmount(false);
+        showToast('Finalised amount updated');
+      } else {
+        showToast(res.message || 'Could not update the amount');
+      }
+    } catch {
+      showToast('Could not update the amount');
+    } finally {
+      setSavingPayment(false);
+    }
+  };
+
+  const handleAddPaymentEntry = async (bookingId) => {
+    const amount = Number(paymentForm.amount);
+    if (!amount || amount <= 0) {
+      showToast('Enter the amount received');
+      return;
+    }
+    setSavingPayment(true);
+    try {
+      const res = await vendorApi.addBookingPaymentEntry(bookingId, { ...paymentForm, amount }, localStorage.getItem('vendorToken'));
+      if (res.success) {
+        applyBookingUpdate(res.data);
+        setPaymentForm(prev => ({ ...prev, amount: '', note: '' }));
+        showToast('Payment recorded');
+      } else {
+        showToast(res.message || 'Could not record the payment');
+      }
+    } catch {
+      showToast('Could not record the payment');
+    } finally {
+      setSavingPayment(false);
+    }
+  };
+
+  const handleDeletePaymentEntry = async (bookingId, entryId) => {
+    if (!window.confirm('Remove this payment record?')) return;
+    setSavingPayment(true);
+    try {
+      const res = await vendorApi.deleteBookingPaymentEntry(bookingId, entryId, localStorage.getItem('vendorToken'));
+      if (res.success) {
+        applyBookingUpdate(res.data);
+        showToast('Payment record removed');
+      } else {
+        showToast(res.message || 'Could not remove the record');
+      }
+    } catch {
+      showToast('Could not remove the record');
+    } finally {
+      setSavingPayment(false);
     }
   };
 
@@ -288,6 +382,9 @@ const VendorBookings = () => {
       case 'Rejected': return { bg: '#f3e8ff', color: '#E11D48', border: '#ede9fe' };
       case 'Confirmed': return { bg: '#F0F9FF', color: '#0284C7', border: '#E0F2FE' };
       case 'Pending': return { bg: '#FFFBEB', color: '#D97706', border: '#FEF3C7' };
+      case 'In Progress': return { bg: '#F5F3FF', color: '#7C3AED', border: '#EDE9FE' };
+      case 'Completed': return { bg: '#F0FDF4', color: '#16A34A', border: '#DCFCE7' };
+      case 'Cancelled': return { bg: '#FFF1F2', color: '#E11D48', border: '#FFE4E6' };
       default: return { bg: '#F8FAFC', color: '#64748B', border: '#F1F5F9' };
     }
   };
@@ -315,15 +412,6 @@ const VendorBookings = () => {
     const paidAmount = Number(booking.paidAmount ?? 0);
     const totalRefunded = Number(booking.totalRefunded ?? 0);
     const outstanding = Number(booking.outstandingBalance ?? Math.max(0, totalAmount - paidAmount));
-    const commission = Number(booking.commission ?? 0);
-    const commissionPercent = booking.commissionRatePercent ?? (booking.commissionRate ? Math.round(booking.commissionRate * 100) : null);
-    const commissionBasis = booking.commissionBasis || 'Gross Package Total';
-    const commissionSource = booking.commissionConfigSource || 'System Record';
-    const vendorNet = Number(booking.vendorEarning ?? Math.max(0, totalAmount - commission));
-    const vendorAmountSettled = Number(booking.vendorAmountSettled ?? 0);
-    const escrowHeldAmount = Number(booking.escrowHeldAmount ?? 0);
-    const escrowStatus = booking.escrowStatus || (escrowHeldAmount > 0 ? 'Held in Escrow' : 'None Held');
-    const settlementStatus = booking.settlementStatus || (vendorAmountSettled > 0 ? 'Settled' : 'Pending');
     const isFullyPaid = booking.isFullyPaid ?? (paidAmount >= totalAmount && totalAmount > 0);
 
     const customerName = booking.customerName || booking.userId?.name || booking.leadId?.name || 'Customer';
@@ -462,7 +550,7 @@ const VendorBookings = () => {
             <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-luxury-sans shadow-3xs">
               <div>
                 <span className="text-[20px] font-bold text-slate-950">₹{totalAmount.toLocaleString('en-IN')}</span>
-                <p className="text-[9.5px] font-medium text-slate-400 uppercase tracking-widest mt-0.5">Agreed Package Price</p>
+                <p className="text-[9.5px] font-medium text-slate-400 uppercase tracking-widest mt-0.5">Finalised Amount</p>
               </div>
 
               <div className="flex items-center gap-3">
@@ -473,7 +561,7 @@ const VendorBookings = () => {
                     ? 'bg-amber-500 text-white'
                     : 'bg-slate-200 text-slate-700'
                 }`}>
-                  {isFullyPaid ? '100% Paid & Verified' : (paidAmount > 0 ? `Partial (₹${paidAmount.toLocaleString('en-IN')} Paid)` : 'Payment Pending')}
+                  {isFullyPaid ? 'Fully Paid' : (paidAmount > 0 ? `Partial (₹${paidAmount.toLocaleString('en-IN')} Paid)` : 'Payment Pending')}
                 </span>
 
                 <div className="flex items-center gap-2 shrink-0">
@@ -558,6 +646,51 @@ const VendorBookings = () => {
             </button>
           </div>
 
+          {/* Booking status actions (payments happen outside the app, so the vendor confirms) */}
+          {booking.status !== 'Cancelled' && booking.status !== 'Completed' && (
+            <div className="luxury-card p-4 font-luxury-sans flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-semibold text-slate-600 mr-auto">
+                {booking.status === 'Pending' ? 'Confirm the booking once the date is locked with the customer.' : 'Update the booking as the event progresses.'}
+              </span>
+              {booking.status === 'Pending' && (
+                <button
+                  onClick={() => handleStatusUpdate(booking._id, 'Confirmed')}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold active:scale-95 transition-all"
+                >
+                  Confirm Booking
+                </button>
+              )}
+              {booking.status === 'Confirmed' && (
+                <button
+                  onClick={() => handleStatusUpdate(booking._id, 'In Progress')}
+                  className="px-3.5 py-2 rounded-xl bg-[#6D3BFF] hover:bg-[#5b2ee6] text-white text-[11px] font-semibold active:scale-95 transition-all"
+                >
+                  Mark In Progress
+                </button>
+              )}
+              {(booking.status === 'Confirmed' || booking.status === 'In Progress') && (
+                <button
+                  onClick={() => handleStatusUpdate(booking._id, 'Completed')}
+                  className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-semibold active:scale-95 transition-all"
+                >
+                  Mark Completed
+                </button>
+              )}
+              <button
+                onClick={() => handleStatusUpdate(booking._id, 'Cancelled')}
+                className="px-3.5 py-2 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-[11px] font-semibold active:scale-95 transition-all"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
+          {booking.status === 'Cancelled' && booking.lateCancellation && (
+            <div className="bg-rose-50 border border-rose-200 p-3.5 rounded-2xl text-[12px] text-rose-800 font-luxury-sans">
+              The customer cancelled {booking.daysNoticeAtCancellation ?? 0} day(s) before the event, inside the cancellation notice period. As per the cancellation policy, the full amount of ₹{totalAmount.toLocaleString('en-IN')} is payable to you.
+            </div>
+          )}
+
           {/* Event Timeline */}
           <div className="luxury-card p-4 space-y-3 font-luxury-sans">
             <h3 className="text-[11.5px] font-semibold text-slate-800 uppercase tracking-widest font-luxury-sans">Event Pipeline Progress</h3>
@@ -607,35 +740,67 @@ const VendorBookings = () => {
             </div>
           )}
 
-          {/* Responsive 2-Column Grid: Customer Payment & Contract vs Vendor Net & Escrow */}
+          {/* Payments: made outside the app; the vendor records the finalised amount and what was received */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-luxury-sans">
-            {/* Column 1: Customer Payment Breakdown */}
+            {/* Column 1: Amount summary */}
             <div className="luxury-card p-4 sm:p-5 space-y-3 font-luxury-sans flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                  <h3 className="text-[11.5px] font-semibold text-slate-800 uppercase tracking-widest">Customer Payment Ledger</h3>
+                  <h3 className="text-[11.5px] font-semibold text-slate-800 uppercase tracking-widest">Payment Summary</h3>
                   <span className="text-[9px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 uppercase">
-                    Customer Side
+                    For Reference
                   </span>
                 </div>
 
                 <div className="space-y-2.5 text-[12.5px] mt-3">
-                  <div className="flex justify-between items-center text-slate-500 font-medium">
-                    <span>Agreed Package Total</span>
-                    <span className="text-slate-950 font-bold">₹{totalAmount.toLocaleString('en-IN')}</span>
+                  <div className="flex justify-between items-center text-slate-500 font-medium gap-2">
+                    <span>Finalised Amount</span>
+                    {isEditingAmount ? (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min="1"
+                          value={finalAmountInput}
+                          onChange={(e) => setFinalAmountInput(e.target.value)}
+                          className="w-28 h-8 px-2 rounded-lg border border-slate-200 text-[12px] text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                        />
+                        <button
+                          disabled={savingPayment}
+                          onClick={() => handleSaveFinalAmount(booking._id)}
+                          className="h-8 px-2.5 rounded-lg bg-[#6D3BFF] text-white text-[10.5px] font-semibold disabled:opacity-50"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setIsEditingAmount(false)}
+                          className="h-8 px-2 rounded-lg text-slate-500 text-[10.5px] font-semibold"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <span className="text-slate-950 font-bold">₹{totalAmount.toLocaleString('en-IN')}</span>
+                        {booking.status !== 'Cancelled' && (
+                          <button
+                            onClick={() => { setFinalAmountInput(String(totalAmount || '')); setIsEditingAmount(true); }}
+                            className="text-[10.5px] font-semibold text-[#6D3BFF] hover:underline"
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex justify-between items-center text-slate-500 font-medium">
-                    <span>Verified Customer Payments</span>
-                    <span className="text-emerald-700 font-bold flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                      ₹{paidAmount.toLocaleString('en-IN')}
-                    </span>
+                    <span>Received (Recorded)</span>
+                    <span className="text-emerald-700 font-bold">₹{paidAmount.toLocaleString('en-IN')}</span>
                   </div>
 
                   {totalRefunded > 0 && (
                     <div className="flex justify-between items-center text-rose-600 font-medium text-[12px]">
-                      <span>Refunds & Reversals Deducted</span>
+                      <span>Refunded (earlier online payments)</span>
                       <span className="font-bold">- ₹{totalRefunded.toLocaleString('en-IN')}</span>
                     </div>
                   )}
@@ -644,8 +809,8 @@ const VendorBookings = () => {
                     outstanding === 0 ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'
                   }`}>
                     <div>
-                      <span className="font-semibold block text-[12px]">Outstanding Customer Balance</span>
-                      <span className="text-[9px] text-slate-500">Remaining payable by customer</span>
+                      <span className="font-semibold block text-[12px]">Balance</span>
+                      <span className="text-[9px] text-slate-500">Still to be paid by the customer</span>
                     </div>
                     <span className="text-[14px] font-bold">
                       {outstanding === 0 ? '₹0 (Settled)' : `₹${outstanding.toLocaleString('en-IN')}`}
@@ -654,129 +819,123 @@ const VendorBookings = () => {
                 </div>
               </div>
 
-              <div className="pt-2 text-[10.5px] text-slate-400 border-t border-slate-100 flex items-center justify-between">
-                <span>Payment Status: <strong className="text-slate-700">{booking.paymentStatus || (isFullyPaid ? 'Paid' : 'Pending')}</strong></span>
-                <span>Verified Online Records</span>
-              </div>
+              <p className="pt-2 text-[10.5px] text-slate-400 border-t border-slate-100">
+                Payments are not taken in the app. Record what the customer pays you so both of you can track the balance.
+              </p>
             </div>
 
-            {/* Column 2: Vendor Earnings & Escrow Breakdown */}
-            <div className="luxury-card p-4 sm:p-5 space-y-3 font-luxury-sans flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                  <h3 className="text-[11.5px] font-semibold text-slate-800 uppercase tracking-widest">Vendor Earnings & Settlement</h3>
-                  <span className="text-[9px] font-medium px-2 py-0.5 rounded-full bg-purple-50 text-[#6D3BFF] uppercase">
-                    Vendor Net
-                  </span>
-                </div>
-
-                <div className="space-y-2.5 text-[12.5px] mt-3">
-                  <div className="flex justify-between items-center text-slate-500 font-medium">
-                    <span>Gross Booking Value</span>
-                    <span className="text-slate-950 font-bold">₹{totalAmount.toLocaleString('en-IN')}</span>
-                  </div>
-
-                  <div className="flex justify-between items-center text-slate-500 font-medium">
-                    <div>
-                      <span>Platform Commission {commissionPercent !== null ? `(${commissionPercent}%)` : '(Unconfigured)'}</span>
-                      <span className="block text-[9.5px] text-slate-400">Basis: {commissionBasis} · Source: {commissionSource}</span>
-                    </div>
-                    <span className="text-slate-700 font-medium">- ₹{commission.toLocaleString('en-IN')}</span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-purple-50/70 border border-purple-100/60 flex justify-between items-center text-purple-950 mt-2">
-                    <div>
-                      <span className="font-bold block text-[12px]">Vendor Net Payable</span>
-                      <span className="text-[9px] text-purple-700">Contractual earnings payable upon event completion</span>
-                    </div>
-                    <span className="text-[15px] font-bold text-[#6D3BFF]">
-                      ₹{vendorNet.toLocaleString('en-IN')}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center text-slate-600 font-medium text-[12px] pt-1">
-                    <span>Actual Amount Settled to Vendor</span>
-                    <span className="font-bold text-slate-800">
-                      {vendorAmountSettled > 0 ? `₹${vendorAmountSettled.toLocaleString('en-IN')}` : '₹0 (Pending event completion)'}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center text-slate-600 font-medium text-[12px]">
-                    <span>Amount Held in Escrow Custody</span>
-                    <span className="font-bold text-indigo-700">₹{escrowHeldAmount.toLocaleString('en-IN')}</span>
-                  </div>
-                </div>
+            {/* Column 2: Record a payment */}
+            <div className="luxury-card p-4 sm:p-5 space-y-3 font-luxury-sans">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="text-[11.5px] font-semibold text-slate-800 uppercase tracking-widest">Record a Payment</h3>
               </div>
-
-              <div className="pt-2 text-[10.5px] text-slate-400 border-t border-slate-100 flex items-center justify-between">
-                <span>Escrow Custody: <strong className="text-slate-700">{escrowStatus}</strong></span>
-                <span>Settlement: <strong className="text-slate-700">{settlementStatus}</strong></span>
-              </div>
+              {booking.status === 'Cancelled' ? (
+                <p className="text-[11px] text-slate-400 py-4 text-center">This booking is cancelled.</p>
+              ) : outstanding === 0 ? (
+                <p className="text-[11px] text-emerald-700 py-4 text-center">The full amount has been received.</p>
+              ) : (
+                <div className="space-y-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder={`Amount (max ₹${outstanding.toLocaleString('en-IN')})`}
+                      value={paymentForm.amount}
+                      onChange={(e) => setPaymentForm(prev => ({ ...prev, amount: e.target.value }))}
+                      className="h-9 px-3 rounded-xl border border-slate-200 text-[12px] focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                    />
+                    <select
+                      value={paymentForm.mode}
+                      onChange={(e) => setPaymentForm(prev => ({ ...prev, mode: e.target.value }))}
+                      className="h-9 px-2 rounded-xl border border-slate-200 text-[12px] bg-white focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                    >
+                      {['Cash', 'UPI', 'Bank Transfer', 'Cheque', 'Card', 'Other'].map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <input
+                    type="date"
+                    value={paymentForm.paidOn}
+                    onChange={(e) => setPaymentForm(prev => ({ ...prev, paidOn: e.target.value }))}
+                    className="w-full h-9 px-3 rounded-xl border border-slate-200 text-[12px] focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                  />
+                  <input
+                    type="text"
+                    maxLength={300}
+                    placeholder="Note (optional), e.g. advance received"
+                    value={paymentForm.note}
+                    onChange={(e) => setPaymentForm(prev => ({ ...prev, note: e.target.value }))}
+                    className="w-full h-9 px-3 rounded-xl border border-slate-200 text-[12px] focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                  />
+                  <button
+                    disabled={savingPayment}
+                    onClick={() => handleAddPaymentEntry(booking._id)}
+                    className="w-full py-2.5 rounded-xl bg-[#6D3BFF] hover:bg-[#5b2ee6] text-white text-[11px] font-semibold uppercase tracking-wider disabled:opacity-50 active:scale-[0.99] transition-all"
+                  >
+                    {savingPayment ? 'Saving...' : 'Record Payment'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Payment Schedule & Verified Transactions Ledger */}
+          {/* Payments received */}
           <div className="luxury-card p-4 sm:p-5 space-y-3 font-luxury-sans">
             <div className="flex items-center justify-between pb-1 border-b border-slate-100">
               <div>
-                <h3 className="text-[11.5px] font-semibold text-slate-800 uppercase tracking-widest">Payment Schedule & Verified Transactions</h3>
-                <p className="text-[10px] text-slate-400 mt-0.5">Canonical transaction records from payment gateway</p>
+                <h3 className="text-[11.5px] font-semibold text-slate-800 uppercase tracking-widest">Payments Received</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">Recorded by you. The customer can see these on their booking.</p>
               </div>
             </div>
 
             <div className="space-y-2 pt-1">
-              {paymentsList.length > 0 ? (
-                paymentsList.map((p, pIdx) => {
-                  const pDate = p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
-                  const isSuccess = p.status === 'Completed' || p.status === 'Paid';
-
-                  return (
-                    <div key={p._id || pIdx} className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-3">
-                        <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${
-                          isSuccess ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
-                        }`}>
-                          <span className="text-[12px] font-bold">{isSuccess ? '✓' : '✗'}</span>
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[12.5px] font-bold text-slate-900">
-                              Payment #{pIdx + 1} — {p.paymentMethod || 'Razorpay'}
-                            </span>
-                            <span className={`px-2 py-0.5 rounded-full text-[8.5px] font-bold uppercase ${
-                              isSuccess ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'
-                            }`}>
-                              {p.status}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-slate-400 mt-0.5">
-                            Ref: <span className="font-mono text-slate-600">{p.razorpayPaymentId || 'Direct'}</span> · Date: {pDate}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="text-right sm:pl-4">
-                        <span className="text-[14px] font-bold text-slate-950">₹{Number(p.amount || 0).toLocaleString('en-IN')}</span>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : paidAmount > 0 ? (
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+              {(booking.paymentEntries || []).map((entry) => (
+                <div key={entry._id} className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                       <span className="text-[12px] font-bold">✓</span>
                     </div>
-                    <div>
-                      <span className="text-[12.5px] font-bold text-slate-900">Verified Online Payment</span>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Customer payment verified and recorded</p>
+                    <div className="min-w-0">
+                      <span className="text-[12.5px] font-bold text-slate-900">{entry.mode || 'Payment'}</span>
+                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">
+                        {entry.paidOn ? new Date(entry.paidOn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                        {entry.note ? ` · ${entry.note}` : ''}
+                      </p>
                     </div>
                   </div>
-                  <span className="text-[14px] font-bold text-slate-950">₹{paidAmount.toLocaleString('en-IN')}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[14px] font-bold text-slate-950">₹{Number(entry.amount || 0).toLocaleString('en-IN')}</span>
+                    {booking.status !== 'Cancelled' && (
+                      <button
+                        disabled={savingPayment}
+                        onClick={() => handleDeletePaymentEntry(booking._id, entry._id)}
+                        className="h-7 w-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center"
+                        title="Remove this record"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
                 </div>
-              ) : (
+              ))}
+
+              {/* Online payments taken before in-app payments were switched off */}
+              {paymentsList.map((p, pIdx) => (
+                <div key={p._id || pIdx} className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[12.5px] font-bold text-slate-900">Online payment ({p.paymentMethod || 'Razorpay'})</span>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {p.status} · {p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                    </p>
+                  </div>
+                  <span className="text-[14px] font-bold text-slate-950">₹{Number(p.amount || 0).toLocaleString('en-IN')}</span>
+                </div>
+              ))}
+
+              {(booking.paymentEntries || []).length === 0 && paymentsList.length === 0 && (
                 <div className="p-4 rounded-xl bg-slate-50 text-center text-slate-400 text-[11px]">
-                  No verified payments recorded yet. The customer has not settled the package amount.
+                  No payments recorded yet.
                 </div>
               )}
             </div>
@@ -917,7 +1076,7 @@ const VendorBookings = () => {
             />
           </div>
           <div className="flex bg-slate-50 p-0.5 rounded-lg border border-slate-100 flex-shrink-0">
-            {['All', 'Pending', 'Accepted', 'Confirmed', 'Rejected'].map(status => (
+            {['All', 'Pending', 'Confirmed', 'In Progress', 'Completed', 'Cancelled'].map(status => (
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
@@ -1191,16 +1350,8 @@ const VendorBookings = () => {
                     )}
                     {booking.status === 'Pending' && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleStatusUpdate(booking._id, 'Accepted'); }}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500 text-[9px] font-medium uppercase tracking-wide text-white hover:bg-emerald-600 active:scale-95 transition-all shadow-2xs"
-                      >
-                        <Icon name="check" size="xs" className="w-3.5 h-3.5" /> Accept
-                      </button>
-                    )}
-                    {booking.status === 'Accepted' && (
-                      <button
                         onClick={(e) => { e.stopPropagation(); handleStatusUpdate(booking._id, 'Confirmed'); }}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 text-[9px] font-medium uppercase tracking-wide text-white hover:bg-indigo-700 active:scale-95 transition-all shadow-2xs"
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500 text-[9px] font-medium uppercase tracking-wide text-white hover:bg-emerald-600 active:scale-95 transition-all shadow-2xs"
                       >
                         <Icon name="check" size="xs" className="w-3.5 h-3.5" /> Confirm
                       </button>
@@ -1219,7 +1370,7 @@ const VendorBookings = () => {
                         <>
                           <div className="fixed inset-0 z-[120]" onClick={() => setOpenMenu(null)}></div>
                           <div className="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100/50 z-[130] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200 p-1.5">
-                            {booking.status !== 'Confirmed' && booking.status !== 'Rejected' && (
+                            {booking.status === 'Pending' && (
                               <button
                                 onClick={() => handleStatusUpdate(booking._id, 'Confirmed')}
                                 className="w-full px-3 py-2 text-left text-[10px] font-medium uppercase tracking-wider hover:bg-slate-50 text-slate-700 rounded-lg transition-all"
@@ -1227,12 +1378,32 @@ const VendorBookings = () => {
                                 Mark as Confirmed
                               </button>
                             )}
-                            <button
-                              onClick={() => handleStatusUpdate(booking._id, 'Rejected')}
-                              className="w-full px-3 py-2 text-left text-[10px] font-medium uppercase tracking-wider hover:bg-rose-50 text-rose-600 rounded-lg transition-all mt-1"
-                            >
-                              Cancel Booking
-                            </button>
+                            {booking.status === 'Confirmed' && (
+                              <button
+                                onClick={() => handleStatusUpdate(booking._id, 'In Progress')}
+                                className="w-full px-3 py-2 text-left text-[10px] font-medium uppercase tracking-wider hover:bg-slate-50 text-slate-700 rounded-lg transition-all"
+                              >
+                                Mark In Progress
+                              </button>
+                            )}
+                            {(booking.status === 'Confirmed' || booking.status === 'In Progress') && (
+                              <button
+                                onClick={() => handleStatusUpdate(booking._id, 'Completed')}
+                                className="w-full px-3 py-2 text-left text-[10px] font-medium uppercase tracking-wider hover:bg-slate-50 text-slate-700 rounded-lg transition-all"
+                              >
+                                Mark Completed
+                              </button>
+                            )}
+                            {booking.status !== 'Cancelled' && booking.status !== 'Completed' ? (
+                              <button
+                                onClick={() => handleStatusUpdate(booking._id, 'Cancelled')}
+                                className="w-full px-3 py-2 text-left text-[10px] font-medium uppercase tracking-wider hover:bg-rose-50 text-rose-600 rounded-lg transition-all mt-1"
+                              >
+                                Cancel Booking
+                              </button>
+                            ) : (
+                              <p className="px-3 py-2 text-[10px] text-slate-400">No actions for a {booking.status.toLowerCase()} booking</p>
+                            )}
                           </div>
                         </>
                       )}

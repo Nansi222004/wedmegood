@@ -167,7 +167,10 @@ const vendorSchema = new mongoose.Schema({
         paymentId: String,
         orderId: String,
         startDate: Date,
-        endDate: Date
+        endDate: Date,
+        // When the vendor first paid for a subscription. Renewals keep it, so the lead
+        // rotation can follow "first paid subscriber gets the first lead".
+        firstPaidAt: Date
     },
     language: {
         type: String,

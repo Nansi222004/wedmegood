@@ -20,7 +20,7 @@ const adminLogSchema = new mongoose.Schema({
     },
     entityType: {
         type: String,
-        enum: ['Vendor', 'User', 'Category', 'SubCategory', 'Booking', 'Review', 'Complaint', 'Withdrawal', 'Refund', 'Settings', 'Banner', 'Policy', 'Support', 'ChatReport', 'System'],
+        enum: ['Vendor', 'User', 'Category', 'SubCategory', 'Booking', 'Review', 'Complaint', 'Withdrawal', 'Refund', 'Settings', 'Banner', 'Policy', 'Support', 'ChatReport', 'FakeVendor', 'System'],
         default: 'System'
     },
     entityId: {

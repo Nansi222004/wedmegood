@@ -10,8 +10,8 @@ const userActivitySchema = new mongoose.Schema({
   type: {
     type: String,
     enum: [
-      'booking_created', 'booking_confirmed', 'booking_cancelled',
-      'payment_success', 'payment_failed', 'payment_refunded',
+      'booking_created', 'booking_confirmed', 'booking_cancelled', 'booking_completed',
+      'payment_success', 'payment_failed', 'payment_refunded', 'payment_recorded',
       'quote_received', 'quote_accepted', 'quote_rejected',
       'lead_created', 'review_submitted', 'review_moderated',
       'complaint_created', 'complaint_updated',

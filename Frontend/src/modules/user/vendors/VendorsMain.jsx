@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import userApi from '../../../services/userApi';
+import usePlatformSettings from '../../../hooks/usePlatformSettings';
 
 const defaultCategoryMetadata = {
   venues: {
@@ -158,6 +159,7 @@ const premierVendors = [
 ];
 
 const VendorsMain = () => {
+  const { ratingsEnabled } = usePlatformSettings();
   const navigate = useNavigate();
   const [selectedCity, setSelectedCity] = useState(() => localStorage.getItem('selectedCity') || 'Hyderabad');
   const [categories, setCategories] = useState(fallbackCategories);
@@ -328,10 +330,14 @@ const VendorsMain = () => {
                 {/* Bottom Row */}
                 <div className="flex items-center justify-between pt-2.5 border-t border-stone-100 mt-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold text-[#B38038] flex items-center gap-1">
-                      ★ {category.rating}
-                    </span>
-                    <span className="text-stone-300">•</span>
+                    {ratingsEnabled && (
+                      <>
+                        <span className="text-[11px] font-semibold text-[#B38038] flex items-center gap-1">
+                          ★ {category.rating}
+                        </span>
+                        <span className="text-stone-300">•</span>
+                      </>
+                    )}
                     <span className="text-[10px] text-stone-400 font-semibold uppercase tracking-wider">
                       Verified Partners
                     </span>
@@ -381,9 +387,11 @@ const VendorsMain = () => {
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       loading="lazy"
                     />
-                    <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[9.5px] font-semibold text-[#ECC880] flex items-center gap-0.5">
-                      ★ {vendor.rating} ({vendor.reviews})
-                    </span>
+                    {ratingsEnabled && (
+                      <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[9.5px] font-semibold text-[#ECC880] flex items-center gap-0.5">
+                        ★ {vendor.rating} ({vendor.reviews})
+                      </span>
+                    )}
                   </div>
                   <div>
                     <h4 className="font-bold text-[13px] text-stone-900 tracking-tight leading-snug truncate group-hover:text-[#651731] transition-colors">

@@ -18,6 +18,12 @@ const roundRobinSequenceSchema = new mongoose.Schema({
         ref: 'Vendor',
         default: null
     },
+    // Position of the last assigned vendor in the rotation order (see vendorAllocation.service).
+    // Lets the rotation continue correctly when that vendor drops out of the eligible list.
+    lastAssignedSortKey: {
+        type: String,
+        default: null
+    },
     lastAssignedAt: {
         type: Date,
         default: Date.now

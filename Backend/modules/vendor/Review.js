@@ -11,9 +11,10 @@ const reviewSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    // Optional: when the admin turns ratings off, reviews are text only
     rating: {
         type: Number,
-        required: [true, 'Please provide a rating between 1 and 5'],
+        default: null,
         min: 1,
         max: 5
     },

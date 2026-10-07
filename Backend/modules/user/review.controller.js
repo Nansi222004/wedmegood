@@ -18,8 +18,12 @@ exports.createReview = async (req, res, next) => {
             });
         }
 
-        const numRating = Number(rating);
-        if (!numRating || numRating < 1 || numRating > 5) {
+        // Stars are required only while the admin has ratings switched on
+        const { getPublicSettings } = require('../../services/platformSettings.service');
+        const { ratingsEnabled } = await getPublicSettings();
+        const hasRating = rating !== undefined && rating !== null && rating !== '';
+        const numRating = hasRating ? Number(rating) : null;
+        if ((ratingsEnabled || hasRating) && (!numRating || numRating < 1 || numRating > 5)) {
             return res.status(400).json({
                 success: false,
                 message: 'Please provide a valid rating between 1 and 5'
@@ -93,8 +97,9 @@ exports.createReview = async (req, res, next) => {
         // Recalculate vendor average rating and review count from 'Approved' reviews
         const approvedReviews = await Review.find({ vendorId: booking.vendorId, status: 'Approved' });
         const approvedCount = approvedReviews.length;
-        const avgRating = approvedCount > 0
-            ? Math.round((approvedReviews.reduce((acc, r) => acc + (r.rating || 0), 0) / approvedCount) * 10) / 10
+        const ratedReviews = approvedReviews.filter(r => r.rating);
+        const avgRating = ratedReviews.length > 0
+            ? Math.round((ratedReviews.reduce((acc, r) => acc + r.rating, 0) / ratedReviews.length) * 10) / 10
             : 0;
 
         await Vendor.findByIdAndUpdate(booking.vendorId, {
@@ -105,7 +110,7 @@ exports.createReview = async (req, res, next) => {
         // 6. Notify Vendor
         await Notification.create({
             vendorId: booking.vendorId,
-            message: `New ${numRating}★ review received from ${req.user.name || 'a customer'} for booking #${booking._id.toString().slice(-6).toUpperCase()}!`,
+            message: `New ${numRating ? `${numRating}★ ` : ''}review received from ${req.user.name || 'a customer'} for booking #${booking._id.toString().slice(-6).toUpperCase()}!`,
             type: 'Review',
             isRead: false
         });

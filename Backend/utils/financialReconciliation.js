@@ -79,12 +79,17 @@ function reconcileBookingPayments(booking, paymentsList = [], options = {}) {
 
     // Sum net customer payments (gross minus transaction-specific refund)
     const netCustomerFundsRetained = Math.max(0, Math.round((verifiedGrossPaid - totalRefunded) * 100) / 100);
-    const customerPaidAmount = netCustomerFundsRetained;
+
+    // Payments made outside the app and recorded by the vendor (reference entries, no money held)
+    const paymentEntries = Array.isArray(booking.paymentEntries) ? booking.paymentEntries : [];
+    const offlinePaidAmount = Math.round(paymentEntries.reduce((acc, e) => acc + (Number(e.amount) || 0), 0) * 100) / 100;
+
+    const customerPaidAmount = Math.round((netCustomerFundsRetained + offlinePaidAmount) * 100) / 100;
     const remainingRefundableAmount = netCustomerFundsRetained;
 
     // Outstanding balance due from customer (0 if cancelled, since booking obligation terminates)
     const isCancelled = booking.status === 'Cancelled';
-    const rawOutstanding = Math.max(0, Math.round((packageTotal - netCustomerFundsRetained) * 100) / 100);
+    const rawOutstanding = Math.max(0, Math.round((packageTotal - customerPaidAmount) * 100) / 100);
     const outstandingBalance = isCancelled ? 0 : rawOutstanding;
 
     // Commission Resolution:
@@ -198,14 +203,14 @@ function reconcileBookingPayments(booking, paymentsList = [], options = {}) {
     let discrepancyNote = null;
     const discrepancyReasons = [];
 
-    if (booking.paymentStatus === 'Paid' && netCustomerFundsRetained < packageTotal && !isCancelled) {
+    if (booking.paymentStatus === 'Paid' && customerPaidAmount < packageTotal && !isCancelled) {
         hasDiscrepancy = true;
-        const msg = `Booking is marked 'Paid' in database but verified payments (₹${netCustomerFundsRetained.toLocaleString('en-IN')}) do not cover the package total (₹${packageTotal.toLocaleString('en-IN')}).`;
+        const msg = `Booking is marked 'Paid' in database but recorded payments (₹${customerPaidAmount.toLocaleString('en-IN')}) do not cover the package total (₹${packageTotal.toLocaleString('en-IN')}).`;
         discrepancyReasons.push(msg);
         discrepancyNote = msg;
-    } else if (booking.paymentStatus === 'Pending' && netCustomerFundsRetained >= packageTotal && packageTotal > 0) {
+    } else if (booking.paymentStatus === 'Pending' && customerPaidAmount >= packageTotal && packageTotal > 0) {
         hasDiscrepancy = true;
-        const msg = `Booking is marked 'Pending' but ₹${netCustomerFundsRetained.toLocaleString('en-IN')} in verified payments was found.`;
+        const msg = `Booking is marked 'Pending' but ₹${customerPaidAmount.toLocaleString('en-IN')} in recorded payments was found.`;
         discrepancyReasons.push(msg);
         discrepancyNote = msg;
     }
@@ -251,12 +256,14 @@ function reconcileBookingPayments(booking, paymentsList = [], options = {}) {
         }
     }
 
-    const isFullyPaid = netCustomerFundsRetained >= packageTotal && packageTotal > 0;
+    const isFullyPaid = customerPaidAmount >= packageTotal && packageTotal > 0;
 
     return {
         packageTotal,
         agreedPackageTotal: packageTotal,
         paidAmount: customerPaidAmount,
+        offlinePaidAmount,
+        paymentEntries,
         verifiedCustomerPayments: verifiedGrossPaid,
         totalRefunded,
         refundAmountCompleted: totalRefunded,
@@ -280,7 +287,8 @@ function reconcileBookingPayments(booking, paymentsList = [], options = {}) {
         advancePaid: (Number(booking.advancePaymentRequired) || 0) > 0 && customerPaidAmount >= (Number(booking.advancePaymentRequired) || 0),
         advancePending: (Number(booking.advancePaymentRequired) || 0) > 0 && customerPaidAmount < (Number(booking.advancePaymentRequired) || 0),
         paymentStatus: isFullyPaid ? 'Paid' : (customerPaidAmount > 0 ? 'Partial' : 'Pending'),
-        bookingStatus: ((Number(booking.advancePaymentRequired) || 0) > 0 && customerPaidAmount < (Number(booking.advancePaymentRequired) || 0) && (booking.status === 'Confirmed')) ? 'Pending' : (booking.status || 'Pending'),
+        // Payments happen outside the app, so the vendor's confirmation decides the status
+        bookingStatus: booking.status || 'Pending',
         custodyType: 'Calculated / Allocated Platform Custody',
         custodyStatus: escrowStatus,
         escrowStatus,

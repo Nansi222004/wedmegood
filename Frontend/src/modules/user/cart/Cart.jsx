@@ -556,7 +556,7 @@ const Cart = () => {
                     1. When you finalize a vendor, an inquiry is registered. The vendor reviews your requested dates and prepares a personalized quote.
                   </p>
                   <p>
-                    2. Once received in <strong>My Bookings</strong>, accept the quote to secure your dates and proceed to verified checkout payment.
+                    2. Once received in <strong>My Bookings</strong>, accept the quote to secure your dates. Payments are made directly to the vendor.
                   </p>
                 </div>
               </div>

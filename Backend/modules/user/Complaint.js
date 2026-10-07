@@ -7,11 +7,20 @@ const complaintSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  // A vendor registered on the app...
   vendorId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Vendor',
-    required: [true, 'Vendor is required'],
+    default: null,
     index: true
+  },
+  // ...or a vendor in the market who is not on the app (reported so other users are warned)
+  externalVendor: {
+    name: { type: String, trim: true, maxlength: 120 },
+    businessName: { type: String, trim: true, maxlength: 120 },
+    phone: { type: String, trim: true, maxlength: 20 },
+    city: { type: String, trim: true, maxlength: 80 },
+    category: { type: String, trim: true, maxlength: 80 }
   },
   bookingId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -57,6 +66,12 @@ const complaintSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true
+});
+
+complaintSchema.pre('validate', function () {
+  if (!this.vendorId && !(this.externalVendor && this.externalVendor.name && this.externalVendor.phone)) {
+    this.invalidate('vendorId', 'Vendor is required');
+  }
 });
 
 complaintSchema.index({ userId: 1, createdAt: -1 });

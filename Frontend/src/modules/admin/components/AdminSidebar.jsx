@@ -31,6 +31,7 @@ const navigation = [
             { path: '/admin/bookings', icon: 'calendar', label: 'Global Bookings' },
             { path: '/admin/reviews', icon: 'shield', label: 'Review Hub' },
             { path: '/admin/complaints', icon: 'shield', label: 'Complaints Care' },
+            { path: '/admin/fake-vendors', icon: 'shield', label: 'Fake Vendors' },
         ]
     },
     {

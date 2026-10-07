@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import userApi from '../../../services/userApi';
+import usePlatformSettings from '../../../hooks/usePlatformSettings';
 
 const UserHome = () => {
+  const { ratingsEnabled } = usePlatformSettings();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const [activeCategory, setActiveCategory] = useState('wedding');
@@ -516,10 +518,12 @@ const UserHome = () => {
                     loading="lazy"
                   />
                   {/* Star Rating Badge */}
+                  {ratingsEnabled && (
                   <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-xs px-1.5 py-0.5 rounded-full flex items-center space-x-0.5 shadow-xs">
                     <span className="text-[#D4AF37] text-[10px]">★</span>
                     <span className="text-[10px] font-bold text-stone-800">{vendor.rating}</span>
                   </div>
+                  )}
                   {/* Favorite button */}
                   <button 
                     aria-label="Favorite Vendor"

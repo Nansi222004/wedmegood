@@ -4,8 +4,10 @@ import { useToast } from '../../../components/ui/Toast';
 import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
 import { userApi } from '../../../services/userApi';
+import usePlatformSettings from '../../../hooks/usePlatformSettings';
 
 const Favourites = () => {
+  const { ratingsEnabled } = usePlatformSettings();
   const navigate = useNavigate();
   const { showToast, ToastComponent } = useToast();
 
@@ -168,10 +170,12 @@ const Favourites = () => {
                         <h3 className="font-serif font-bold text-base text-[#4F1325] truncate">
                           {vendor.name}
                         </h3>
+                        {ratingsEnabled && (
                         <div className="flex items-center text-xs font-bold text-[#D4AF37]">
                           <Icon name="star" size="xs" className="mr-0.5" />
-                          <span>{vendor.rating || '4.8'}</span>
+                          <span>{vendor.rating || 'New'}</span>
                         </div>
+                        )}
                       </div>
 
                       <p className="text-[10px] uppercase tracking-wider font-semibold text-[#8E95A4]">

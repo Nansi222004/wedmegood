@@ -155,6 +155,7 @@ const HamburgerMenu = ({ isOpen, onClose }) => {
                     { title: 'Planning Roadmap', path: '/user/planning-dashboard', icon: 'calendar' },
                     { title: 'Inspirations Gallery', path: '/user/inspirations', icon: 'sparkles' },
                     { title: 'My Bookings', path: '/user/bookings', icon: 'check' },
+                    { title: 'Fake Vendor Alerts', path: '/user/fake-vendors', icon: 'shield' },
                     { title: 'Digital E-Invites', path: '/user/e-invites', icon: 'envelope' },
                     { title: 'AI Concierge', path: '/user/ai-assistant', icon: 'sparkles' }
                   ].map((item, i) => (

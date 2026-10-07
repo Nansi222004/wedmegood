@@ -198,6 +198,14 @@ router.delete('/faqs/:id', deleteFAQ);
 // Admin Support Config
 router.put('/support-config', updateSupportConfig);
 
+// Fake vendor listings (shown to users on the Fake Vendors page)
+const fakeVendorController = require('./fakeVendor.controller');
+router.get('/fake-vendors', fakeVendorController.getFakeVendorListings);
+router.post('/fake-vendors', fakeVendorController.createFakeVendorListing);
+router.put('/fake-vendors/:id', fakeVendorController.updateFakeVendorListing);
+router.delete('/fake-vendors/:id', fakeVendorController.deleteFakeVendorListing);
+router.post('/complaints/:id/mark-fake', fakeVendorController.markComplaintVendorAsFake);
+
 // Admin Financial Control & Ledger (Phase 5 Reused)
 const financialRoutes = require('./financial.routes');
 router.use('/financial', financialRoutes);

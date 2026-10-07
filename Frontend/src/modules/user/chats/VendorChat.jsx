@@ -430,7 +430,7 @@ const VendorChat = () => {
                     >
                       <Icon name="document" size="sm" />
                       <span className="truncate flex-1">{att.name || 'View Document'}</span>
-                      <Icon name="download" size="xs" />
+                      <Icon name="eye" size="xs" />
                     </a>
                   ))}
 

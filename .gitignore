@@ -45,3 +45,6 @@ audit_*.json
 # Markdown documentation files (do not push to GitHub)
 *.md
 **/*.md
+
+# Expo mobile app (kept local, not pushed)
+/mobile/

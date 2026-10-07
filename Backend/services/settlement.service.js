@@ -1,6 +1,7 @@
 const Booking = require('../modules/vendor/Booking');
 const VendorWallet = require('../modules/vendor/VendorWallet');
 const FinancialLedger = require('../modules/admin/FinancialLedger');
+const { getPublicSettings } = require('./platformSettings.service');
 
 /**
  * Releases vendor earnings from pendingBalance to availableBalance
@@ -34,7 +35,7 @@ async function settleBookingEarnings(bookingId) {
         };
     }
 
-    if (reconciliation.paidAmount <= 0) {
+    if (reconciliation.netCustomerFundsRetained <= 0) {
         return { settled: false, reason: 'Cannot settle: no verified customer payments found' };
     }
 
@@ -129,6 +130,18 @@ async function cancelAndRefundBooking({ bookingId, cancelledBy, actorId, reason 
     booking.cancelledBy = cancelledBy;
     booking.cancelledAt = new Date();
 
+    // Cancellation policy (terms & conditions): a user who cancels with less than the required
+    // notice before the event still owes the full amount. Recorded here; no money moves in the app.
+    const { cancellationNoticeDays } = await getPublicSettings();
+    const daysNotice = booking.eventDate
+        ? Math.floor((new Date(booking.eventDate).getTime() - booking.cancelledAt.getTime()) / (24 * 60 * 60 * 1000))
+        : null;
+    booking.daysNoticeAtCancellation = daysNotice;
+    booking.lateCancellation = cancelledBy === 'User' && daysNotice !== null && daysNotice < cancellationNoticeDays;
+    const policyNote = booking.lateCancellation
+        ? ` Cancelled less than ${cancellationNoticeDays} days before the event: as per the cancellation policy, the full amount of ₹${(Number(booking.totalPrice) || 0).toLocaleString('en-IN')} is payable to the vendor.`
+        : '';
+
     // Financial reversal if booking had verified payments
     const Payment = require('../modules/user/Payment');
     const payments = await Payment.find({ 
@@ -220,7 +233,7 @@ async function cancelAndRefundBooking({ bookingId, cancelledBy, actorId, reason 
     if (cancelledBy === 'User') {
         await Notification.create({
             vendorId: booking.vendorId,
-            message: `Booking for ${booking.customerName} on ${booking.eventDate?.toISOString()?.split('T')[0]} was cancelled: ${booking.cancellationReason}`,
+            message: `Booking for ${booking.customerName} on ${booking.eventDate?.toISOString()?.split('T')[0]} was cancelled: ${booking.cancellationReason}.${policyNote}`,
             type: 'Booking',
             isRead: false
         }).catch(() => {});
@@ -239,7 +252,7 @@ async function cancelAndRefundBooking({ bookingId, cancelledBy, actorId, reason 
             await notifyAndLogActivity({
                 userId: booking.userId,
                 notificationTitle: 'Booking Cancelled',
-                notificationMessage: `Your booking scheduled for ${booking.eventDate ? new Date(booking.eventDate).toLocaleDateString() : 'event'} has been cancelled by ${cancelledBy.toLowerCase()}.`,
+                notificationMessage: `Your booking scheduled for ${booking.eventDate ? new Date(booking.eventDate).toLocaleDateString() : 'event'} has been cancelled by ${cancelledBy.toLowerCase()}.${policyNote}`,
                 notificationType: 'booking',
                 activityType: 'booking_cancelled',
                 activityTitle: 'Cancelled Booking',
@@ -254,7 +267,9 @@ async function cancelAndRefundBooking({ bookingId, cancelledBy, actorId, reason 
     return {
         success: true,
         statusCode: 200,
-        message: 'Booking cancelled successfully',
+        message: booking.lateCancellation
+            ? `Booking cancelled.${policyNote}`
+            : 'Booking cancelled successfully',
         data: booking
     };
 }

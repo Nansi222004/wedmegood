@@ -29,6 +29,7 @@ import AdminVendorInventory from './pages/AdminVendorInventory';
 import AdminLeads from './pages/AdminLeads';
 import AdminQuotes from './pages/AdminQuotes';
 import AdminComplaints from './pages/AdminComplaints';
+import AdminFakeVendors from './pages/AdminFakeVendors';
 
 // Simple placeholder page component
 
@@ -59,6 +60,7 @@ const AdminRoutes = () => {
         <Route path="leads" element={<AdminLeads />} />
         <Route path="quotes" element={<AdminQuotes />} />
         <Route path="complaints" element={<AdminComplaints />} />
+        <Route path="fake-vendors" element={<AdminFakeVendors />} />
         <Route path="subscriptions" element={<AdminSubscriptions />} />
         <Route path="bookings" element={<AdminBookings />} />
         <Route path="analytics" element={<AdminAnalytics />} />

@@ -11,11 +11,18 @@ import ConfirmModal from '../../../components/ui/ConfirmModal';
 import QuotationModal from '../../common/QuotationModal';
 import WeatherForecastCard from '../../common/WeatherForecastCard';
 import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
+import usePlatformSettings from '../../../hooks/usePlatformSettings';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+// Whole days left before the event (negative once it has passed)
+const daysUntilEvent = (eventDate) =>
+  eventDate ? Math.floor((new Date(eventDate).getTime() - Date.now()) / DAY_MS) : null;
 
 const MyBookings = ({ initialTab = 'quotes' }) => {
   const { theme } = useTheme();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { cancellationNoticeDays } = usePlatformSettings();
 
   const [activeTab, setActiveTab] = useState(initialTab); // 'quotes' or 'bookings'
 
@@ -36,7 +43,7 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
   const [bookingToCancel, setBookingToCancel] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
   const [selectedBookingDetail, setSelectedBookingDetail] = useState(null);
-  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [eligibleReviewIds, setEligibleReviewIds] = useState(new Set());
   const [selectedQuoteForModal, setSelectedQuoteForModal] = useState(null);
 
@@ -91,44 +98,28 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
   };
 
   const handleAcceptQuote = (quote) => {
-    if (quote?._id) setQuoteToAccept(quote);
+    if (quote?._id) {
+      setTermsAccepted(false);
+      setQuoteToAccept(quote);
+    }
   };
 
   const confirmAcceptQuote = async () => {
     if (!quoteToAccept?._id) return;
+    if (!termsAccepted) {
+      toast.warning('Please accept the terms and conditions to continue.');
+      return;
+    }
     const quoteId = quoteToAccept._id;
-    const quoteSnapshot = quoteToAccept;
     setActionLoading(quoteId);
     try {
-      const res = await userApi.acceptQuote(quoteId);
+      const res = await userApi.acceptQuote(quoteId, { acceptTerms: true });
       if (res.success) {
-        const booking = res.data?.booking;
-        const advanceRequired = res.data?.advancePaymentAmount ?? booking?.advancePaymentRequired ?? (Number(quoteSnapshot.advancePaymentAmount) || 0);
         setQuoteToAccept(null);
         setSelectedQuoteForDetails(null);
         await loadData();
-
-        if (advanceRequired > 0 && booking?._id) {
-          toast.info(`Quote accepted! Redirecting to complete advance payment of ₹${advanceRequired.toLocaleString('en-IN')}.`);
-          navigate('/user/checkout', {
-            state: {
-              bookingId: booking._id,
-              booking: booking,
-              payableAmount: advanceRequired,
-              items: [{
-                id: `${booking._id}-advance`,
-                name: `Advance Payment for ${quoteSnapshot.vendorId?.businessName || 'Wedding Vendor'}`,
-                category: 'Booking Advance',
-                price: `₹${advanceRequired.toLocaleString('en-IN')}`,
-                quantity: 1,
-                whatsappNumber: quoteSnapshot.vendorId?.phone || ''
-              }]
-            }
-          });
-        } else {
-          toast.success('Congratulations! Your quote was accepted. Awaiting vendor schedule confirmation.');
-          setActiveTab('bookings');
-        }
+        toast.success(res.message || 'Quote accepted. The vendor will confirm your booking.');
+        setActiveTab('bookings');
       } else {
         throw new Error(res.message || 'Failed to accept quote');
       }
@@ -200,148 +191,6 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
       toast.error(getFriendlyErrorMessage(e, 'Failed to cancel booking'));
     } finally {
       setActionLoading(null);
-    }
-  };
-
-  const handlePayNow = (booking) => {
-    const payableAmount = (booking.outstandingBalance !== undefined && booking.outstandingBalance !== null)
-      ? booking.outstandingBalance
-      : (booking.totalPrice || 0);
-
-    if (payableAmount <= 0) {
-      toast.info('This booking is already fully paid.');
-      return;
-    }
-
-    navigate('/user/checkout', {
-      state: {
-        bookingId: booking._id,
-        booking: booking,
-        payableAmount,
-        items: (booking.services && booking.services.length > 0 ? booking.services : ['Wedding Services']).map((srv, idx) => ({
-          id: `${booking._id}-${idx}`,
-          name: srv,
-          category: 'Booked Service',
-          price: `₹${payableAmount.toLocaleString('en-IN')}`,
-          quantity: 1,
-          whatsappNumber: booking.vendorId?.phone || ''
-        }))
-      }
-    });
-  };
-
-  const handleDownloadReceipt = async (booking) => {
-    try {
-      setReceiptLoading(true);
-      const res = await userApi.getBookingReceipt(booking._id);
-      if (res.success && res.data) {
-        const rcpt = res.data;
-        const customerName = rcpt.customer?.name || user?.name || user?.fullName || 'Customer';
-        const vendorName = rcpt.vendor?.businessName || booking.vendorId?.businessName || 'Wedding Vendor';
-        const receiptNo = rcpt.receiptNumber || `RCP-${booking._id.slice(-8).toUpperCase()}`;
-        const eventDateStr = rcpt.booking?.eventDate ? new Date(rcpt.booking.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : 'TBD';
-        const issueDateStr = rcpt.issuedAt ? new Date(rcpt.issuedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('en-IN');
-        const amountPaid = rcpt.payment?.amount || booking.paidAmount || booking.totalPrice || 0;
-
-        const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <title>Payment Receipt – ${receiptNo}</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 32px; color: #1e293b; background: #fff; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #551E43; padding-bottom: 16px; margin-bottom: 24px; }
-    .brand { font-size: 24px; font-weight: 900; color: #551E43; letter-spacing: -0.5px; }
-    .brand-sub { font-size: 11px; color: #64748b; font-weight: 600; margin-top: 2px; }
-    .inv-info { text-align: right; }
-    .inv-info p { margin: 2px 0; font-size: 12px; color: #64748b; }
-    .inv-info .inv-no { font-size: 16px; font-weight: 800; color: #0f172a; }
-    .section-title { font-size: 11px; font-weight: 800; color: #551E43; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
-    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin-bottom: 24px; }
-    .info-row { display: flex; flex-direction: column; }
-    .info-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; }
-    .info-val { font-size: 13px; font-weight: 700; color: #1e293b; margin-top: 2px; }
-    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-    th { background: #f8fafc; font-size: 10px; font-weight: 800; text-transform: uppercase; color: #64748b; padding: 10px 14px; text-align: left; }
-    td { padding: 12px 14px; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
-    .amount { font-weight: 800; text-align: right; }
-    .status-badge { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; background: #ecfdf5; color: #047857; }
-    .footer { margin-top: 32px; border-top: 1px solid #e2e8f0; padding-top: 16px; font-size: 11px; color: #94a3b8; text-align: center; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div>
-      <div class="brand">Utsavo / WedMeGood</div>
-      <div class="brand-sub">Official Event Technology & Payment Receipt</div>
-    </div>
-    <div class="inv-info">
-      <p class="inv-no">${receiptNo}</p>
-      <p>Issued: ${issueDateStr}</p>
-      <p>Status: <span class="status-badge">Payment Verified</span></p>
-    </div>
-  </div>
-
-  <p class="section-title">Customer & Vendor Information</p>
-  <div class="info-grid">
-    <div class="info-row"><span class="info-label">Billed To</span><span class="info-val">${customerName}</span></div>
-    <div class="info-row"><span class="info-label">Service Provider</span><span class="info-val">${vendorName} (${rcpt.vendor?.category || 'Vendor'})</span></div>
-    <div class="info-row"><span class="info-label">Customer Contact</span><span class="info-val">${rcpt.customer?.phone || rcpt.customer?.email || 'Registered Customer'}</span></div>
-    <div class="info-row"><span class="info-label">Vendor Location</span><span class="info-val">${rcpt.vendor?.city || 'India'}</span></div>
-  </div>
-
-  <p class="section-title">Booking Details</p>
-  <div class="info-grid">
-    <div class="info-row"><span class="info-label">Booking ID</span><span class="info-val">${booking._id}</span></div>
-    <div class="info-row"><span class="info-label">Event Date</span><span class="info-val">${eventDateStr}</span></div>
-    <div class="info-row"><span class="info-label">Location / Venue</span><span class="info-val">${rcpt.booking?.location || booking.location || 'Venue pending'}</span></div>
-    <div class="info-row"><span class="info-label">Services</span><span class="info-val">${(rcpt.booking?.services || booking.services || ['Wedding Services']).join(', ')}</span></div>
-  </div>
-
-  <p class="section-title">Payment Transaction Summary</p>
-  <table>
-    <thead>
-      <tr>
-        <th>Description</th>
-        <th>Transaction ID</th>
-        <th>Method</th>
-        <th class="amount">Paid Amount</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><strong>Confirmed Booking Payment</strong></td>
-        <td><span style="font-family: monospace;">${rcpt.payment?.transactionId || 'Razorpay Online'}</span></td>
-        <td>${rcpt.payment?.paymentMethod || 'Razorpay'}</td>
-        <td class="amount">₹${Number(amountPaid).toLocaleString('en-IN')}</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <div class="footer">
-    WedMeGood Event Tech Pvt. Ltd. · Support: support@wedmegood.com · This is an authorized digital receipt.
-  </div>
-</body>
-</html>`;
-
-        const blob = new Blob([html], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Receipt_${customerName.replace(/\s+/g, '_')}_${receiptNo}.html`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        toast.success('Official payment receipt downloaded!');
-      } else {
-        throw new Error(res.message || 'Receipt not available');
-      }
-    } catch (err) {
-      console.error('Error downloading receipt:', err);
-      toast.error(err.message || 'Unable to load receipt for this booking.');
-    } finally {
-      setReceiptLoading(false);
     }
   };
 
@@ -497,26 +346,10 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
             <span>View Official Quotation</span>
           </button>
 
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                await userApi.downloadQuotePdf(quote._id);
-                toast.success('Official quotation PDF downloaded successfully!');
-              } catch (err) {
-                toast.error('Failed to download PDF quotation');
-              }
-            }}
-            className="w-full py-2.5 px-4 rounded-xl bg-white border border-[#E5D5DC] text-[#2E1026] text-xs font-bold flex items-center justify-center gap-2 shadow-xs hover:bg-[#FAF6F8] transition-all cursor-pointer"
-          >
-            <Icon name="download" size="xs" />
-            <span>Download PDF</span>
-          </button>
-
           {advanceAmount > 0 && (
             <div className="bg-[#FEF3C7] text-[#B45309] rounded-xl p-3 text-xs font-bold flex items-center gap-2 border border-[#FDE68A]">
               <span>⚠️</span>
-              <span>Advance Required: ₹{advanceAmount.toLocaleString('en-IN')}</span>
+              <span>Advance Required: ₹{advanceAmount.toLocaleString('en-IN')} (pay directly to the vendor)</span>
             </div>
           )}
         </div>
@@ -571,11 +404,7 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
               ) : (
                 <>
                   <Icon name="check" size="xs" color="white" />
-                  <span>
-                    {advanceAmount > 0
-                      ? `Accept & Pay Advance (₹${advanceAmount.toLocaleString('en-IN')})`
-                      : 'Accept Quote'}
-                  </span>
+                  <span>Accept Quote</span>
                 </>
               )}
             </button>
@@ -879,7 +708,7 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                 const isPaid = booking.paymentStatus === 'Paid' || (totalAmount > 0 && paidAmount >= totalAmount && outstanding === 0);
                 const isCancelled = booking.status === 'Cancelled';
                 const isEligibleForReview = eligibleReviewIds.has(booking._id.toString()) || booking.status === 'Completed';
-                const hasReceipt = paidAmount > 0 || isPaid;
+                const canCancel = !isCancelled && booking.status !== 'Completed';
 
                 return (
                   <div
@@ -932,7 +761,7 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                     <div className="grid grid-cols-3 divide-x divide-[#E5E7EB] bg-[#F9FAFB] rounded-xl p-3.5 mt-3 border border-[#F0EDF2] text-center">
                       <div>
                         <span className="text-[10px] font-black text-[#8A7987] uppercase tracking-wider block">
-                          PACKAGE TOTAL
+                          FINALISED AMOUNT
                         </span>
                         <span className="text-sm sm:text-base font-black text-[#2E1026] mt-0.5 block">
                           ₹{totalAmount.toLocaleString('en-IN')}
@@ -940,7 +769,7 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                       </div>
                       <div>
                         <span className="text-[10px] font-black text-[#8A7987] uppercase tracking-wider block">
-                          PAID TO DATE
+                          PAID (RECORDED)
                         </span>
                         <span className="text-sm sm:text-base font-black text-[#15803D] mt-0.5 block">
                           ₹{paidAmount.toLocaleString('en-IN')}
@@ -948,7 +777,7 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                       </div>
                       <div>
                         <span className="text-[10px] font-black text-[#8A7987] uppercase tracking-wider block">
-                          BALANCE DUE
+                          BALANCE
                         </span>
                         <span className={`text-sm sm:text-base font-black mt-0.5 block ${
                           outstanding === 0 ? 'text-[#15803D]' : 'text-[#BE185D]'
@@ -977,6 +806,12 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                       </div>
                     </div>
 
+                    {isCancelled && booking.lateCancellation && (
+                      <div className="mt-3 p-3 rounded-xl bg-red-50 border border-red-100 text-[11px] text-red-700 font-semibold leading-relaxed">
+                        Cancelled less than {cancellationNoticeDays} days before the event. As per the cancellation policy, the full amount of ₹{totalAmount.toLocaleString('en-IN')} is payable to the vendor.
+                      </div>
+                    )}
+
                     {/* Actions Row matching Screenshot 2 */}
                     <div className="flex flex-wrap items-center justify-end gap-2 pt-3">
                       {/* View Details & Ledger button */}
@@ -988,24 +823,12 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                         <span>View Details & Ledger</span>
                       </button>
 
-                      {hasReceipt && (
+                      {canCancel && (
                         <button
-                          onClick={() => handleDownloadReceipt(booking)}
-                          disabled={receiptLoading}
-                          className="px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                          onClick={() => handleCancelBooking(booking)}
+                          className="px-3.5 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold transition-all cursor-pointer"
                         >
-                          <Icon name="download" size="xs" />
-                          <span>{receiptLoading ? 'Generating...' : 'Receipt'}</span>
-                        </button>
-                      )}
-
-                      {!isPaid && !isCancelled && outstanding > 0 && (
-                        <button
-                          onClick={() => handlePayNow(booking)}
-                          className="px-4 py-2 rounded-xl bg-[#551E43] hover:bg-[#401332] text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
-                        >
-                          <Icon name="creditCard" size="xs" color="white" />
-                          <span>Pay ₹{outstanding.toLocaleString('en-IN')}</span>
+                          Cancel Booking
                         </button>
                       )}
 
@@ -1064,10 +887,10 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
               </div>
               <div className="flex justify-between items-center py-2 border-y border-[#E8DCD2]">
                 <div>
-                  <span className="font-bold text-[#2E1026] block">Amount Due Now (Advance):</span>
+                  <span className="font-bold text-[#2E1026] block">Advance (pay to vendor):</span>
                   <span className="text-[10px] text-[#7A6876]">
                     {(Number(quoteToAccept.advancePaymentAmount) || 0) > 0
-                      ? `Required to lock date (${quoteToAccept.advancePaymentPercent ? `${quoteToAccept.advancePaymentPercent}%` : 'Advance'})`
+                      ? `Pay directly to the vendor to lock the date (${quoteToAccept.advancePaymentPercent ? `${quoteToAccept.advancePaymentPercent}%` : 'Advance'})`
                       : 'No upfront advance required'}
                   </span>
                 </div>
@@ -1083,6 +906,28 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
               </div>
             </div>
 
+            <p className="text-[11px] text-[#7A6876] leading-relaxed mb-3">
+              No payment is taken in the app. Pay the vendor directly; the vendor records the amounts you pay on your booking.
+            </p>
+
+            <div className="rounded-xl border border-[#F2E5EC] bg-[#FFF8F8] p-3.5 mb-4 space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-wider text-[#551E43]">Cancellation Policy</p>
+              <p className="text-[11px] text-[#5C4A57] leading-relaxed">
+                A booking must be cancelled at least {cancellationNoticeDays} days before the event. If you cancel later than that, the full booking amount is payable to the vendor.
+              </p>
+              <label className="flex items-start gap-2 pt-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  className="mt-0.5 accent-[#551E43]"
+                />
+                <span className="text-[11px] font-semibold text-[#2E1026] leading-snug">
+                  I agree to the <a href="/user/privacy?tab=terms" target="_blank" rel="noopener noreferrer" className="underline text-[#551E43]">Terms &amp; Conditions</a>, including the cancellation policy.
+                </span>
+              </label>
+            </div>
+
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
@@ -1093,7 +938,7 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
               </button>
               <button
                 type="button"
-                disabled={!!actionLoading}
+                disabled={!!actionLoading || !termsAccepted}
                 onClick={confirmAcceptQuote}
                 className="px-5 py-2.5 rounded-xl bg-[#047857] hover:bg-[#065F46] text-white text-xs font-bold shadow-sm transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
@@ -1102,11 +947,7 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                 ) : (
                   <Icon name="check" size="xs" color="white" />
                 )}
-                <span>
-                  {(Number(quoteToAccept.advancePaymentAmount) || 0) > 0
-                    ? `Accept & Pay Advance (₹${Number(quoteToAccept.advancePaymentAmount).toLocaleString('en-IN')})`
-                    : 'Accept Quote & Submit Booking'}
-                </span>
+                <span>Accept Quote &amp; Submit Booking</span>
               </button>
             </div>
           </div>
@@ -1139,6 +980,22 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                 <p className="text-xs text-[#7A6876]">Vendor: {bookingToCancel.vendorId?.businessName || 'Wedding Vendor'}</p>
               </div>
             </div>
+
+            {(() => {
+              const daysLeft = daysUntilEvent(bookingToCancel.eventDate);
+              const total = Number(bookingToCancel.packageTotal ?? bookingToCancel.totalPrice ?? 0);
+              const isLate = daysLeft !== null && daysLeft < cancellationNoticeDays;
+              return isLate ? (
+                <div className="mb-3 p-3 rounded-xl bg-red-50 border border-red-200 text-[11px] text-red-700 leading-relaxed">
+                  <strong className="block mb-0.5">Your event is {daysLeft <= 0 ? 'today or has passed' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} away`}.</strong>
+                  Bookings must be cancelled at least {cancellationNoticeDays} days before the event. If you cancel now, the full amount of ₹{total.toLocaleString('en-IN')} is payable to the vendor as per the cancellation policy.
+                </div>
+              ) : (
+                <div className="mb-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-800 leading-relaxed">
+                  Cancellation policy: cancel at least {cancellationNoticeDays} days before the event. After that, the full booking amount is payable to the vendor.
+                </div>
+              );
+            })()}
 
             <p className="text-xs text-[#5C4A57] mb-3">
               Please share a reason for cancelling this booking. This will help the vendor and our support team assist you.
@@ -1196,9 +1053,6 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#FEF3C7] text-[#B45309]">
                     Payment: {selectedBookingDetail.paymentStatus || 'Pending'}
                   </span>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#F3EBF9] text-[#7A2A70] border border-[#E9D6F0]">
-                    🛡️ Escrow Protected
-                  </span>
                 </div>
                 <h2 
                   className="text-xl sm:text-2xl font-bold text-[#401332] leading-tight"
@@ -1222,26 +1076,56 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
             {/* Financial Ledger & Money Transparency Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="p-4 rounded-xl bg-[#FAF6F0] border border-[#F2E5EC]">
-                <p className="text-[10px] font-black text-[#8A7987] uppercase tracking-wider">Total Agreed Package</p>
+                <p className="text-[10px] font-black text-[#8A7987] uppercase tracking-wider">Finalised Amount</p>
                 <p className="text-xl font-black text-[#2E1026] mt-1">
                   ₹{Number(selectedBookingDetail.packageTotal ?? selectedBookingDetail.totalPrice ?? 0).toLocaleString('en-IN')}
                 </p>
               </div>
 
               <div className="p-4 rounded-xl bg-[#DCFCE7]/60 border border-[#86EFAC]">
-                <p className="text-[10px] font-black text-[#15803D] uppercase tracking-wider">Verified Paid to Date</p>
+                <p className="text-[10px] font-black text-[#15803D] uppercase tracking-wider">Paid (Recorded)</p>
                 <p className="text-xl font-black text-[#15803D] mt-1">
                   ₹{Number(selectedBookingDetail.paidAmount ?? 0).toLocaleString('en-IN')}
                 </p>
               </div>
 
               <div className="p-4 rounded-xl bg-pink-50 border border-pink-100">
-                <p className="text-[10px] font-black text-[#BE185D] uppercase tracking-wider">Outstanding Balance</p>
+                <p className="text-[10px] font-black text-[#BE185D] uppercase tracking-wider">Balance</p>
                 <p className="text-xl font-black text-[#BE185D] mt-1">
                   ₹{Number(selectedBookingDetail.outstandingBalance ?? 0).toLocaleString('en-IN')}
                 </p>
               </div>
             </div>
+
+            {/* Payments recorded by the vendor (made outside the app) */}
+            <div className="bg-white rounded-xl p-4 border border-[#F2E5EC] space-y-2">
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-wider text-[#551E43]">Payment Records</h4>
+                <p className="text-[10px] text-[#8A7987] mt-0.5">Payments are made directly to the vendor. The vendor records them here for reference.</p>
+              </div>
+              {(selectedBookingDetail.paymentEntries || []).length === 0 ? (
+                <p className="text-xs text-[#7A6876] py-2">No payments recorded yet.</p>
+              ) : (
+                <div className="divide-y divide-[#F2E5EC]">
+                  {selectedBookingDetail.paymentEntries.map((entry) => (
+                    <div key={entry._id} className="flex items-center justify-between py-2 text-xs">
+                      <div>
+                        <span className="font-bold text-[#2E1026]">{entry.mode || 'Payment'}</span>
+                        <span className="text-[#8A7987]"> · {entry.paidOn ? new Date(entry.paidOn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}</span>
+                        {entry.note && <p className="text-[11px] text-[#7A6876] mt-0.5">{entry.note}</p>}
+                      </div>
+                      <span className="font-black text-[#15803D]">₹{Number(entry.amount || 0).toLocaleString('en-IN')}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {selectedBookingDetail.status !== 'Cancelled' && selectedBookingDetail.status !== 'Completed' && (
+              <p className="text-[11px] text-[#7A6876] leading-relaxed">
+                Cancellation policy: cancel at least {cancellationNoticeDays} days before the event, otherwise the full booking amount is payable to the vendor.
+              </p>
+            )}
 
             {/* Event Logistics */}
             <div className="bg-[#F4F5F8] rounded-xl p-4 border border-[#EBECEF] space-y-2">
@@ -1277,33 +1161,6 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
               >
                 Close
               </button>
-
-              {(selectedBookingDetail.paidAmount > 0 || selectedBookingDetail.paymentStatus === 'Paid') && (
-                <button
-                  type="button"
-                  disabled={receiptLoading}
-                  onClick={() => handleDownloadReceipt(selectedBookingDetail)}
-                  className="px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Icon name="download" size="xs" />
-                  <span>{receiptLoading ? 'Downloading...' : 'Receipt'}</span>
-                </button>
-              )}
-
-              {selectedBookingDetail.status !== 'Cancelled' && (selectedBookingDetail.outstandingBalance ?? 0) > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const b = selectedBookingDetail;
-                    setSelectedBookingDetail(null);
-                    handlePayNow(b);
-                  }}
-                  className="px-5 py-2 bg-[#551E43] hover:bg-[#401332] text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Icon name="creditCard" size="xs" color="white" />
-                  <span>Pay Balance ₹{Number(selectedBookingDetail.outstandingBalance).toLocaleString('en-IN')}</span>
-                </button>
-              )}
             </div>
           </div>
         </div>,

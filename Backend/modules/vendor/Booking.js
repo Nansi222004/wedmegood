@@ -128,6 +128,33 @@ const bookingSchema = new mongoose.Schema({
     cancelledAt: {
         type: Date
     },
+    // Booking payments are made outside the app. The vendor records what was received here,
+    // for reference only; totalPrice is the finalised amount.
+    paymentEntries: [{
+        amount: { type: Number, required: true, min: [1, 'Amount must be at least 1'] },
+        mode: {
+            type: String,
+            enum: ['Cash', 'UPI', 'Bank Transfer', 'Cheque', 'Card', 'Other'],
+            default: 'Other'
+        },
+        paidOn: { type: Date, default: Date.now },
+        note: { type: String, trim: true, maxlength: 300, default: '' },
+        recordedBy: { type: String, enum: ['Vendor'], default: 'Vendor' },
+        createdAt: { type: Date, default: Date.now }
+    }],
+    // When the user accepted the platform terms (including the cancellation policy)
+    termsAcceptedAt: {
+        type: Date
+    },
+    // Set when the user cancels with less notice than the cancellation policy requires;
+    // the full amount stays payable to the vendor.
+    lateCancellation: {
+        type: Boolean,
+        default: false
+    },
+    daysNoticeAtCancellation: {
+        type: Number
+    },
     createdAt: {
         type: Date,
         default: Date.now

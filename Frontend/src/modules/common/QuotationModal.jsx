@@ -121,6 +121,8 @@ const QuotationModal = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {isVendor && (
+            <>
             <Button
               size="sm"
               variant="outline"
@@ -140,6 +142,8 @@ const QuotationModal = ({
               <Icon name="download" size="xs" />
               <span>{downloadingPdf ? 'Exporting...' : 'PDF'}</span>
             </Button>
+            </>
+            )}
             <button
               onClick={onClose}
               className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer transition-colors"
@@ -155,7 +159,9 @@ const QuotationModal = ({
           ref={scrollRef}
           data-lenis-prevent="true"
           style={{ overscrollBehavior: 'contain' }}
-          className="flex-1 p-6 sm:p-8 space-y-6 overflow-y-auto custom-scrollbar print:overflow-visible print:p-0 select-text"
+          className={`flex-1 p-6 sm:p-8 space-y-6 overflow-y-auto custom-scrollbar print:overflow-visible print:p-0 ${isVendor ? 'select-text' : 'select-none print:hidden'}`}
+          onContextMenu={isVendor ? undefined : (e) => e.preventDefault()}
+          onCopy={isVendor ? undefined : (e) => e.preventDefault()}
         >
           {/* Document Header */}
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-slate-200">

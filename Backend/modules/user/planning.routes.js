@@ -130,6 +130,13 @@ router.post('/complaints', complaintController.createComplaint);
 router.get('/complaints', complaintController.getUserComplaints);
 router.get('/complaints/:id', complaintController.getComplaintById);
 
+// 10b. Fake vendors list (admin-confirmed): free views, then paid access
+const fakeVendorController = require('./fakeVendor.controller');
+router.get('/fake-vendors/access', fakeVendorController.getFakeVendorAccess);
+router.post('/fake-vendors/access/order', fakeVendorController.createFakeVendorAccessOrder);
+router.post('/fake-vendors/access/verify', fakeVendorController.verifyFakeVendorAccessPayment);
+router.get('/fake-vendors', fakeVendorController.getFakeVendors);
+
 // 11. Dashboard & Calendar (Phase 7)
 router.get('/dashboard-summary', planningDashboardController.getDashboardSummary);
 router.get('/calendar', planningDashboardController.getPlanningCalendar);

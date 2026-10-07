@@ -197,7 +197,7 @@ exports.acceptQuote = async (req, res, next) => {
                             outstandingBalance: outstanding
                         },
                         quote,
-                        requiresAdvancePayment: advanceRequired > 0 && paidAmt < advanceRequired,
+                        requiresAdvancePayment: false,
                         advancePaymentAmount: advanceRequired,
                         totalContractValue: existingBooking.totalPrice,
                         paidAmount: paidAmt,
@@ -371,7 +371,7 @@ exports.acceptQuote = async (req, res, next) => {
                             outstandingBalance: outstanding
                         },
                         quote,
-                        requiresAdvancePayment: advanceRequired > 0 && paidAmt < advanceRequired,
+                        requiresAdvancePayment: false,
                         advancePaymentAmount: advanceRequired,
                         totalContractValue: existingBooking.totalPrice,
                         paidAmount: paidAmt,
@@ -478,7 +478,9 @@ exports.acceptQuote = async (req, res, next) => {
                 status: bookingStatus,
                 paymentStatus: 'Pending',
                 quoteSnapshot,
-                advancePaymentRequired: advanceReq
+                advancePaymentRequired: advanceReq,
+                // The accept screen asks the user to agree to the terms, including the cancellation policy
+                termsAcceptedAt: req.body?.acceptTerms ? new Date() : undefined
             }], { session });
 
             booking = createdBookings[0];
@@ -529,7 +531,7 @@ exports.acceptQuote = async (req, res, next) => {
                                     outstandingBalance: outstanding
                                 },
                                 quote,
-                                requiresAdvancePayment: advanceRequired > 0 && paidAmt < advanceRequired,
+                                requiresAdvancePayment: false,
                                 advancePaymentAmount: advanceRequired,
                                 totalContractValue: existing.totalPrice,
                                 paidAmount: paidAmt,
@@ -639,15 +641,16 @@ exports.acceptQuote = async (req, res, next) => {
         const totalValue = booking.totalPrice || 0;
         const remainingAfterAdvance = Math.max(0, totalValue - advanceReqAmount);
 
+        // Payments are made directly to the vendor, so nothing is collected here
         res.status(200).json({
             success: true,
             message: advanceReqAmount > 0
-                ? 'Quote accepted successfully. Please complete advance payment to confirm your booking.'
+                ? `Quote accepted. Pay the advance of ₹${advanceReqAmount.toLocaleString('en-IN')} directly to the vendor; the vendor will confirm your booking.`
                 : 'Quote accepted successfully. Awaiting vendor schedule confirmation.',
             data: {
                 booking,
                 quote,
-                requiresAdvancePayment: advanceReqAmount > 0,
+                requiresAdvancePayment: false,
                 advancePaymentAmount: advanceReqAmount,
                 totalContractValue: totalValue,
                 paidAmount: 0,

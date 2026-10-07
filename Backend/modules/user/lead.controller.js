@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 const Lead = require('../vendor/Lead');
 const Vendor = require('../vendor/Vendor');
 const Notification = require('../vendor/Notification');
-const Category = require('../admin/Category');
-const RoundRobinSequence = require('../vendor/RoundRobinSequence');
+const VendorAllocation = require('./VendorAllocation');
+const { getOrAssignVendorForUser } = require('../../services/vendorAllocation.service');
 
 const SPECIAL_ROUND_ROBIN_CATEGORIES = [
     'led walls', 'led wall', 'led-walls', 'led-wall',
@@ -74,65 +74,22 @@ exports.createLead = async (req, res, next) => {
             }
 
             assignedVendorId = vendor._id;
-            assignedType = 'Direct';
+            // Inquiries to the vendor the platform assigned to this user count as auto-assigned
+            const allocation = await VendorAllocation.findOne({ userId: req.user._id, vendorId: vendor._id }).lean();
+            assignedType = allocation ? 'RoundRobin' : 'Direct';
         } else if (category || isSpecialCategory) {
-            // Round-robin sequential assignment among eligible subscribed vendors
-            const catDoc = await Category.findOne({
-                $or: [
-                    { slug: (category || '').toLowerCase() },
-                    { name: new RegExp(`^${(category || '').trim()}$`, 'i') }
-                ]
-            });
+            // Auto-assignment: the user's assigned vendor for this category. The first time, the next
+            // approved, subscribed vendor in the rotation (first paid subscriber first, then repeat).
+            const allocation = await getOrAssignVendorForUser(req.user._id, category, eventLocation || req.user?.city);
 
-            const categoryFilter = catDoc
-                ? {
-                    $or: [
-                        { 'selectedCategories.categoryId': catDoc._id },
-                        { 'selectedCategories.categoryName': new RegExp(`^${catDoc.name}$`, 'i') },
-                        { 'services.category': new RegExp(`^${catDoc.name}$`, 'i') },
-                        { 'services.name': new RegExp(category, 'i') }
-                    ]
-                }
-                : {
-                    $or: [
-                        { 'selectedCategories.categoryName': new RegExp((category || '').replace(/-/g, ' '), 'i') },
-                        { 'services.category': new RegExp((category || '').replace(/-/g, ' '), 'i') },
-                        { 'services.name': new RegExp((category || '').replace(/-/g, ' '), 'i') }
-                    ]
-                };
-
-            // Only approved, active, subscribed vendors receive round-robin leads
-            const eligibleVendors = await Vendor.find({
-                status: 'Approved',
-                isActive: true,
-                'subscription.status': 'Active',
-                ...categoryFilter
-            }).sort('_id');
-
-            if (!eligibleVendors || eligibleVendors.length === 0) {
+            if (!allocation) {
                 return res.status(404).json({
                     success: false,
                     message: 'No active subscribed vendors currently available in this category'
                 });
             }
 
-            const categoryKey = (catDoc ? catDoc.slug : (category || 'general')).toLowerCase();
-
-            // Atomic concurrency-safe sequential index increment
-            const seq = await RoundRobinSequence.findOneAndUpdate(
-                { categoryKey },
-                { $inc: { currentIndex: 1 }, $set: { lastAssignedAt: new Date() } },
-                { upsert: true, new: true, setDefaultsOnInsert: true }
-            );
-
-            const nextIndex = (seq.currentIndex - 1) % eligibleVendors.length;
-            assignedVendorId = eligibleVendors[nextIndex]._id;
-
-            await RoundRobinSequence.updateOne(
-                { categoryKey },
-                { $set: { lastAssignedVendorId: assignedVendorId } }
-            );
-
+            assignedVendorId = allocation.vendorId;
             assignedType = 'RoundRobin';
         } else {
             return res.status(400).json({
@@ -249,6 +206,45 @@ exports.getUserLeadById = async (req, res, next) => {
         res.status(200).json({
             success: true,
             data: lead
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    The vendor the platform assigned to this user for a category (assigned on first visit)
+// @route   GET /api/user/vendors/assigned?category=&city=
+// @access  Private (User)
+exports.getAssignedVendor = async (req, res, next) => {
+    try {
+        const { category, city } = req.query;
+        if (!category || !String(category).trim()) {
+            return res.status(400).json({ success: false, message: 'Please provide a category' });
+        }
+
+        const allocation = await getOrAssignVendorForUser(req.user._id, category, city || req.user?.city);
+        if (!allocation) {
+            return res.status(200).json({ success: true, data: null, message: 'No subscribed vendors available in this category yet' });
+        }
+
+        const vendor = await Vendor.findById(allocation.vendorId)
+            .select('businessName fullName city profileImage portfolio rating reviewCount businessDetails.years selectedCategories.categoryName')
+            .lean();
+
+        res.status(200).json({
+            success: true,
+            data: vendor ? {
+                _id: vendor._id,
+                businessName: vendor.businessName,
+                fullName: vendor.fullName,
+                city: vendor.city,
+                profileImage: vendor.profileImage || vendor.portfolio?.[0]?.url || null,
+                rating: vendor.rating || 0,
+                reviewCount: vendor.reviewCount || 0,
+                experienceYears: vendor.businessDetails?.years || null,
+                categories: (vendor.selectedCategories || []).map(c => c.categoryName).filter(Boolean),
+                isNewAssignment: allocation.isNew
+            } : null
         });
     } catch (err) {
         next(err);

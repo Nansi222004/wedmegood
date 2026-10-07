@@ -1,16 +1,22 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 import { toast } from '../../../components/ui/Toast';
+import usePlatformSettings from '../../../hooks/usePlatformSettings';
 
 const Privacy = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
   
-  const [activeTab, setActiveTab] = useState('privacy'); // privacy, terms, data
+  const [searchParams] = useSearchParams();
+  const { cancellationNoticeDays } = usePlatformSettings();
+  // ?tab=terms opens the Terms tab directly (linked from the quote acceptance screen)
+  const [activeTab, setActiveTab] = useState(
+    ['privacy', 'terms', 'data'].includes(searchParams.get('tab')) ? searchParams.get('tab') : 'privacy'
+  ); // privacy, terms, data
 
   const privacyContent = {
     lastUpdated: '15 January 2024',
@@ -66,7 +72,7 @@ const Privacy = () => {
   };
 
   const termsContent = {
-    lastUpdated: '15 January 2024',
+    lastUpdated: '7 October 2026',
     sections: [
       {
         title: 'Acceptance of Terms',
@@ -97,10 +103,28 @@ const Privacy = () => {
       {
         title: 'Payment Terms',
         content: [
-          'Platform fees are clearly disclosed before payment',
-          'Refunds are subject to our refund policy',
-          'You are responsible for all charges incurred on your account',
-          'We use secure third-party payment processors'
+          'Booking payments are not made through the app. You pay the vendor directly',
+          'The finalised amount and the payments you make are recorded on your booking by the vendor for reference only',
+          'Recording payments in the app is optional and is not a payment receipt from Utsavo',
+          'Any agreement on amounts and payment schedules is directly between you and the vendor'
+        ]
+      },
+      {
+        title: 'Booking Cancellation Policy',
+        content: [
+          `A booking must be cancelled at least ${cancellationNoticeDays} days before the event date`,
+          `If a booking is cancelled less than ${cancellationNoticeDays} days before the event, the full booking amount is payable to the vendor`,
+          'Cancellations are made from My Bookings, and the vendor is notified immediately',
+          'You accept this policy when you accept a vendor quotation'
+        ]
+      },
+      {
+        title: 'Genuine Vendors & Complaints',
+        content: [
+          'Utsavo lists only verified vendors and removes vendors found to be unauthorised',
+          'You can report a vendor, on or off the app, from the Fake Vendors page or the vendor profile',
+          'Vendors confirmed as fake by our team are listed on the Fake Vendors page to warn other users',
+          'Viewing the Fake Vendors list more than the free number of times requires a paid pass'
         ]
       },
       {

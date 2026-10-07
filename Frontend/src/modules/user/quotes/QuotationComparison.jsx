@@ -3,11 +3,15 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
 import { userApi } from '../../../services/userApi';
+import usePlatformSettings from '../../../hooks/usePlatformSettings';
 import { toast } from '../../../components/ui/Toast';
 import QuotationModal from '../../common/QuotationModal';
 import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
+import ConfirmModal from '../../../components/ui/ConfirmModal';
 
 const QuotationComparison = () => {
+  const { ratingsEnabled, cancellationNoticeDays } = usePlatformSettings();
+  const [quoteToAccept, setQuoteToAccept] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
   const [quotes, setQuotes] = useState([]);
@@ -92,35 +96,22 @@ const QuotationComparison = () => {
     }
   };
 
-  const handleAcceptQuote = async (quote) => {
+  // Accepting asks the user to agree to the terms (cancellation policy) first
+  const handleAcceptQuote = (quote) => {
+    if (quote?._id) setQuoteToAccept(quote);
+  };
+
+  const confirmAcceptQuote = async () => {
+    const quote = quoteToAccept;
+    if (!quote?._id) return;
+    setQuoteToAccept(null);
     setActionLoading(quote._id);
     try {
-      const res = await userApi.acceptQuote(quote._id);
+      const res = await userApi.acceptQuote(quote._id, { acceptTerms: true });
       if (res.success) {
-        const booking = res.data?.booking;
-        const advanceRequired = res.data?.advancePaymentAmount ?? booking?.advancePaymentRequired ?? (Number(quote.advancePaymentAmount) || 0);
-
-        if (advanceRequired > 0 && booking?._id) {
-          toast.info(`Quote accepted! Redirecting to complete advance payment of ₹${advanceRequired.toLocaleString('en-IN')}.`);
-          navigate('/user/checkout', {
-            state: {
-              bookingId: booking._id,
-              booking,
-              payableAmount: advanceRequired,
-              items: [{
-                id: `${booking._id}-advance`,
-                name: `Advance Payment for ${quote.vendorId?.businessName || 'Wedding Vendor'}`,
-                category: 'Booking Advance',
-                price: `₹${advanceRequired.toLocaleString('en-IN')}`,
-                quantity: 1,
-                whatsappNumber: quote.vendorId?.phone || ''
-              }]
-            }
-          });
-        } else {
-          toast.success(res.message || 'Quote accepted successfully! Awaiting vendor schedule confirmation.');
-          navigate('/user/bookings', { state: { tab: 'bookings' } });
-        }
+        // No online payment: the user pays the vendor directly
+        toast.success(res.message || 'Quote accepted successfully! Awaiting vendor schedule confirmation.');
+        navigate('/user/bookings', { state: { tab: 'bookings' } });
       } else {
         throw new Error(res.message || 'Failed to accept quote');
       }
@@ -335,8 +326,12 @@ const QuotationComparison = () => {
                   {comparedQuotes.map(q => (
                     <td key={q._id} className="p-4">
                       <div className="flex items-center gap-1 font-bold text-slate-800">
-                        <span className="text-amber-500">★</span>
-                        <span>{q.vendorId?.rating || '4.8'}</span>
+                        {ratingsEnabled && (
+                          <>
+                            <span className="text-amber-500">★</span>
+                            <span>{q.vendorId?.rating || 'New'}</span>
+                          </>
+                        )}
                         <span className="text-slate-400 font-normal">({q.vendorId?.reviewCount || 0} reviews)</span>
                       </div>
                     </td>
@@ -369,14 +364,6 @@ const QuotationComparison = () => {
                           >
                             View Official Quote
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => userApi.downloadQuotePdf(q._id)}
-                            className="w-full text-xs rounded-xl text-slate-600"
-                          >
-                            Download PDF
-                          </Button>
                           {canAccept && (
                             <Button
                               size="sm"
@@ -408,6 +395,15 @@ const QuotationComparison = () => {
           onReject={handleRejectQuote}
         />
       )}
+      <ConfirmModal
+        isOpen={!!quoteToAccept}
+        title="Accept Quotation"
+        message={`No payment is taken in the app: pay the vendor directly. By accepting, you agree to the Terms & Conditions, including the cancellation policy: a booking must be cancelled at least ${cancellationNoticeDays} days before the event, otherwise the full booking amount is payable to the vendor.`}
+        confirmText="I Agree & Accept"
+        cancelText="Go Back"
+        onConfirm={confirmAcceptQuote}
+        onCancel={() => setQuoteToAccept(null)}
+      />
     </div>
   );
 };

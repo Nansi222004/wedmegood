@@ -5,9 +5,11 @@ import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 import { userApi } from '../../../services/userApi';
+import usePlatformSettings from '../../../hooks/usePlatformSettings';
 
 const Reviews = () => {
   const { theme } = useTheme();
+  const { ratingsEnabled } = usePlatformSettings();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -124,7 +126,8 @@ const Reviews = () => {
       const res = await userApi.createReview({
         bookingId: selectedBooking._id,
         vendorId,
-        rating: Number(rating),
+        // Text-only reviews while the admin has ratings switched off
+        rating: ratingsEnabled ? Number(rating) : undefined,
         comment: comment.trim(),
         photos
       });
@@ -311,9 +314,11 @@ const Reviews = () => {
                               </p>
                             </div>
                             <div className="text-right shrink-0">
-                              <div className="flex items-center space-x-1 mb-1">
-                                {renderStars(r.rating)}
-                              </div>
+                              {ratingsEnabled && r.rating && (
+                                <div className="flex items-center space-x-1 mb-1">
+                                  {renderStars(r.rating)}
+                                </div>
+                              )}
                               <p className="text-[10px] text-slate-400 font-semibold">
                                 {formatDate(r.createdAt)}
                               </p>
@@ -394,6 +399,7 @@ const Reviews = () => {
 
             <form onSubmit={handleSubmitReview} className="space-y-4">
               {/* Star Rating Picker */}
+              {ratingsEnabled && (
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-2">
                   Rating (1 to 5 Stars) *
@@ -421,6 +427,7 @@ const Reviews = () => {
                   </span>
                 </div>
               </div>
+              )}
 
               {/* Review Comment */}
               <div>

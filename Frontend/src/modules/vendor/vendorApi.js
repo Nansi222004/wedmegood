@@ -259,6 +259,39 @@ export const vendorApi = {
         return response.json();
     },
 
+    // Finalised amount and payments received outside the app (reference entries)
+    setBookingFinalAmount: async (id, finalAmount, token) => {
+        const response = await fetch(`${BASE_URL}/bookings/${id}/final-amount`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ finalAmount })
+        });
+        return response.json();
+    },
+
+    addBookingPaymentEntry: async (id, entry, token) => {
+        const response = await fetch(`${BASE_URL}/bookings/${id}/payment-entries`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(entry)
+        });
+        return response.json();
+    },
+
+    deleteBookingPaymentEntry: async (id, entryId, token) => {
+        const response = await fetch(`${BASE_URL}/bookings/${id}/payment-entries/${entryId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+    },
+
     getReviews: async (token) => {
         const response = await fetch(`${BASE_URL}/reviews`, {
             method: 'GET',

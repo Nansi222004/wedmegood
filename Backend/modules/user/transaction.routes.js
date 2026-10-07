@@ -3,12 +3,12 @@ const { protect } = require('./auth.middleware');
 const {
     createLead,
     getUserLeads,
-    getUserLeadById
+    getUserLeadById,
+    getAssignedVendor
 } = require('./lead.controller');
 const {
     getUserQuotes,
     getUserQuoteById,
-    getUserQuotePdf,
     acceptQuote,
     rejectQuote
 } = require('./quote.controller');
@@ -18,7 +18,6 @@ const {
     cancelBooking
 } = require('./booking.controller');
 const {
-    createPaymentOrder,
     verifyPayment,
     getUserPayments,
     getUserPaymentById,
@@ -40,10 +39,17 @@ router.post('/leads', createLead);
 router.get('/leads', getUserLeads);
 router.get('/leads/:id', getUserLeadById);
 
+// Auto-assigned vendor for a category
+router.get('/vendors/assigned', getAssignedVendor);
+
 // Quote routes
 router.get('/quotes', getUserQuotes);
 router.get('/quotes/:id', getUserQuoteById);
-router.get('/quotes/:id/pdf', getUserQuotePdf);
+// Users can view quotations in the app but not download them
+router.get('/quotes/:id/pdf', (req, res) => res.status(403).json({
+    success: false,
+    message: 'Quotations can be viewed in the app but not downloaded'
+}));
 router.put('/quotes/:id/accept', acceptQuote);
 router.put('/quotes/:id/reject', rejectQuote);
 
@@ -53,7 +59,13 @@ router.get('/bookings/:id', getUserBookingById);
 router.put('/bookings/:id/cancel', cancelBooking);
 
 // Payment routes
-router.post('/payments/create-order', createPaymentOrder);
+// Booking payments are no longer taken in the app (taxation): the customer pays the vendor directly
+// and the vendor records it on the booking. Verifying orders created before this change still works.
+router.post('/payments/create-order', (req, res) => res.status(403).json({
+    success: false,
+    code: 'ONLINE_BOOKING_PAYMENTS_DISABLED',
+    message: 'Payments are made directly to the vendor. The vendor will record the amount you pay on your booking.'
+}));
 router.post('/payments/verify', verifyPayment);
 router.get('/payments', getUserPayments);
 router.get('/payments/:id', getUserPaymentById);

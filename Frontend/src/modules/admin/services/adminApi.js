@@ -556,6 +556,59 @@ export const adminApi = {
         return await res.json();
     },
 
+    // Confirm a complaint's vendor as fake and list it on the users' Fake Vendors page
+    markComplaintVendorAsFake: async (id, data, token) => {
+        const res = await fetch(`${API_URL}/complaints/${id}/mark-fake`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+        });
+        return await res.json();
+    },
+
+    getFakeVendorListings: async (token, params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/fake-vendors${query ? `?${query}` : ''}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    createFakeVendorListing: async (data, token) => {
+        const res = await fetch(`${API_URL}/fake-vendors`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+        });
+        return await res.json();
+    },
+
+    updateFakeVendorListing: async (id, data, token) => {
+        const res = await fetch(`${API_URL}/fake-vendors/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+        });
+        return await res.json();
+    },
+
+    deleteFakeVendorListing: async (id, token) => {
+        const res = await fetch(`${API_URL}/fake-vendors/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
     getPlatformSettings: async (token) => {
         const res = await fetch(`${API_URL}/settings`, {
             headers: { 'Authorization': `Bearer ${token}` }

@@ -747,6 +747,7 @@ const GroupChat = () => {
                                 return (
                                   <div key={att._id || attIdx} className="rounded-xl overflow-hidden bg-black">
                                     <video
+                                      controlsList="nodownload"
                                       src={att.url}
                                       controls
                                       className="max-h-64 rounded-xl w-full"

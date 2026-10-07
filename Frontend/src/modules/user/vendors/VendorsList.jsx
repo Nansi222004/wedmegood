@@ -8,6 +8,7 @@ import Card from '../../../components/ui/Card';
 import VendorCard from './VendorCardFixed';
 import userApi from '../../../services/userApi';
 import { useTheme } from '../../../hooks/useTheme';
+import usePlatformSettings from '../../../hooks/usePlatformSettings';
 
 const VendorsList = () => {
   const location = useLocation();
@@ -16,6 +17,9 @@ const VendorsList = () => {
   const { theme } = useTheme();
   const { user } = useAuth();
   const { showToast, ToastComponent } = useToast();
+  const { ratingsEnabled } = usePlatformSettings();
+  const [assignedVendor, setAssignedVendor] = useState(null);
+  const [assignedLoading, setAssignedLoading] = useState(false);
 
   const categoryTitle = location.state?.categoryTitle || category || 'Vendors';
   const [vendorsList, setVendorsList] = useState([]);
@@ -49,6 +53,30 @@ const VendorsList = () => {
     experience: 'all',
     eventDate: ''
   });
+
+  // Ratings switched off by the admin: drop the rating sort and filter
+  useEffect(() => {
+    if (!ratingsEnabled) {
+      setSortBy(prev => (prev === 'rating' ? 'popular' : prev));
+      setFilters(prev => (prev.rating === 'all' ? prev : { ...prev, rating: 'all' }));
+    }
+  }, [ratingsEnabled]);
+
+  // The platform assigns a vendor for this category before the user browses (rotation among
+  // subscribed vendors). The same vendor is returned on later visits.
+  useEffect(() => {
+    if (!user || !category || category === 'all') {
+      setAssignedVendor(null);
+      return;
+    }
+    let cancelled = false;
+    setAssignedLoading(true);
+    userApi.getAssignedVendor(category, user.city)
+      .then(res => { if (!cancelled) setAssignedVendor(res?.data || null); })
+      .catch(() => { if (!cancelled) setAssignedVendor(null); })
+      .finally(() => { if (!cancelled) setAssignedLoading(false); });
+    return () => { cancelled = true; };
+  }, [user, category]);
 
   // Debounce search query changes
   useEffect(() => {
@@ -304,6 +332,58 @@ const VendorsList = () => {
           </div>
         )}
 
+        {/* Assigned Vendor (allocated by the platform) */}
+        {user && category && category !== 'all' && (assignedLoading || assignedVendor) && (
+          <div className="rounded-2xl bg-gradient-to-br from-[#4F1325] to-[#651731] p-4 text-[#FAF6F0] shadow-md border border-[#D4AF37]/40">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] font-cinzel uppercase tracking-[0.2em] text-[#ECC880] font-bold">
+                Your Assigned Vendor
+              </span>
+              <span className="text-[10px] text-[#FAF6F0]/70">Assigned by Utsavo</span>
+            </div>
+
+            {assignedLoading && !assignedVendor ? (
+              <div className="flex items-center gap-3 animate-pulse">
+                <div className="w-12 h-12 rounded-full bg-white/15" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-1/2 rounded bg-white/15" />
+                  <div className="h-2.5 w-1/3 rounded bg-white/10" />
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full overflow-hidden bg-[#FAF6F0] border-2 border-[#D4AF37]/60 flex items-center justify-center shrink-0">
+                    {assignedVendor.profileImage ? (
+                      <img src={assignedVendor.profileImage} alt={assignedVendor.businessName} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-sm font-bold text-[#4F1325]">
+                        {(assignedVendor.businessName || 'V').slice(0, 2).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-serif font-bold text-base leading-tight truncate">{assignedVendor.businessName}</h3>
+                    <p className="text-xs text-[#FAF6F0]/75 truncate mt-0.5">
+                      {assignedVendor.city}
+                      {ratingsEnabled && assignedVendor.reviewCount > 0 ? ` · ★ ${assignedVendor.rating} (${assignedVendor.reviewCount})` : ''}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-[11px] mt-3 text-[#FAF6F0]/80 leading-relaxed">
+                  We have matched you with this verified vendor. Send them your requirements, or browse other vendors below.
+                </p>
+                <button
+                  onClick={() => navigate(`/user/vendor/${assignedVendor._id}`)}
+                  className="w-full mt-3 py-2.5 rounded-xl bg-[#ECC880] text-[#4F1325] text-xs font-bold active:scale-[0.99] transition-all shadow-xs cursor-pointer"
+                >
+                  View Profile &amp; Send Inquiry
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Destination Pricing Toggle */}
         <div className="flex items-center justify-between px-2 mb-2">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#651731]/75 font-cinzel">
@@ -358,6 +438,7 @@ const VendorsList = () => {
               </div>
 
               {/* Rating Filter */}
+              {ratingsEnabled && (
               <div>
                 <label className="block text-xs font-medium mb-2" style={{ color: theme.semantic.text.secondary }}>
                   Rating
@@ -377,6 +458,7 @@ const VendorsList = () => {
                   <option value="4.5+">4.5+ Stars</option>
                 </select>
               </div>
+              )}
 
               {/* Availability Filter */}
               <div>
@@ -514,7 +596,7 @@ const VendorsList = () => {
                     color: theme.semantic.text.primary
                   }}
                 >
-                  <option value="rating">Top Rated</option>
+                  {ratingsEnabled && <option value="rating">Top Rated</option>}
                   <option value="popular">Most Popular</option>
                   <option value="price-low">Price: Low to High</option>
                   <option value="price-high">Price: High to Low</option>

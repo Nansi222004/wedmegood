@@ -37,5 +37,15 @@ router.get('/family-invitations/:token', familyController.getPublicInvitationByT
 // Public read general family group invitation preview by token
 router.get('/family-groups/preview/:token', familyController.getPublicGroupPreviewByToken);
 
+// Public platform settings the apps need (ratings switch, cancellation policy, fake vendor pricing)
+const { getPublicSettings } = require('../../services/platformSettings.service');
+router.get('/settings', async (req, res, next) => {
+  try {
+    res.status(200).json({ success: true, data: await getPublicSettings() });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
 

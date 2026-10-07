@@ -104,12 +104,8 @@ const Payments = () => {
     .filter(p => p.status === 'pending')
     .reduce((sum, p) => sum + p.amount, 0);
 
-  const handlePayNow = (payment) => {
-    if (payment.raw?.bookingId?._id) {
-      navigate(`/user/checkout?bookingId=${payment.raw.bookingId._id}`);
-    } else {
-      navigate('/user/bookings');
-    }
+  const handleViewBooking = () => {
+    navigate('/user/bookings');
   };
 
   const handleViewReceipt = async (payment) => {
@@ -177,7 +173,7 @@ const Payments = () => {
               My Payments
             </h1>
             <p className="text-xs" style={{ color: theme.semantic.text.secondary }}>
-              Track all your wedding payments
+              Online payments made earlier. Booking payments are now made directly to the vendor.
             </p>
           </div>
         </div>
@@ -335,13 +331,10 @@ const Payments = () => {
                           ) : (
                             <Button
                               size="sm"
-                              onClick={() => handlePayNow(payment)}
-                              style={{
-                                backgroundColor: theme.colors.primary[500],
-                                color: 'white'
-                              }}
+                              variant="outline"
+                              onClick={handleViewBooking}
                             >
-                              Pay Now
+                              View Booking
                             </Button>
                           )}
                         </div>

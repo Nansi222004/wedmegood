@@ -158,6 +158,18 @@ export const userApi = {
     return request(`/user/leads/${id}`, { method: 'GET' });
   },
 
+  // Vendor the platform assigned to the user for a category
+  getAssignedVendor: async (category, city) => {
+    const query = new URLSearchParams({ category });
+    if (city) query.append('city', city);
+    return request(`/user/vendors/assigned?${query.toString()}`, { method: 'GET' });
+  },
+
+  // Public platform settings (ratings switch, cancellation policy, fake vendor pricing)
+  getPublicSettings: async () => {
+    return request('/public/settings', { method: 'GET' });
+  },
+
   // Quotes
   getUserQuotes: async () => {
     return request('/user/quotes', { method: 'GET' });
@@ -167,9 +179,10 @@ export const userApi = {
     return request(`/user/quotes/${id}`, { method: 'GET' });
   },
 
-  acceptQuote: async (quoteId) => {
+  acceptQuote: async (quoteId, { acceptTerms = false } = {}) => {
     return request(`/user/quotes/${quoteId}/accept`, {
-      method: 'PUT'
+      method: 'PUT',
+      body: { acceptTerms }
     });
   },
 
@@ -677,6 +690,27 @@ export const userApi = {
 
   getComplaintById: async (complaintId) => {
     return request(`/user/complaints/${complaintId}`, { method: 'GET' });
+  },
+
+  // Fake vendors list (free views, then paid access)
+  getFakeVendorAccess: async () => {
+    return request('/user/fake-vendors/access', { method: 'GET' });
+  },
+
+  getFakeVendors: async (search = '') => {
+    const qs = search ? `?search=${encodeURIComponent(search)}` : '';
+    return request(`/user/fake-vendors${qs}`, { method: 'GET' });
+  },
+
+  createFakeVendorAccessOrder: async () => {
+    return request('/user/fake-vendors/access/order', { method: 'POST' });
+  },
+
+  verifyFakeVendorAccessPayment: async (paymentData) => {
+    return request('/user/fake-vendors/access/verify', {
+      method: 'POST',
+      body: paymentData
+    });
   },
 
   // 12. Planning Dashboard Consolidated Summary & Weather

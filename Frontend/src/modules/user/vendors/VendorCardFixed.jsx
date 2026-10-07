@@ -7,6 +7,7 @@ import { useCart } from '../../../contexts/CartContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import userApi from '../../../services/userApi';
+import usePlatformSettings from '../../../hooks/usePlatformSettings';
 
 const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
   const { theme } = useTheme();
@@ -15,6 +16,7 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const navigate = useNavigate();
+  const { ratingsEnabled } = usePlatformSettings();
 
   // Normalize MongoDB vendor properties
   const id = vendor?._id || vendor?.id;
@@ -183,10 +185,12 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
           <div>
              <div className="flex items-center justify-between mb-1">
                 <span className="text-[9px] font-bold text-[#651731]/60 uppercase tracking-widest">{location}</span>
+                {ratingsEnabled && (
                 <div className="flex items-center gap-1">
                     <span className="text-[#D4AF37] text-xs font-black">★ {rating}</span>
                     <span className="text-[#4F1325]/40 text-[9px] font-bold">({reviews})</span>
                 </div>
+                )}
              </div>
              <h3 className="text-[#4F1325] text-lg font-serif font-bold leading-tight line-clamp-1 mb-1">
                {name}
@@ -293,6 +297,8 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
+                  {ratingsEnabled && (
+                  <>
                   <div 
                     className="flex items-center px-2 py-1 rounded-full gap-1"
                     style={{ backgroundColor: theme.colors.secondary[100] }}
@@ -311,6 +317,8 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
                   >
                     {reviews} reviews
                   </span>
+                  </>
+                  )}
                 </div>
                 
                 <div 
@@ -420,6 +428,8 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
+                  {ratingsEnabled && (
+                  <>
                   <div 
                     className="flex items-center px-2 py-1 rounded-full gap-1"
                     style={{ backgroundColor: theme.colors.secondary[100] }}
@@ -438,6 +448,8 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
                   >
                     ({reviews})
                   </span>
+                  </>
+                  )}
                   
                   <div 
                     className="font-bold text-sm ml-2"
@@ -523,6 +535,7 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
           </div>
         </div>
 
+        {ratingsEnabled && (
         <div className="flex items-center gap-2">
           <div 
             className="flex items-center px-2 py-1 rounded-full gap-1"
@@ -544,6 +557,7 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
             {reviews} reviews
           </span>
         </div>
+        )}
 
         <div 
           className="font-semibold text-lg"

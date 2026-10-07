@@ -13,6 +13,10 @@ const AdminComplaints = () => {
     const [modalStatus, setModalStatus] = useState('');
     const [modalNotes, setModalNotes] = useState('');
     const [updating, setUpdating] = useState(false);
+    // Confirming the vendor as fake lists it on the users' Fake Vendors page
+    const [fakeReason, setFakeReason] = useState('');
+    const [suspendVendor, setSuspendVendor] = useState(true);
+    const [markingFake, setMarkingFake] = useState(false);
 
     const token = localStorage.getItem('adminToken');
 
@@ -47,7 +51,38 @@ const AdminComplaints = () => {
         setSelectedComplaint(complaint);
         setModalStatus(complaint.status || 'Pending');
         setModalNotes(complaint.adminNotes || '');
+        setFakeReason('');
+        setSuspendVendor(true);
     };
+
+    const handleMarkFake = async () => {
+        if (!selectedComplaint) return;
+        if (!fakeReason.trim()) {
+            toast.warning('Describe what the vendor did. Users will see this on the Fake Vendors page.');
+            return;
+        }
+        try {
+            setMarkingFake(true);
+            const res = await adminApi.markComplaintVendorAsFake(selectedComplaint._id, {
+                reason: fakeReason.trim(),
+                suspendVendor: Boolean(selectedComplaint.vendorId) && suspendVendor
+            }, token);
+            if (res.success) {
+                toast.success(res.message || 'Vendor listed as fake.');
+                setSelectedComplaint(null);
+                await fetchComplaints(pagination.page);
+            } else {
+                toast.error(getFriendlyErrorMessage(res, 'Failed to list the vendor as fake.'));
+            }
+        } catch (err) {
+            toast.error(getFriendlyErrorMessage(err, 'A network or server error occurred.'));
+        } finally {
+            setMarkingFake(false);
+        }
+    };
+
+    const vendorLabel = (complaint) => complaint.vendorId?.businessName
+        || (complaint.externalVendor?.name ? (complaint.externalVendor.businessName || complaint.externalVendor.name) : 'Platform Service');
 
     const handleSaveResolution = async (e) => {
         e.preventDefault();
@@ -137,8 +172,11 @@ const AdminComplaints = () => {
                                     </td>
                                     <td className="px-5 py-3">
                                         <p className="text-[11px] font-bold text-slate-700">
-                                            {complaint.vendorId?.businessName || 'Platform Service'}
+                                            {vendorLabel(complaint)}
                                         </p>
+                                        {!complaint.vendorId && complaint.externalVendor?.name && (
+                                            <p className="text-[9px] text-amber-600 font-bold">Not on app · {complaint.externalVendor.phone}</p>
+                                        )}
                                     </td>
                                     <td className="px-5 py-3">
                                         <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider ${
@@ -209,7 +247,7 @@ const AdminComplaints = () => {
             {/* Resolution Modal */}
             {selectedComplaint && (
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-                    <form onSubmit={handleSaveResolution} className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 space-y-4 animate-in zoom-in-95">
+                    <form onSubmit={handleSaveResolution} className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 space-y-4 animate-in zoom-in-95 max-h-[92vh] overflow-y-auto">
                         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                             <div>
                                 <h3 className="text-base font-black text-slate-900">Resolve Customer Dispute</h3>
@@ -219,6 +257,25 @@ const AdminComplaints = () => {
                         </div>
 
                         <div className="space-y-3 text-xs">
+                            <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Vendor</span>
+                                {selectedComplaint.vendorId ? (
+                                    <p className="text-slate-800">
+                                        {selectedComplaint.vendorId.businessName} · {selectedComplaint.vendorId.phone || 'No phone'} · {selectedComplaint.vendorId.city || ''}
+                                    </p>
+                                ) : selectedComplaint.externalVendor?.name ? (
+                                    <p className="text-slate-800">
+                                        {selectedComplaint.externalVendor.name}
+                                        {selectedComplaint.externalVendor.businessName ? ` (${selectedComplaint.externalVendor.businessName})` : ''}
+                                        {' · '}{selectedComplaint.externalVendor.phone}
+                                        {selectedComplaint.externalVendor.city ? ` · ${selectedComplaint.externalVendor.city}` : ''}
+                                        <span className="ml-1 text-[9px] font-black text-amber-600 uppercase">Not on app</span>
+                                    </p>
+                                ) : (
+                                    <p className="text-slate-500">Not specified</p>
+                                )}
+                            </div>
+
                             <div className="p-3 bg-slate-50 rounded-xl space-y-1">
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Grievance Description</span>
                                 <p className="text-slate-800 leading-relaxed">{selectedComplaint.description || 'No detailed description provided.'}</p>
@@ -249,6 +306,34 @@ const AdminComplaints = () => {
                                 />
                             </div>
                         </div>
+
+                        {(selectedComplaint.vendorId || selectedComplaint.externalVendor?.name) && (
+                            <div className="p-3 rounded-xl border border-rose-200 bg-rose-50/60 space-y-2 text-xs">
+                                <span className="text-[10px] font-black text-rose-700 uppercase tracking-wider block">Confirm as Fake Vendor</span>
+                                <p className="text-[10px] text-rose-700/80">Lists this vendor on the users' Fake Vendors page and resolves the complaint.</p>
+                                <textarea
+                                    rows="2"
+                                    value={fakeReason}
+                                    onChange={(e) => setFakeReason(e.target.value)}
+                                    placeholder="Shown to users, e.g. Took advance payments and did not turn up on the event day."
+                                    className="w-full p-2.5 bg-white border border-rose-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:border-rose-400 resize-none"
+                                />
+                                {selectedComplaint.vendorId && (
+                                    <label className="flex items-center gap-2 text-[11px] font-bold text-slate-700 cursor-pointer">
+                                        <input type="checkbox" checked={suspendVendor} onChange={(e) => setSuspendVendor(e.target.checked)} />
+                                        Also suspend this vendor's account
+                                    </label>
+                                )}
+                                <button
+                                    type="button"
+                                    disabled={markingFake}
+                                    onClick={handleMarkFake}
+                                    className="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl text-[10px] uppercase tracking-wider disabled:opacity-50"
+                                >
+                                    {markingFake ? 'Listing...' : 'List as Fake Vendor'}
+                                </button>
+                            </div>
+                        )}
 
                         <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                             <button

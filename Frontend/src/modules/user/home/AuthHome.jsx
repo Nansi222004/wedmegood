@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import userApi from '../../../services/userApi';
+import usePlatformSettings from '../../../hooks/usePlatformSettings';
 
 const AuthHome = () => {
+  const { ratingsEnabled } = usePlatformSettings();
   const navigate = useNavigate();
   const { theme } = useTheme();
   const [currentCity] = useState('Indore');
@@ -162,10 +164,12 @@ const AuthHome = () => {
                       </div>
                       <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
                          <span className="text-white font-black text-sm drop-shadow-md">{price}</span>
+                         {ratingsEnabled && (
                          <div className="flex items-center gap-1 bg-black/30 backdrop-blur-md px-2 py-1 rounded-lg">
                            <Icon name="star" size="xxs" style={{ color: '#fbbf24' }} />
                            <span className="text-white text-[10px] font-black">{rating}</span>
                          </div>
+                         )}
                       </div>
                     </div>
                     <h3 className="text-base font-black text-gray-800 mb-1 group-hover:text-rose-500 transition-colors line-clamp-1">

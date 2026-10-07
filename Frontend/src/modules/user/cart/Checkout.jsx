@@ -6,26 +6,10 @@ import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import Input from '../../../components/ui/Input';
-import userApi from '../../../services/userApi';
 import { toast } from '../../../components/ui/Toast';
-import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
-
-const loadRazorpayScript = () => {
-  return new Promise((resolve) => {
-    if (window.Razorpay) {
-      resolve(true);
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-};
 
 const Checkout = () => {
-  const { cartState, clearCart } = useCart();
+  const { cartState } = useCart();
   const { user } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
@@ -46,15 +30,12 @@ const Checkout = () => {
     specialRequests: bookingData?.notes || ''
   });
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-
   // Redirect if no items and no booking
   useEffect(() => {
-    if (!bookingId && checkoutItems.length === 0 && !showSuccess) {
+    if (!bookingId && checkoutItems.length === 0) {
       navigate('/user/cart', { replace: true });
     }
-  }, [bookingId, checkoutItems.length, showSuccess, navigate]);
+  }, [bookingId, checkoutItems.length, navigate]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -89,133 +70,13 @@ const Checkout = () => {
     window.open(whatsappUrl, '_blank');
   };
 
-  const handleSubmitBooking = async () => {
-    if (!bookingId) {
-      toast.info('To complete a secure payment, please accept an official quote from a vendor in "My Bookings" first.');
-      navigate('/user/bookings');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      // 1. Load Razorpay script
-      const isLoaded = await loadRazorpayScript();
-      if (!isLoaded) {
-        throw new Error('Razorpay SDK failed to load. Please check your internet connection.');
-      }
-
-      // 2. Create server-side order (Backend is source of truth for money!)
-      const orderRes = await userApi.createPaymentOrder(bookingId);
-      if (!orderRes.success || !orderRes.order) {
-        throw new Error(orderRes.message || 'Failed to create payment order');
-      }
-
-      const { order, key } = orderRes;
-
-      // 3. Open Razorpay Checkout
-      const options = {
-        key: key || import.meta.env.VITE_RAZORPAY_KEY_ID,
-        amount: order.amount,
-        currency: order.currency || 'INR',
-        name: 'Utsavo / WedMeGood',
-        description: `Booking Payment: ${orderRes.booking?.customerName || 'Wedding Services'}`,
-        order_id: order.id,
-        prefill: {
-          name: formData.name || user?.name || '',
-          email: formData.email || user?.email || '',
-          contact: formData.phone || user?.phone || ''
-        },
-        theme: {
-          color: '#E91E63'
-        },
-        handler: async (response) => {
-          try {
-            // 4. Server-Side HMAC SHA256 Signature Verification
-            const verifyRes = await userApi.verifyPayment({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-              bookingId: bookingId
-            });
-
-            if (verifyRes.success) {
-              clearCart();
-              setShowSuccess(true);
-              setTimeout(() => {
-                navigate('/user/account/payments', { replace: true });
-              }, 2500);
-            } else {
-              throw new Error(verifyRes.message || 'Payment verification failed');
-            }
-          } catch (verErr) {
-            console.error('Payment verification failed:', verErr);
-            toast.error(getFriendlyErrorMessage(verErr, 'Payment verification failed. Please contact support.'));
-          } finally {
-            setIsSubmitting(false);
-          }
-        },
-        modal: {
-          ondismiss: () => {
-            setIsSubmitting(false);
-          }
-        }
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.on('payment.failed', (failRes) => {
-        console.error('Payment failed:', failRes);
-        toast.error(getFriendlyErrorMessage(failRes.error?.description || 'Payment was unsuccessful. Please try again.'));
-        setIsSubmitting(false);
-      });
-      rzp.open();
-    } catch (err) {
-      console.error('Payment initiation error:', err);
-      toast.error(getFriendlyErrorMessage(err, 'Failed to start payment process'));
-      setIsSubmitting(false);
-    }
+  // Booking payments are made directly to the vendor; the app only records them (no online payment)
+  const handleSubmitBooking = () => {
+    toast.info(bookingId
+      ? 'Payments are made directly to the vendor. The vendor will record what you pay on your booking.'
+      : 'Send an inquiry and accept the vendor\'s quotation in "My Bookings". Payments are made directly to the vendor.');
+    navigate('/user/bookings');
   };
-
-  if (showSuccess) {
-    return (
-      <div 
-        className="w-full min-h-screen"
-        style={{ backgroundColor: theme.semantic.background.primary }}
-      >
-        <div className="min-h-screen flex flex-col items-center justify-center px-4 py-16">
-          <div 
-            className="w-24 h-24 rounded-full flex items-center justify-center mb-6"
-            style={{ backgroundColor: theme.colors.primary[50] }}
-          >
-            <Icon name="check" size="xl" style={{ color: theme.colors.primary[500] }} />
-          </div>
-          
-          <h2 
-            className="text-2xl font-bold mb-4 text-center"
-            style={{ color: theme.semantic.text.primary }}
-          >
-            Booking Request Sent!
-          </h2>
-          
-          <p 
-            className="text-center mb-8 max-w-sm"
-            style={{ color: theme.semantic.text.secondary }}
-          >
-            Your booking requests have been sent to the vendors. They will contact you shortly to confirm availability and details.
-          </p>
-          
-          <div className="text-center">
-            <p 
-              className="text-sm mb-4"
-              style={{ color: theme.semantic.text.secondary }}
-            >
-              Redirecting to home page...
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div 
@@ -265,7 +126,7 @@ const Checkout = () => {
                 <div>
                   <h3 className="text-sm font-bold text-amber-900">Official Vendor Quote Required for Payment</h3>
                   <p className="text-xs text-amber-700 mt-0.5">
-                    To guarantee pricing accuracy and confirmed date reservation, secure payment requires an accepted quote from the vendor. Check 'My Bookings' to review and accept pending quotes.
+                    Bookings are confirmed by accepting the vendor's quote in 'My Bookings'. Payments are made directly to the vendor, who records them on your booking.
                   </p>
                 </div>
               </div>
@@ -602,23 +463,14 @@ const Checkout = () => {
       >
         <button
           onClick={handleSubmitBooking}
-          disabled={isSubmitting}
           className="w-full py-4 rounded-xl text-base font-bold flex items-center justify-center transition-colors touch-friendly shadow-lg"
           style={{
             backgroundColor: theme.colors.primary[500],
             color: 'white',
-            opacity: isSubmitting ? 0.6 : 1,
             minHeight: '52px'
           }}
         >
-          {isSubmitting ? (
-            <>
-              <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-3"></div>
-              Processing Secure Payment...
-            </>
-          ) : (
-            `Pay ₹${getTotalPrice().toLocaleString()} via Razorpay`
-          )}
+          Pay Vendor Directly · Go to My Bookings
         </button>
       </div>
     </div>

@@ -9,6 +9,7 @@ import userApi from '../../../services/userApi';
 import { toast } from '../../../components/ui/Toast';
 import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
 import VendorAvailabilityCalendar from './VendorAvailabilityCalendar';
+import usePlatformSettings from '../../../hooks/usePlatformSettings';
 
 const VendorDetail = () => {
   const { vendorId } = useParams();
@@ -16,6 +17,7 @@ const VendorDetail = () => {
   const { theme } = useTheme();
   const { addToCart, isInCart } = useCart();
   const { user } = useAuth();
+  const { ratingsEnabled } = usePlatformSettings();
 
   const [vendor, setVendor] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -243,7 +245,7 @@ const VendorDetail = () => {
     ? vendor.reviews.map((r, idx) => ({
         id: r._id || idx,
         name: r.userId?.name || 'Verified Couple',
-        rating: r.rating || 5,
+        rating: r.rating || null,
         review: r.comment || '',
         timeAgo: r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'Recently',
         initial: (r.userId?.name || 'U')[0].toUpperCase(),
@@ -595,9 +597,11 @@ const VendorDetail = () => {
         <div className="px-4 sm:px-6 pt-5 pb-3">
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1 bg-[#4F1325] text-white text-xs font-bold px-2.5 py-0.5 rounded-full shadow-xs">
-                <span className="text-[#ECC880]">★</span> {vendor?.rating && vendor.rating > 0 ? vendor.rating : '4.9'}
-              </span>
+              {ratingsEnabled && (
+                <span className="inline-flex items-center gap-1 bg-[#4F1325] text-white text-xs font-bold px-2.5 py-0.5 rounded-full shadow-xs">
+                  <span className="text-[#ECC880]">★</span> {vendor?.rating && vendor.rating > 0 ? vendor.rating : 'New'}
+                </span>
+              )}
               <span className="text-xs font-semibold text-stone-500">
                 ({vendor?.reviewCount ?? vendor?.reviews?.length ?? 0} reviews)
               </span>
@@ -920,9 +924,11 @@ const VendorDetail = () => {
                           <p className="text-[11px] text-stone-400">Reviewed {review.timeAgo}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/70 px-2 py-0.5 rounded-full text-xs font-bold text-amber-800">
-                        <span>★</span> {review.rating}
-                      </div>
+                      {ratingsEnabled && review.rating && (
+                        <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/70 px-2 py-0.5 rounded-full text-xs font-bold text-amber-800">
+                          <span>★</span> {review.rating}
+                        </div>
+                      )}
                     </div>
 
                     <p className="text-xs sm:text-sm text-stone-600 leading-relaxed pt-1">

@@ -1,0 +1,325 @@
+================================================================================
+  UTSAVO / WED-ME-GUD  -  PROJECT FLOW
+  What the User, the Vendor and the Admin can do, and how they connect
+================================================================================
+
+  Three roles:
+
+    USER    - the couple / family planning a wedding
+    VENDOR  - a service provider (venue, photographer, decorator, caterer...)
+    ADMIN   - the platform team that controls and monitors everything
+
+
+  BIG PICTURE
+
+        ADMIN
+          |  sets up categories, plans, commission %, banners, policies
+          |  approves vendors, moderates, handles payouts and refunds
+          v
+     +---------+    inquiry (lead)     +----------+
+     |         | --------------------> |          |
+     |  USER   |      chat             |  VENDOR  |
+     |         | <-------------------> |          |
+     |         |      quotation        |          |
+     |         | <-------------------- |          |
+     |         |   accept + pay        |          |
+     |         | --------------------> |          |
+     |         |   service delivered   |          |
+     |         | <-------------------- |          |
+     |         |   review              |          |
+     |         | --------------------> |          |
+     +---------+                       +----------+
+          |                                 |
+          |  payment goes to the platform   |  vendor's share goes to their
+          +-------------> PLATFORM ---------+  wallet; they withdraw it and
+                     (keeps commission)       the admin pays out
+
+
+================================================================================
+1. USER  -  what a user can do
+================================================================================
+
+1.1 Account
+  - Sign up with name, email, phone, password, city and wedding date.
+  - Verify email with an OTP (and phone with an OTP).
+  - Log in, reset a forgotten password via an email link.
+  - Edit profile, wedding details, preferences, social links, profile photo.
+  - Change password, export their data, delete the account.
+
+1.2 Discover vendors
+  - Browse vendors by category, sub-category and city.
+  - Search, and filter by price, rating, experience and date availability.
+  - See featured, trending and recommended vendors.
+  - Open a vendor's profile: services, portfolio, pricing, reviews.
+  - Check whether a vendor is free on their wedding date.
+  - Save vendors to Favorites.
+
+1.3 Book a vendor  (main flow, see section 4)
+  - Send an inquiry to a specific vendor, or to a category and let the
+    platform pick a vendor.
+  - Chat with the vendor: text, images, documents, voice.
+  - Receive quotations, view them and download the PDF.
+  - Accept or reject a quotation.
+  - Pay the advance and later the balance online (Razorpay).
+  - Track bookings and payments, download receipts.
+  - Cancel a booking (paid amount is marked as refunded).
+  - Review the vendor after the booking.
+  - Raise a complaint against a vendor.
+  - Report abusive chat messages.
+
+1.4 Plan the wedding  (personal tools)
+  - Budget: set a total budget split by category. It updates itself when a
+    quote is accepted and when payments are made.
+  - Checklist: ready-made wedding tasks; tick them off, add their own.
+  - Guest list: add guests with side (bride/groom), category, meal
+    preference and RSVP status.
+  - Timeline: plan wedding events and dates.
+  - Inspiration: save ideas and browse the inspiration gallery.
+  - E-Invites: design a digital invitation, publish it, share the link.
+    Guests open it without logging in and RSVP; their response updates the
+    guest list automatically.
+  - Dashboard and calendar: one view of tasks, guests, events, bookings,
+    quotes and notifications.
+  - Weather forecast for the wedding date and city.
+  - Astrology: daily horoscope and kundli match-making.
+
+1.5 Family groups  (plan together)
+  - Create a family group and invite relatives by link (personal or group
+    link).
+  - Invitees accept the invite; people joining through the group link wait
+    for the owner's/admin's approval.
+  - Members can be "admin" or "member"; the owner can revoke or remove.
+  - The owner chooses what to share: checklist, timeline, inspiration,
+    budget, guest list (budget and guest list are visible only to the owner
+    and group admins).
+  - Group chat with private photo/file sharing.
+
+1.6 Notifications
+  - In-app notifications for quotes, bookings, payments, cancellations,
+    invitations, RSVPs, plus an activity history.
+
+
+================================================================================
+2. VENDOR  -  what a vendor can do
+================================================================================
+
+2.1 Join the platform
+  - Verify phone number with an OTP.
+  - Register: personal and business details, city, service cities,
+    languages, categories and sub-categories they serve, portfolio, ID proof
+    and GST documents, optional subscription plan.
+  - Status starts as "Incomplete".
+
+2.2 Complete the profile
+  - Fill a service form for each sub-category they chose (the form fields
+    are designed by the admin).
+  - Add services with photos/videos and pricing, upload missing documents,
+    add bank / UPI details.
+  - See their profile completion percentage.
+  - When complete, submit for approval -> status becomes "Pending".
+
+2.3 Get approved and subscribe
+  - Wait for the admin to approve (Approved / Rejected / Suspended).
+  - Buy a subscription plan online (Razorpay) -> subscription "Active".
+  - Only APPROVED + SUBSCRIBED vendors can use leads, quotes, bookings,
+    calendar, reviews, chat and support, and receive auto-assigned leads.
+  - Approved vendors appear in the public vendor listing.
+
+2.4 Run the business
+  - Leads: see inquiries from users, mark them contacted, add notes, mark
+    important.
+  - Chat with users, share quotations inside the chat.
+  - Quotations: create itemised quotes (discount, tax, advance amount,
+    milestone payment terms, terms, cancellation terms), save as draft or
+    send, edit, delete, download PDF.
+  - Bookings: see bookings created from accepted quotes, add offline
+    bookings manually, move a booking to In Progress -> Completed, or cancel.
+  - Calendar: block dates when they are not available (users can't book
+    those dates).
+  - Reviews: read user reviews and reply.
+  - Inventory: manage items/equipment with photos.
+  - Support: raise tickets to the admin.
+  - Notifications, dashboard stats and banners from the admin.
+  - Settings: change password, notification preferences, deactivate account.
+
+2.5 Earnings
+  - Wallet shows:
+      Pending   - money paid by users for bookings not yet completed
+      Available - released after the booking is marked Completed
+      Locked    - requested for withdrawal, waiting for the admin
+  - View transactions and earnings summary.
+  - Request a withdrawal to bank account or UPI from the available balance.
+
+
+================================================================================
+3. ADMIN  -  what the admin can do
+================================================================================
+
+3.1 Set up the platform
+  - Categories, sub-categories and the service forms vendors must fill.
+  - Subscription plans for vendors (price, duration, features).
+  - Platform settings: commission %, GST %, minimum withdrawal, maintenance
+    mode (shuts the app for everyone except admin).
+  - Banners for the user app and the vendor dashboard.
+  - Policies (terms, privacy...), FAQs, support contact details.
+
+3.2 Manage people
+  - Users: view, block/unblock, delete.
+  - Vendors: review profiles and documents, approve / reject / suspend,
+    activate/deactivate, mark as featured, delete.
+  - Vendor services and inventory: review and enable/disable.
+
+3.3 Monitor activity
+  - Dashboard and analytics: users, vendors, leads, quotes, bookings,
+    revenue.
+  - View all leads, quotes, bookings and payments on the platform.
+
+3.4 Moderate and support
+  - Reviews: approve, reject, delete.
+  - Complaints from users: move through Pending -> In-Review -> Resolved /
+    Dismissed.
+  - Chat reports: review reported conversations and take action.
+  - Vendor support tickets: reply and close.
+
+3.5 Money
+  - Financial summary: total collected, platform commission, refunds, net
+    revenue.
+  - Full transaction ledger and per-vendor ledger.
+  - Withdrawal requests from vendors: approve, mark Paid (with bank
+    reference), or reject (money goes back to the vendor's available
+    balance).
+  - Issue full or partial refunds to users.
+  - Reconciliation report to spot mismatches.
+  - Every admin action is recorded in the audit log.
+
+
+================================================================================
+4. HOW THEY CONNECT  -  the booking journey step by step
+================================================================================
+
+ STEP 1  ADMIN prepares
+         Admin creates categories and service forms, subscription plans,
+         and sets the commission %.
+
+ STEP 2  VENDOR joins
+         Vendor registers -> completes profile -> requests approval.
+         ADMIN approves the vendor.
+         Vendor buys a subscription.
+         -> Vendor is now visible to users.
+
+ STEP 3  USER finds a vendor
+         User browses / searches vendors and checks availability.
+
+ STEP 4  USER sends an inquiry (lead)
+         Two ways:
+           a) Direct   - user picks a vendor; the lead goes to that vendor.
+           b) Category - user picks only a category; the platform assigns the
+                         next vendor in turn (round-robin) among approved,
+                         subscribed vendors of that category. Some categories
+                         (LED walls, live streaming, flower decor, special
+                         entry) are always assigned this way.
+         -> VENDOR gets a notification.
+         -> A chat between the user and the vendor opens automatically.
+
+ STEP 5  USER and VENDOR talk
+         They chat in real time to discuss requirements.
+
+ STEP 6  VENDOR sends a quotation
+         Vendor creates a quote with items, discount, tax, advance amount,
+         payment milestones and terms. It can also be shared in the chat.
+         -> Lead status becomes "Quote Sent".
+
+ STEP 7  USER decides
+         Reject  -> quote and lead marked Rejected, vendor notified.
+         Accept  -> the platform checks:
+                      - quote not expired
+                      - vendor still approved, active, subscribed
+                      - the date is not blocked and not already booked
+                    then creates a BOOKING (status "Pending"), saves a copy
+                    of the quote terms, and fixes the commission at the
+                    current rate.
+                 -> Vendor notified, a message appears in the chat,
+                    the user's budget for that category is marked Confirmed.
+
+ STEP 8  USER pays
+         User pays the ADVANCE online.
+         -> Booking becomes "Confirmed".
+         -> Platform keeps its commission; the rest goes to the vendor's
+            wallet as PENDING money.
+         -> User's budget "spent" updates. Both sides are notified.
+         Later the user pays the BALANCE the same way.
+
+ STEP 9  VENDOR delivers the service
+         Vendor marks the booking "In Progress", then "Completed".
+         -> Vendor's earnings for that booking move from PENDING to
+            AVAILABLE.
+
+ STEP 10 VENDOR withdraws
+         Vendor requests a withdrawal (bank / UPI).
+         -> Amount moves to LOCKED.
+         ADMIN reviews:
+           Paid     -> admin transfers the money and marks it Paid.
+           Rejected -> amount returns to AVAILABLE.
+
+ STEP 11 USER reviews
+         User rates and reviews the vendor; the vendor's rating updates.
+         Vendor can reply. Admin can moderate the review.
+
+
+ CANCELLATIONS AND REFUNDS
+   - User or vendor can cancel before the booking is completed.
+     Paid amounts are marked refunded and the vendor's earning for that
+     booking is taken back from the wallet. Both sides are notified.
+   - Admin can also refund a payment fully or partly.
+   - Refunds are recorded in the system; the actual money is returned
+     manually from the Razorpay dashboard.
+
+
+ STATUS SUMMARY
+   Vendor   : Incomplete -> Pending -> Approved  (or Rejected / Suspended)
+   Lead     : New -> Contacted -> Quote Sent -> Booked  (or Rejected)
+   Quote    : Draft -> Sent -> Accepted  (or Rejected / Expired)
+   Booking  : Pending -> Confirmed -> In Progress -> Completed
+              (or Cancelled)
+   Payment  : Pending -> Completed  (or Failed / Refunded)
+   Withdrawal: Requested -> Approved / Processing -> Paid  (or Rejected)
+
+
+================================================================================
+5. OTHER CONNECTIONS BETWEEN ROLES
+================================================================================
+
+  USER  <-> VENDOR
+    - Chat (real time, with files and quotes).
+    - Lead, quote, booking, payment, review, cancellation (above).
+    - Vendor's blocked dates and existing bookings control what dates a
+      user can book.
+
+  USER  -> ADMIN
+    - Complaints against vendors.
+    - Chat reports.
+    - Reviews go to admin for moderation.
+
+  VENDOR -> ADMIN
+    - Approval request.
+    - Subscription purchase.
+    - Support tickets.
+    - Withdrawal requests.
+    - Chat reports.
+
+  ADMIN -> USER / VENDOR
+    - Categories and service forms decide what vendors offer and what users
+      can search.
+    - Commission % decides how each payment is split.
+    - Approve/suspend vendors, block users.
+    - Featured vendors and banners decide what users see first.
+    - Maintenance mode can pause the whole app.
+
+  USER  <-> USER  (family and guests)
+    - Family members plan together in family groups.
+    - Guests (no login needed) open e-invites and RSVP; responses land in
+      the user's guest list.
+
+================================================================================
+  END
+================================================================================

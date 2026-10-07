@@ -2,13 +2,35 @@ import { useState, useEffect } from 'react';
 import Icon from '../../../components/ui/Icon';
 import { adminApi } from '../services/adminApi';
 
+// Settings as shown in the form (numbers kept as strings while editing)
+const fromApi = (data) => ({
+    platformCommissionPercent: data.platformCommissionPercent !== null && data.platformCommissionPercent !== undefined ? data.platformCommissionPercent : '',
+    serviceGstPercent: data.serviceGstPercent ?? '',
+    minWithdrawalAmount: data.minWithdrawalAmount ?? '',
+    maintenanceMode: !!data.maintenanceMode,
+    autoPayouts: !!data.autoPayouts,
+    ratingsEnabled: data.ratingsEnabled !== false,
+    cancellationNoticeDays: data.cancellationNoticeDays ?? 15,
+    fakeVendorFreeViews: data.fakeVendorFreeViews ?? 1,
+    fakeVendorAccessPrice: data.fakeVendorAccessPrice ?? 99,
+    fakeVendorAccessDays: data.fakeVendorAccessDays ?? 30,
+    commissionConfig: data.commissionConfig || null,
+    updatedAt: data.updatedAt || null,
+    updatedBy: data.updatedBy || null
+});
+
 const AdminSettings = () => {
     const [settings, setSettings] = useState({
         platformCommissionPercent: 10,
         serviceGstPercent: '',
         minWithdrawalAmount: '',
         maintenanceMode: false,
-        autoPayouts: false
+        autoPayouts: false,
+        ratingsEnabled: true,
+        cancellationNoticeDays: 15,
+        fakeVendorFreeViews: 1,
+        fakeVendorAccessPrice: 99,
+        fakeVendorAccessDays: 30
     });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -21,16 +43,7 @@ const AdminSettings = () => {
             setLoading(true);
             const res = await adminApi.getPlatformSettings(token);
             if (res.success && res.data) {
-                setSettings({
-                    platformCommissionPercent: res.data.platformCommissionPercent !== null && res.data.platformCommissionPercent !== undefined ? res.data.platformCommissionPercent : '',
-                    serviceGstPercent: res.data.serviceGstPercent ?? '',
-                    minWithdrawalAmount: res.data.minWithdrawalAmount ?? '',
-                    maintenanceMode: !!res.data.maintenanceMode,
-                    autoPayouts: !!res.data.autoPayouts,
-                    commissionConfig: res.data.commissionConfig || null,
-                    updatedAt: res.data.updatedAt || null,
-                    updatedBy: res.data.updatedBy || null
-                });
+                setSettings(fromApi(res.data));
             } else {
                 setStatusMsg({ text: res.message || 'Failed to fetch platform settings', type: 'error' });
             }
@@ -75,28 +88,38 @@ const AdminSettings = () => {
             }
         }
 
+        const wholeNumbers = {
+            cancellationNoticeDays: { min: 0, label: 'Cancellation notice' },
+            fakeVendorFreeViews: { min: 0, label: 'Free views' },
+            fakeVendorAccessPrice: { min: 1, label: 'Access price' },
+            fakeVendorAccessDays: { min: 1, label: 'Access duration' }
+        };
+        for (const [key, rule] of Object.entries(wholeNumbers)) {
+            const num = Number(settings[key]);
+            if (!Number.isInteger(num) || num < rule.min) {
+                setStatusMsg({ text: `${rule.label} must be a whole number of at least ${rule.min}`, type: 'error' });
+                return;
+            }
+        }
+
         const payload = {
             platformCommissionPercent: commission,
             serviceGstPercent: gst,
             minWithdrawalAmount: minWithdrawal,
             maintenanceMode: settings.maintenanceMode,
-            autoPayouts: settings.autoPayouts
+            autoPayouts: settings.autoPayouts,
+            ratingsEnabled: settings.ratingsEnabled,
+            cancellationNoticeDays: Number(settings.cancellationNoticeDays),
+            fakeVendorFreeViews: Number(settings.fakeVendorFreeViews),
+            fakeVendorAccessPrice: Number(settings.fakeVendorAccessPrice),
+            fakeVendorAccessDays: Number(settings.fakeVendorAccessDays)
         };
 
         try {
             setSaving(true);
             const res = await adminApi.updatePlatformSettings(payload, token);
             if (res.success && res.data) {
-                setSettings({
-                    platformCommissionPercent: res.data.platformCommissionPercent !== null && res.data.platformCommissionPercent !== undefined ? res.data.platformCommissionPercent : '',
-                    serviceGstPercent: res.data.serviceGstPercent ?? '',
-                    minWithdrawalAmount: res.data.minWithdrawalAmount ?? '',
-                    maintenanceMode: !!res.data.maintenanceMode,
-                    autoPayouts: !!res.data.autoPayouts,
-                    commissionConfig: res.data.commissionConfig || null,
-                    updatedAt: res.data.updatedAt || null,
-                    updatedBy: res.data.updatedBy || null
-                });
+                setSettings(fromApi(res.data));
                 setStatusMsg({ text: 'Platform configurations updated and logged successfully!', type: 'success' });
             } else {
                 setStatusMsg({ text: res.message || 'Failed to update settings', type: 'error' });
@@ -259,6 +282,112 @@ const AdminSettings = () => {
                             >
                                 <div className={`w-4 h-4 rounded-full bg-white transition-transform absolute top-1 ${settings.autoPayouts ? 'right-1' : 'left-1'}`} />
                             </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Marketplace rules */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5 lg:col-span-2">
+                    <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                            <Icon name="shield" size="xs" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Marketplace Rules</h3>
+                            <p className="text-[10px] text-slate-400 font-medium">Ratings, cancellation policy and the Fake Vendors page</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-10 gap-y-5 pt-2">
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="flex flex-col">
+                                <span className="text-xs font-bold text-slate-900 leading-tight">Vendor Ratings</span>
+                                <span className="text-[10px] text-slate-400 mt-0.5">When off, star ratings are hidden and reviews are text only</span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSettings({ ...settings, ratingsEnabled: !settings.ratingsEnabled })}
+                                className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${settings.ratingsEnabled ? 'bg-[#4F35C3]' : 'bg-slate-200'}`}
+                                aria-label="Toggle vendor ratings"
+                            >
+                                <div className={`w-4 h-4 rounded-full bg-white transition-transform absolute top-1 ${settings.ratingsEnabled ? 'right-1' : 'left-1'}`} />
+                            </button>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <span className="text-xs font-bold text-slate-700 block">Cancellation Notice (days)</span>
+                                <span className="text-[10px] text-slate-400">Cancelling later than this makes the full amount payable</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    value={settings.cancellationNoticeDays}
+                                    onChange={(e) => setSettings({ ...settings, cancellationNoticeDays: e.target.value })}
+                                    className="w-24 h-9 text-right px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-900 outline-none focus:border-[#4F35C3]"
+                                />
+                                <span className="text-xs font-bold text-slate-500">days</span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <span className="text-xs font-bold text-slate-700 block">Fake Vendors: Free Views</span>
+                                <span className="text-[10px] text-slate-400">Views each user gets before paying</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    value={settings.fakeVendorFreeViews}
+                                    onChange={(e) => setSettings({ ...settings, fakeVendorFreeViews: e.target.value })}
+                                    className="w-24 h-9 text-right px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-900 outline-none focus:border-[#4F35C3]"
+                                />
+                                
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <span className="text-xs font-bold text-slate-700 block">Fake Vendors: Access Price</span>
+                                <span className="text-[10px] text-slate-400">Charged through Razorpay</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <span className="text-xs font-bold text-slate-500">₹</span>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    value={settings.fakeVendorAccessPrice}
+                                    onChange={(e) => setSettings({ ...settings, fakeVendorAccessPrice: e.target.value })}
+                                    className="w-24 h-9 text-right px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-900 outline-none focus:border-[#4F35C3]"
+                                />
+                                
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <span className="text-xs font-bold text-slate-700 block">Fake Vendors: Access Duration</span>
+                                <span className="text-[10px] text-slate-400">How long a paid pass lasts</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                
+                                <input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    value={settings.fakeVendorAccessDays}
+                                    onChange={(e) => setSettings({ ...settings, fakeVendorAccessDays: e.target.value })}
+                                    className="w-24 h-9 text-right px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-900 outline-none focus:border-[#4F35C3]"
+                                />
+                                <span className="text-xs font-bold text-slate-500">days</span>
+                            </div>
                         </div>
                     </div>
                 </div>

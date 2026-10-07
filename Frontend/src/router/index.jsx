@@ -189,8 +189,14 @@ import Favourites from '../modules/user/favourites/Favourites';
 import Help from '../modules/user/help/Help';
 import Dashboard from '../modules/user/dashboard/Dashboard';
 import MyBookings from '../modules/user/bookings/MyBookings';
+import FakeVendors from '../modules/user/fakeVendors/FakeVendors';
 import VendorRoutes from '../modules/vendor/routes';
 import AdminRoutes from '../modules/admin/routes';
+
+// Photos and videos uploaded by vendors and users should not be saved from the user app
+const blockMediaSave = (e) => {
+  if (e.target instanceof HTMLElement && e.target.closest('img, video')) e.preventDefault();
+};
 
 const AppRouter = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -275,7 +281,11 @@ const AppRouter = () => {
 
             {/* All other routes with Header/BottomNav */}
             <Route path="*" element={
-              <div className="min-h-screen relative overflow-x-hidden max-w-full">
+              <div
+                className="min-h-screen relative overflow-x-hidden max-w-full protect-media"
+                onContextMenu={blockMediaSave}
+                onDragStart={blockMediaSave}
+              >
                 <div 
                   className="fixed inset-0 z-[-1]" 
                   style={{ 
@@ -366,6 +376,7 @@ const AppRouter = () => {
                     <Route path="quotes/compare" element={<QuotationComparison />} />
                     <Route path="shortlist" element={<Shortlist />} />
                     <Route path="favourites" element={<Favourites />} />
+                    <Route path="fake-vendors" element={<FakeVendors />} />
 
                     {/* Inspiration & Ideas Routes */}
                     <Route path="inspirations" element={<Inspirations />} />

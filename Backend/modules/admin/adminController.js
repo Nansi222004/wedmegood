@@ -868,8 +868,8 @@ exports.updateReviewStatus = async (req, res, next) => {
         // Requirement 11: Recalculate vendor average rating and review count from only 'Approved' reviews
         const approvedReviews = await Review.find({ vendorId: review.vendorId, status: 'Approved' });
         const approvedCount = approvedReviews.length;
-        const avgRating = approvedCount > 0
-            ? Math.round((approvedReviews.reduce((acc, r) => acc + (r.rating || 0), 0) / approvedCount) * 10) / 10
+        const avgRating = approvedReviews.some(r => r.rating)
+            ? Math.round((approvedReviews.filter(r => r.rating).reduce((acc, r) => acc + r.rating, 0) / approvedReviews.filter(r => r.rating).length) * 10) / 10
             : 0;
 
         await Vendor.findByIdAndUpdate(review.vendorId, {
@@ -919,8 +919,8 @@ exports.deleteReview = async (req, res, next) => {
         if (vendorId) {
             const approvedReviews = await Review.find({ vendorId, status: 'Approved' });
             const approvedCount = approvedReviews.length;
-            const avgRating = approvedCount > 0
-                ? Math.round((approvedReviews.reduce((acc, r) => acc + (r.rating || 0), 0) / approvedCount) * 10) / 10
+            const avgRating = approvedReviews.some(r => r.rating)
+                ? Math.round((approvedReviews.filter(r => r.rating).reduce((acc, r) => acc + r.rating, 0) / approvedReviews.filter(r => r.rating).length) * 10) / 10
                 : 0;
 
             await Vendor.findByIdAndUpdate(vendorId, {
@@ -2244,10 +2244,16 @@ exports.getPlatformSettings = async (req, res, next) => {
             };
         }
 
+        const { PUBLIC_DEFAULTS } = require('../../services/platformSettings.service');
+
         res.status(200).json({
             success: true,
             data: {
-                ...settings,
+                ...PUBLIC_DEFAULTS,
+                ...Object.fromEntries(Object.entries(settings).filter(([, v]) => v !== undefined && v !== null)),
+                platformCommissionPercent: settings.platformCommissionPercent ?? null,
+                serviceGstPercent: settings.serviceGstPercent ?? null,
+                minWithdrawalAmount: settings.minWithdrawalAmount ?? null,
                 commissionConfig,
                 effectiveCommissionPercent: commissionConfig.ratePercent
             }
@@ -2268,6 +2274,11 @@ exports.updatePlatformSettings = async (req, res, next) => {
             'minWithdrawalAmount',
             'maintenanceMode',
             'autoPayouts',
+            'ratingsEnabled',
+            'cancellationNoticeDays',
+            'fakeVendorFreeViews',
+            'fakeVendorAccessPrice',
+            'fakeVendorAccessDays',
             'reason'
         ];
 
@@ -2340,6 +2351,29 @@ exports.updatePlatformSettings = async (req, res, next) => {
 
         if (typeof req.body.autoPayouts === 'boolean') {
             updateData.autoPayouts = req.body.autoPayouts;
+        }
+
+        if (typeof req.body.ratingsEnabled === 'boolean') {
+            updateData.ratingsEnabled = req.body.ratingsEnabled;
+        }
+
+        // Whole-number settings for the cancellation policy and the fake vendors page
+        const integerSettings = {
+            cancellationNoticeDays: { min: 0, label: 'Cancellation notice days' },
+            fakeVendorFreeViews: { min: 0, label: 'Free views of the fake vendors page' },
+            fakeVendorAccessPrice: { min: 1, label: 'Fake vendors page access price' },
+            fakeVendorAccessDays: { min: 1, label: 'Fake vendors page access duration' }
+        };
+        for (const [key, rule] of Object.entries(integerSettings)) {
+            if (req.body[key] === undefined) continue;
+            const num = Number(req.body[key]);
+            if (!Number.isInteger(num) || num < rule.min) {
+                return res.status(400).json({
+                    success: false,
+                    message: `${rule.label} must be a whole number of at least ${rule.min}`
+                });
+            }
+            updateData[key] = num;
         }
 
         updateData.updatedBy = req.user._id;

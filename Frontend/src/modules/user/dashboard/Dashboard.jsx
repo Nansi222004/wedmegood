@@ -4,8 +4,10 @@ import { useTheme } from '../../../hooks/useTheme';
 import { useAuth } from '../../../contexts/AuthContext';
 import Icon from '../../../components/ui/Icon';
 import { userApi } from '../../../services/userApi';
+import usePlatformSettings from '../../../hooks/usePlatformSettings';
 
 const Dashboard = () => {
+  const { ratingsEnabled } = usePlatformSettings();
   const { theme } = useTheme();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -346,9 +348,11 @@ const Dashboard = () => {
                       className="w-full h-full object-cover"
                       loading="lazy"
                     />
+                    {ratingsEnabled && (
                     <div className="absolute top-2 right-2 px-1.5 py-0.5 bg-black/60 backdrop-blur-sm rounded-lg text-white text-[10px] font-bold flex items-center gap-1">
-                      ⭐ {v.rating || '5.0'}
+                      ⭐ {v.rating || 'New'}
                     </div>
+                    )}
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-[#3D2B2B] leading-tight line-clamp-1">
