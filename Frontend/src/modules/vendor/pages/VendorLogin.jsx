@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Icon from '../../../components/ui/Icon';
 import { vendorApi } from '../vendorApi';
 import { useVendorState } from '../useVendorState';
-import VendorSplashScreen from '../components/VendorSplashScreen';
 import { useToast } from '../../../components/ui/Toast';
 
 import loginImg from '../../../assets/login (2).png';
@@ -13,7 +12,6 @@ const VendorLogin = () => {
   const { showToast, ToastComponent } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showSplash, setShowSplash] = useState(true);
   // OTP login
   const [loginMode, setLoginMode] = useState('password'); // 'password' | 'otp'
   const [phone, setPhone] = useState('');
@@ -93,14 +91,6 @@ const VendorLogin = () => {
     setIsOtpSent(false);
     setOtp('');
   };
-
-  const handleSplashComplete = useCallback(() => {
-    setShowSplash(false);
-  }, []);
-
-  if (showSplash) {
-    return <VendorSplashScreen onComplete={handleSplashComplete} />;
-  }
 
   return (
     <div className="w-full min-h-[100dvh] sm:h-auto sm:max-w-xl sm:mx-auto flex flex-col" style={{ fontFamily: "'Poppins', sans-serif" }}>
