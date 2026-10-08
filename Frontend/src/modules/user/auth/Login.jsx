@@ -6,7 +6,7 @@ import { useTheme } from '../../../hooks/useTheme';
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, continueAsGuest } = useAuth();
+  const { login, loginWithOtp, sendPhoneOtp, continueAsGuest } = useAuth();
   const { theme } = useTheme();
   const [formData, setFormData] = useState({
     username: '',
@@ -14,6 +14,12 @@ const Login = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  // OTP login
+  const [loginMode, setLoginMode] = useState('password'); // 'password' | 'otp'
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
 
   const searchParams = new URLSearchParams(location.search);
   const redirectUrl = searchParams.get('redirect');
@@ -26,10 +32,43 @@ const Login = () => {
     document.head.appendChild(link);
   }, []);
 
+  const handleSendOtp = async () => {
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      setError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    setError('');
+    setIsSendingOtp(true);
+    const result = await sendPhoneOtp(phone, 'login');
+    setIsSendingOtp(false);
+    if (result.success) {
+      setIsOtpSent(true);
+      setOtp(result.devOtp || '');
+    } else {
+      setError(result.error);
+    }
+  };
+
+  const switchLoginMode = () => {
+    setLoginMode(loginMode === 'password' ? 'otp' : 'password');
+    setError('');
+    setIsOtpSent(false);
+    setOtp('');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    const result = await login(formData.username, formData.password);
+    if (loginMode === 'otp' && !isOtpSent) {
+      return handleSendOtp();
+    }
+    if (loginMode === 'otp' && otp.length !== 6) {
+      setError('Please enter the 6-digit OTP.');
+      return;
+    }
+    const result = loginMode === 'otp'
+      ? await loginWithOtp(phone, otp)
+      : await login(formData.username, formData.password);
     if (result.success) {
       navigate(redirectUrl || '/user/dashboard');
     } else {
@@ -76,6 +115,58 @@ const Login = () => {
             </div>
           )}
 
+          {loginMode === 'otp' ? (
+          <>
+          {/* Mobile Input */}
+          <div className="relative flex items-center bg-[#F3EBED] rounded-xl border border-transparent focus-within:border-[#59233D]/20 transition-colors">
+            <div className="pl-4 pr-1 text-[#59233D]/60">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="6" y="2" width="12" height="20" rx="2" ry="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+            </div>
+            <span className="pr-2 text-[#301024] text-[12px] font-bold">+91</span>
+            <input
+              type="tel"
+              inputMode="numeric"
+              value={phone}
+              onChange={(e) => {
+                setPhone(e.target.value.replace(/\D/g, '').slice(0, 10));
+                setIsOtpSent(false);
+                setOtp('');
+              }}
+              className="w-full bg-transparent py-3.5 pr-24 text-[#301024] text-[12px] font-bold focus:outline-none placeholder-[#8E95A4]"
+              placeholder="Mobile Number"
+              required
+            />
+            <button
+              type="button"
+              onClick={handleSendOtp}
+              disabled={isSendingOtp || phone.length !== 10}
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-[#59233D] text-white text-[10px] font-bold rounded-full px-3 py-1.5 disabled:opacity-40 transition-opacity"
+            >
+              {isSendingOtp ? 'Sending...' : (isOtpSent ? 'Resend' : 'Send OTP')}
+            </button>
+          </div>
+
+          {/* OTP Input */}
+          {isOtpSent && (
+            <div className="relative flex items-center bg-[#F3EBED] rounded-xl border border-transparent focus-within:border-[#59233D]/20 transition-colors">
+              <div className="pl-4 pr-3 text-[#59233D]/60">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="w-full bg-transparent py-3.5 pr-4 text-[#301024] text-[12px] font-bold tracking-[0.3em] focus:outline-none placeholder-[#8E95A4] placeholder:tracking-normal"
+                placeholder={`OTP sent to +91 ${phone}`}
+                required
+              />
+            </div>
+          )}
+          </>
+          ) : (
+          <>
           {/* Email Input */}
           <div className="relative flex items-center bg-[#F3EBED] rounded-xl border border-transparent focus-within:border-[#59233D]/20 transition-colors">
             <div className="pl-4 pr-3 text-[#59233D]/60">
@@ -126,6 +217,8 @@ const Login = () => {
               Forgot Password?
             </button>
           </div>
+          </>
+          )}
 
           {/* ACTION BUTTON */}
           <button
@@ -133,8 +226,16 @@ const Login = () => {
             className="relative w-full bg-[#59233D] py-3.5 rounded-full text-white font-medium text-sm flex items-center justify-center gap-2 shadow-lg hover:bg-[#43192D] transition-all active:scale-95 overflow-hidden mt-1"
             style={{ fontFamily: '"Playfair Display", serif' }}
           >
-            <span className="text-[15px] font-bold tracking-wide">Login</span>
+            <span className="text-[15px] font-bold tracking-wide">{loginMode === 'otp' && !isOtpSent ? 'Send OTP' : 'Login'}</span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+          </button>
+
+          <button
+            type="button"
+            onClick={switchLoginMode}
+            className="text-[#59233D] text-[10.5px] font-bold hover:underline transition-colors"
+          >
+            {loginMode === 'password' ? 'Login with OTP instead' : 'Login with Email & Password'}
           </button>
         </form>
 

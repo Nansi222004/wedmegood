@@ -1,6 +1,7 @@
 const UserNotification = require('../modules/user/UserNotification');
 const UserActivity = require('../modules/user/UserActivity');
 const User = require('../modules/user/user.model');
+const { sendPushToUser } = require('./push.service');
 
 // Whitelist for navigation routes to prevent open redirect issues
 const ENTITY_ROUTES = {
@@ -52,10 +53,12 @@ async function createNotification({
     }
 
     // Check user preferences if present
+    let pushEnabled = true;
     try {
       const user = await User.findById(userId).select('preferences').lean();
       if (user && user.preferences && user.preferences.notifications) {
         const notifs = user.preferences.notifications;
+        pushEnabled = notifs.push !== false;
         // In-app notifications are created by default unless push/in-app are explicitly disabled
         if (notifs.push === false && notifs.pushEnabled === false && notifs.inAppEnabled === false) {
           // User opted out of non-critical push/in-app alerts, only allow critical payment/booking
@@ -78,6 +81,16 @@ async function createNotification({
       link,
       isRead: false
     });
+
+    if (pushEnabled) {
+      // Fire-and-forget: push delivery must never delay or fail the in-app notification
+      sendPushToUser(userId, {
+        title: notification.title,
+        body: notification.message,
+        link,
+        data: { notificationId: notification._id.toString(), type, entityType }
+      });
+    }
 
     return notification;
   } catch (err) {

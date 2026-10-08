@@ -28,6 +28,24 @@ export const vendorApi = {
         return response.json();
     },
 
+    sendLoginOtp: async (phone) => {
+        const response = await fetch(`${BASE_URL}/send-otp`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone, purpose: 'login' })
+        });
+        return response.json();
+    },
+
+    loginWithOtp: async (phone, otp) => {
+        const response = await fetch(`${BASE_URL}/login-otp`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone, otp })
+        });
+        return response.json();
+    },
+
     verifyRegistrationOtp: async (phone, otp) => {
         const response = await fetch(`${BASE_URL}/verify-otp`, {
             method: 'POST',

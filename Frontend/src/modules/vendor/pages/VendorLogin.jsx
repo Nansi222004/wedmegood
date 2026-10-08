@@ -14,19 +14,69 @@ const VendorLogin = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showSplash, setShowSplash] = useState(true);
+  // OTP login
+  const [loginMode, setLoginMode] = useState('password'); // 'password' | 'otp'
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
 
   const { updateVendorState, refreshData } = useVendorState();
 
+  const completeLogin = (res) => {
+    localStorage.setItem('vendorToken', res.token);
+    updateVendorState({ vendor: res.vendor });
+    refreshData(); // Trigger the /me API to hydrate global context
+    navigate('/vendor/dashboard');
+  };
+
+  const handleSendOtp = async () => {
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      showToast('Please enter a valid 10-digit mobile number.', 'warning');
+      return;
+    }
+    setIsSendingOtp(true);
+    try {
+      const res = await vendorApi.sendLoginOtp(phone);
+      if (res.success) {
+        setIsOtpSent(true);
+        setOtp(res.devOtp || '');
+        showToast(`OTP sent to +91 ${phone}`, 'success');
+      } else {
+        showToast(res.message || 'Failed to send OTP.', 'error');
+      }
+    } catch (err) {
+      showToast('Server error connecting to backend. Please try again.', 'error');
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (loginMode === 'otp') {
+      if (!isOtpSent) return handleSendOtp();
+      if (otp.length !== 6) {
+        showToast('Please enter the 6-digit OTP.', 'warning');
+        return;
+      }
+      try {
+        const res = await vendorApi.loginWithOtp(phone, otp);
+        if (res.success) {
+          completeLogin(res);
+        } else {
+          showToast(res.message || 'Invalid OTP. Please try again.', 'error');
+        }
+      } catch (err) {
+        showToast('Server error connecting to backend. Please try again.', 'error');
+      }
+      return;
+    }
     if (email && password) {
       try {
         const res = await vendorApi.login(email, password);
         if (res.success) {
-          localStorage.setItem('vendorToken', res.token);
-          updateVendorState({ vendor: res.vendor });
-          refreshData(); // Trigger the /me API to hydrate global context
-          navigate('/vendor/dashboard');
+          completeLogin(res);
         } else {
           showToast(res.message || 'Login failed. Please check your credentials.', 'error');
         }
@@ -36,6 +86,12 @@ const VendorLogin = () => {
     } else {
       showToast('Please enter your credentials.', 'warning');
     }
+  };
+
+  const switchLoginMode = () => {
+    setLoginMode(loginMode === 'password' ? 'otp' : 'password');
+    setIsOtpSent(false);
+    setOtp('');
   };
 
   const handleSplashComplete = useCallback(() => {
@@ -88,6 +144,62 @@ const VendorLogin = () => {
           </div>
 
           <form onSubmit={handleLogin} className="w-full space-y-5">
+            {loginMode === 'otp' ? (
+            <>
+            <div className="space-y-1.5">
+              <label className="text-[10.5px] font-bold uppercase tracking-wider text-slate-500 block ml-1">Mobile Number</label>
+              <div className="relative group flex items-center">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-[#4F35C3]">
+                  <Icon name="phone" size="sm" color="current" />
+                </div>
+                <div className="absolute inset-y-0 left-10 flex items-center pointer-events-none">
+                  <span className="text-xs sm:text-sm font-semibold text-slate-500">+91</span>
+                </div>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  className="w-full rounded-xl pl-[4.2rem] pr-24 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold border border-slate-200 bg-slate-50/20 focus:border-[#4F35C3] focus:bg-white focus:ring-2 focus:ring-[#4F35C3]/5 outline-none transition-all duration-150 placeholder-slate-400"
+                  placeholder="9876543210"
+                  value={phone}
+                  onChange={(e) => {
+                    setPhone(e.target.value.replace(/\D/g, '').slice(0, 10));
+                    setIsOtpSent(false);
+                    setOtp('');
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={handleSendOtp}
+                  disabled={isSendingOtp || phone.length !== 10}
+                  className="absolute right-1.5 px-3 py-1 bg-[#4F35C3] text-white rounded-lg text-[10px] font-bold shadow-sm hover:bg-[#3f2aa6] disabled:opacity-50 transition-all"
+                >
+                  {isSendingOtp ? 'Sending...' : (isOtpSent ? 'Resend' : 'Send OTP')}
+                </button>
+              </div>
+            </div>
+
+            {isOtpSent && (
+            <div className="space-y-1.5">
+              <label className="text-[10.5px] font-bold uppercase tracking-wider text-slate-500 block ml-1">OTP</label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 group-focus-within:text-[#4F35C3]">
+                  <Icon name="lock" size="sm" color="current" />
+                </div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  className="w-full rounded-xl pl-10 pr-4 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold tracking-[0.3em] border border-slate-200 bg-slate-50/20 focus:border-[#4F35C3] focus:bg-white focus:ring-2 focus:ring-[#4F35C3]/5 outline-none transition-all duration-150 placeholder-slate-400 placeholder:tracking-normal"
+                  placeholder="Enter 6-digit OTP"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                />
+              </div>
+            </div>
+            )}
+            </>
+            ) : (
+            <>
             <div className="space-y-1.5">
               <label className="text-[10.5px] font-bold uppercase tracking-wider text-slate-500 block ml-1">Email Address</label>
               <div className="relative group">
@@ -122,9 +234,19 @@ const VendorLogin = () => {
                 />
               </div>
             </div>
+            </>
+            )}
 
             <button type="submit" className="w-full mt-6 rounded-xl py-3 text-[13px] sm:text-sm font-extrabold text-white transition-all duration-200 bg-[#4F35C3] shadow-sm hover:shadow-[0_4px_16px_rgba(79,53,195,0.25)] hover:brightness-105 active:scale-[0.98] flex items-center justify-center gap-2">
-              Sign In ✨
+              {loginMode === 'otp' && !isOtpSent ? 'Send OTP' : 'Sign In'} ✨
+            </button>
+
+            <button
+              type="button"
+              onClick={switchLoginMode}
+              className="w-full text-center text-[11px] sm:text-xs font-extrabold text-[#4F35C3] hover:text-[#3f2aa6] hover:underline transition-colors"
+            >
+              {loginMode === 'password' ? 'Login with OTP instead' : 'Login with Email & Password'}
             </button>
           </form>
 

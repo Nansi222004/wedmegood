@@ -7,6 +7,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './components/ui/Toast';
 import AppRouter from './router/index.jsx';
 import UserSplashScreen from './components/common/UserSplashScreen';
+import PushNotificationManager from './components/common/PushNotificationManager';
 import './App.css';
 
 function App() {
@@ -38,6 +39,7 @@ function App() {
                   {showSplash && (
                     <UserSplashScreen onComplete={handleSplashComplete} />
                   )}
+                  <PushNotificationManager />
                   <AppRouter />
                 </div>
               </BrowserRouter>

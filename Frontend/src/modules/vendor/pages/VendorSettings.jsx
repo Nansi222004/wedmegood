@@ -3,6 +3,7 @@ import Icon from '../../../components/ui/Icon';
 import { useVendorState } from '../useVendorState';
 import { vendorApi } from '../vendorApi';
 import ConfirmModal from '../../../components/ui/ConfirmModal';
+import { registerPushToken } from '../../../services/pushNotifications';
 
 const VendorSettings = () => {
     const { vendorState, refreshData } = useVendorState();
@@ -78,6 +79,11 @@ const VendorSettings = () => {
         };
         setSettings({ ...settings, notifications: updatedNotifications });
         handleUpdate({ notifications: updatedNotifications });
+
+        if (type === 'push' && updatedNotifications.push) {
+            // Runs inside the click so browsers that require a user gesture can show the permission prompt
+            registerPushToken({ role: 'vendor', prompt: true });
+        }
     };
 
     const handlePasswordChange = async (e) => {

@@ -4,11 +4,200 @@ const { validationResult } = require('express-validator');
 const User = require('./user.model');
 const FamilyGroup = require('./FamilyGroup');
 const { sendVerificationEmail, sendWelcomeEmail } = require('../../utils/emailService');
-const { generateOTP, storeOTP, verifyOTP } = require('../../utils/otpService');
+const {
+  generateOTP,
+  storeOTP,
+  verifyOTP,
+  clearOTP,
+  sendSMSOTP,
+  checkRateLimit,
+  isDevOtpMode,
+  issuePhoneVerificationToken,
+  isPhoneVerificationTokenValid
+} = require('../../utils/otpService');
 
 // JWT Secret Key
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const JWT_EXPIRE = process.env.JWT_EXPIRE || '7d';
+
+// OTP store namespaces per purpose
+const USER_OTP_TYPES = { register: 'user_reg', login: 'user_login' };
+
+const sendValidationErrors = (req, res) => {
+  const errors = validationResult(req);
+  if (errors.isEmpty()) return false;
+  res.status(400).json({
+    success: false,
+    message: errors.array()[0]?.msg || 'Validation failed',
+    errors: errors.array()
+  });
+  return true;
+};
+
+// Issue a JWT, record the login and send the standard login payload
+const sendLoginResponse = async (user, res) => {
+  const token = jwt.sign(
+    { id: user._id, email: user.email },
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRE }
+  );
+
+  user.lastLogin = new Date();
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Login successful',
+    data: {
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        weddingDate: user.weddingDate,
+        city: user.city,
+        isEmailVerified: user.isEmailVerified,
+        isPhoneVerified: user.isPhoneVerified,
+        profileImage: user.profileImage,
+        loginTime: new Date().toISOString()
+      },
+      token
+    }
+  });
+};
+
+const isOtpAccepted = (phone, otp, otpType) =>
+  (isDevOtpMode() && otp === '123456') || verifyOTP(phone, String(otp), otpType);
+
+// @desc    Send a mobile OTP for signup or login
+// @route   POST /api/user/auth/send-otp   body: { phone, purpose: 'register' | 'login' }
+// @access  Public
+exports.sendOtp = async (req, res) => {
+  try {
+    if (sendValidationErrors(req, res)) return;
+
+    const { phone, purpose } = req.body;
+    const otpType = USER_OTP_TYPES[purpose];
+
+    const user = await User.findOne({ phone });
+    if (purpose === 'register' && user) {
+      return res.status(400).json({
+        success: false,
+        message: 'An account with this mobile number already exists. Please login instead.'
+      });
+    }
+    if (purpose === 'login') {
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'No account found with this mobile number. Please sign up first.'
+        });
+      }
+      if (!user.isActive || user.isBlocked) {
+        return res.status(401).json({
+          success: false,
+          message: 'Your account has been deactivated. Please contact support.'
+        });
+      }
+    }
+
+    const rateLimitResult = checkRateLimit(phone, otpType);
+    if (!rateLimitResult.allowed) {
+      return res.status(429).json({ success: false, message: rateLimitResult.message });
+    }
+
+    const otp = generateOTP();
+    storeOTP(phone, otp, otpType, 10);
+    const smsResult = await sendSMSOTP(phone, otp, user?.name || 'New User');
+    if (!smsResult.success) {
+      clearOTP(phone, otpType);
+      return res.status(502).json({
+        success: false,
+        message: 'Could not send OTP right now. Please try again shortly.'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'OTP sent successfully',
+      ...(isDevOtpMode() && { devOtp: otp })
+    });
+  } catch (error) {
+    console.error('Send OTP error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while sending OTP',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Verify a signup OTP; returns a short-lived token that /register requires
+// @route   POST /api/user/auth/verify-otp   body: { phone, otp }
+// @access  Public
+exports.verifySignupOtp = async (req, res) => {
+  try {
+    if (sendValidationErrors(req, res)) return;
+
+    const { phone, otp } = req.body;
+    if (!isOtpAccepted(phone, otp, USER_OTP_TYPES.register)) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Mobile number verified successfully',
+      data: { phoneVerificationToken: issuePhoneVerificationToken(phone, 'user_register') }
+    });
+  } catch (error) {
+    console.error('Verify signup OTP error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while verifying OTP',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Login with mobile OTP
+// @route   POST /api/user/auth/login-otp   body: { phone, otp }
+// @access  Public
+exports.loginWithOtp = async (req, res) => {
+  try {
+    if (sendValidationErrors(req, res)) return;
+
+    const { phone, otp } = req.body;
+    if (!isOtpAccepted(phone, otp, USER_OTP_TYPES.login)) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    }
+
+    const user = await User.findOne({ phone });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No account found with this mobile number. Please sign up first.'
+      });
+    }
+    if (!user.isActive || user.isBlocked) {
+      return res.status(401).json({
+        success: false,
+        message: 'Your account has been deactivated. Please contact support.'
+      });
+    }
+
+    // Logging in by OTP proves ownership of the number
+    user.isPhoneVerified = true;
+    await sendLoginResponse(user, res);
+  } catch (error) {
+    console.error('OTP login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during login',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
 
 // @desc    Register a new user
 // @route   POST /api/auth/register
@@ -25,7 +214,14 @@ exports.register = async (req, res) => {
       });
     }
 
-    const { name, email, phone, password, weddingDate, city } = req.body;
+    const { name, email, phone, password, weddingDate, city, phoneVerificationToken } = req.body;
+
+    if (!isPhoneVerificationTokenValid(phoneVerificationToken, phone, 'user_register')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please verify your mobile number with OTP first.'
+      });
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ 
@@ -39,13 +235,9 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Generate email verification OTP
+    // Generate email verification OTP (phone was already verified via /send-otp + /verify-otp)
     const emailOTP = generateOTP();
-    const phoneOTP = generateOTP();
-
-    // Store OTPs
     storeOTP(email, emailOTP, 'email');
-    storeOTP(phone, phoneOTP, 'phone');
 
     // Create user
     const user = new User({
@@ -56,9 +248,8 @@ exports.register = async (req, res) => {
       weddingDate: weddingDate ? new Date(weddingDate) : null,
       city,
       isEmailVerified: false,
-      isPhoneVerified: false,
-      emailOTP,
-      phoneOTP
+      isPhoneVerified: true,
+      emailOTP
     });
 
     await user.save();
@@ -66,9 +257,8 @@ exports.register = async (req, res) => {
     // Safeguard 1: Do not auto-link invitations on unverified registration.
     // Joining requires explicit acceptance via secure invitation token or verified contact ownership.
 
-    // Send verification emails
+    // Send verification email
     await sendVerificationEmail(email, name, emailOTP);
-    // Send SMS for phone verification (you can implement SMS service here)
 
     // Generate JWT token
     const token = jwt.sign(
@@ -79,7 +269,7 @@ exports.register = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'User registered successfully. Please verify your email and phone.',
+      message: 'User registered successfully. Please verify your email.',
       data: {
         user: {
           id: user._id,
@@ -122,15 +312,20 @@ exports.login = async (req, res) => {
       });
     }
 
-    const { email, password } = req.body;
+    const { email: identifier, password } = req.body;
 
-    // Find user by email
-    const user = await User.findOne({ email }).select('+password');
+    // Identifier may be an email or a mobile number (with optional +91/0 prefix)
+    const isEmail = identifier.includes('@');
+    const query = isEmail
+      ? { email: identifier.toLowerCase() }
+      : { phone: identifier.replace(/[\s-]/g, '').replace(/^(\+91|91|0)(?=\d{10}$)/, '') };
+
+    const user = await User.findOne(query).select('+password');
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password'
+        message: 'Invalid email/mobile number or password'
       });
     }
 
@@ -140,7 +335,7 @@ exports.login = async (req, res) => {
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password'
+        message: 'Invalid email/mobile number or password'
       });
     }
 
@@ -152,37 +347,7 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: user._id, email: user.email },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRE }
-    );
-
-    // Update last login
-    user.lastLogin = new Date();
-    await user.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'Login successful',
-      data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          role: user.role,
-          weddingDate: user.weddingDate,
-          city: user.city,
-          isEmailVerified: user.isEmailVerified,
-          isPhoneVerified: user.isPhoneVerified,
-          profileImage: user.profileImage,
-          loginTime: new Date().toISOString()
-        },
-        token
-      }
-    });
+    await sendLoginResponse(user, res);
 
   } catch (error) {
     console.error('Login error:', error);
@@ -336,9 +501,16 @@ exports.resendOTP = async (req, res) => {
       });
     }
 
+    if (otpType === 'phone') {
+      const rateLimitResult = checkRateLimit(phone, 'phone');
+      if (!rateLimitResult.allowed) {
+        return res.status(429).json({ success: false, message: rateLimitResult.message });
+      }
+    }
+
     // Generate new OTP
     const newOTP = generateOTP();
-    
+
     // Store new OTP
     storeOTP(identifier, newOTP, otpType);
 
@@ -348,7 +520,14 @@ exports.resendOTP = async (req, res) => {
       await sendVerificationEmail(email, user.name, newOTP);
     } else {
       user.phoneOTP = newOTP;
-      // Send SMS for phone verification (implement SMS service)
+      const smsResult = await sendSMSOTP(phone, newOTP, user.name);
+      if (!smsResult.success) {
+        clearOTP(phone, 'phone');
+        return res.status(502).json({
+          success: false,
+          message: 'Could not send OTP right now. Please try again shortly.'
+        });
+      }
     }
 
     await user.save();
@@ -357,7 +536,8 @@ exports.resendOTP = async (req, res) => {
       success: true,
       message: `OTP resent successfully to your ${otpType}`,
       data: {
-        identifier: identifier.replace(/(.{3}).*(.{4})/, '$1****$2') // Mask sensitive info
+        identifier: identifier.replace(/(.{3}).*(.{4})/, '$1****$2'), // Mask sensitive info
+        ...(otpType === 'phone' && isDevOtpMode() && { devOtp: newOTP })
       }
     });
 

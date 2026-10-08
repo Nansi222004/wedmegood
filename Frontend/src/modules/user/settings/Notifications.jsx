@@ -4,6 +4,7 @@ import { useTheme } from '../../../hooks/useTheme';
 import Icon from '../../../components/ui/Icon';
 import { useToast } from '../../../components/ui/Toast';
 import { userApi } from '../../../services/userApi';
+import { registerPushToken } from '../../../services/pushNotifications';
 
 const Notifications = () => {
   const { theme } = useTheme();
@@ -111,6 +112,15 @@ const Notifications = () => {
     setSettings(updated);
 
     showToast(`${label} ${newValue ? 'enabled' : 'disabled'}`, 'info', 1500);
+
+    if (key === 'pushEnabled' && newValue) {
+      // Runs inside the click so browsers that require a user gesture can show the permission prompt
+      registerPushToken({ prompt: true }).then((token) => {
+        if (!token && typeof Notification !== 'undefined' && Notification.permission === 'denied') {
+          showToast('Notifications are blocked in your browser settings', 'warning', 3000);
+        }
+      });
+    }
 
     try {
       await userApi.updateUserPreferences({ notifications: updated });

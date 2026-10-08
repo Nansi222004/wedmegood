@@ -17,43 +17,68 @@ const Service = require('./Service');
 const jwt = require('jsonwebtoken');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
-const { generateOTP, storeOTP, verifyOTP, sendSMSOTP, checkRateLimit } = require('../../utils/otpService');
+const {
+    generateOTP,
+    storeOTP,
+    verifyOTP,
+    clearOTP,
+    sendSMSOTP,
+    checkRateLimit,
+    isDevOtpMode,
+    issuePhoneVerificationToken,
+    isPhoneVerificationTokenValid
+} = require('../../utils/otpService');
 
 const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
     key_secret: process.env.RAZORPAY_KEY_SECRET
 });
 
-// @desc    Send Registration OTP
-// @route   POST /api/vendor/send-otp
+// OTP store namespaces per purpose
+const VENDOR_OTP_TYPES = { register: 'phone_reg', login: 'vendor_login' };
+
+// @desc    Send OTP for registration (default) or login
+// @route   POST /api/vendor/send-otp   body: { phone, purpose?: 'register' | 'login' }
 // @access  Public
 exports.sendRegistrationOtp = async (req, res, next) => {
     try {
-        const { phone } = req.body;
+        const { phone, purpose = 'register' } = req.body;
         const phoneRegex = /^[6-9]\d{9}$/;
-        
+
         if (!phone || !phoneRegex.test(phone)) {
             return res.status(400).json({ success: false, message: 'Invalid phone number format.' });
         }
 
-        const phoneExists = await Vendor.findOne({ phone });
-        if (phoneExists) {
-            return res.status(400).json({ success: false, message: 'Phone number already registered.' });
+        const otpType = VENDOR_OTP_TYPES[purpose];
+        if (!otpType) {
+            return res.status(400).json({ success: false, message: 'Invalid OTP purpose.' });
         }
 
-        const rateLimitResult = checkRateLimit(phone, 'phone_reg');
+        const vendor = await Vendor.findOne({ phone });
+        if (purpose === 'register' && vendor) {
+            return res.status(400).json({ success: false, message: 'Phone number already registered.' });
+        }
+        if (purpose === 'login' && !vendor) {
+            return res.status(404).json({ success: false, message: 'No vendor account found with this mobile number.' });
+        }
+
+        const rateLimitResult = checkRateLimit(phone, otpType);
         if (!rateLimitResult.allowed) {
             return res.status(429).json({ success: false, message: rateLimitResult.message });
         }
 
         const otp = generateOTP();
-        storeOTP(phone, otp, 'phone_reg', 10);
-        await sendSMSOTP(phone, otp, 'New Vendor');
+        storeOTP(phone, otp, otpType, 10);
+        const smsResult = await sendSMSOTP(phone, otp, vendor?.fullName || 'New Vendor');
+        if (!smsResult.success) {
+            clearOTP(phone, otpType);
+            return res.status(502).json({ success: false, message: 'Could not send OTP right now. Please try again shortly.' });
+        }
 
         res.status(200).json({
             success: true,
             message: 'OTP sent successfully',
-            ...(process.env.NODE_ENV !== 'production' && { devOtp: otp })
+            ...(isDevOtpMode() && { devOtp: otp })
         });
     } catch (err) {
         next(err);
@@ -66,19 +91,52 @@ exports.sendRegistrationOtp = async (req, res, next) => {
 exports.verifyRegistrationOtp = async (req, res, next) => {
     try {
         const { phone, otp } = req.body;
-        
+
         if (!phone || !otp) {
             return res.status(400).json({ success: false, message: 'Phone and OTP are required' });
         }
 
-        const isMasterDevOtp = process.env.NODE_ENV !== 'production' && otp === '123456';
-        const isValid = isMasterDevOtp || verifyOTP(phone, otp, 'phone_reg');
-        
+        const isMasterDevOtp = isDevOtpMode() && otp === '123456';
+        const isValid = isMasterDevOtp || verifyOTP(phone, String(otp), VENDOR_OTP_TYPES.register);
+
         if (!isValid) {
             return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
         }
 
-        res.status(200).json({ success: true, message: 'OTP verified successfully' });
+        res.status(200).json({
+            success: true,
+            message: 'OTP verified successfully',
+            phoneVerificationToken: issuePhoneVerificationToken(phone, 'vendor_register')
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Login vendor with mobile OTP
+// @route   POST /api/vendor/login-otp   body: { phone, otp }
+// @access  Public
+exports.loginWithOtp = async (req, res, next) => {
+    try {
+        const { phone, otp } = req.body;
+
+        if (!phone || !otp) {
+            return res.status(400).json({ success: false, message: 'Phone and OTP are required' });
+        }
+
+        const isMasterDevOtp = isDevOtpMode() && otp === '123456';
+        const isValid = isMasterDevOtp || verifyOTP(phone, String(otp), VENDOR_OTP_TYPES.login);
+
+        if (!isValid) {
+            return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+        }
+
+        const vendor = await Vendor.findOne({ phone });
+        if (!vendor) {
+            return res.status(404).json({ success: false, message: 'No vendor account found with this mobile number.' });
+        }
+
+        sendTokenResponse(vendor, 200, res);
     } catch (err) {
         next(err);
     }
@@ -97,6 +155,13 @@ exports.register = async (req, res, next) => {
             return res.status(400).json({
                 success: false,
                 message: 'Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9'
+            });
+        }
+
+        if (!isPhoneVerificationTokenValid(req.body.phoneVerificationToken, phone, 'vendor_register')) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please verify your mobile number with OTP first.'
             });
         }
 
@@ -1941,7 +2006,7 @@ exports.deactivateAccount = async (req, res, next) => {
 exports.updateSettings = async (req, res, next) => {
     try {
         // Prevent sensitive fields from being updated via this route
-        const forbiddenFields = ['password', 'role', 'status', 'isVerified', 'subscription', 'email'];
+        const forbiddenFields = ['password', 'role', 'status', 'isVerified', 'subscription', 'email', 'fcmTokens'];
         const updateData = { ...req.body };
 
         forbiddenFields.forEach(field => delete updateData[field]);

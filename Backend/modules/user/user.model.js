@@ -166,6 +166,20 @@ const userSchema = new mongoose.Schema({
     }
   },
 
+  // FCM push tokens, kept separately per platform
+  fcmTokens: {
+    web: {
+      type: [String],
+      default: [],
+      select: false
+    },
+    app: {
+      type: [String],
+      default: [],
+      select: false
+    }
+  },
+
   // Family connections
   familyMembers: [{
     name: String,
@@ -280,6 +294,8 @@ userSchema.index({ city: 1 });
 userSchema.index({ weddingDate: 1 });
 userSchema.index({ createdAt: -1 });
 userSchema.index({ lastLogin: -1 });
+userSchema.index({ 'fcmTokens.web': 1 });
+userSchema.index({ 'fcmTokens.app': 1 });
 
 // Pre-save middleware
 userSchema.pre('save', async function () {

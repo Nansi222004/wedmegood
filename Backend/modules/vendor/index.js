@@ -1,10 +1,12 @@
 const express = require('express');
 const { upload } = require('../../utils/cloudinary');
+const { createFcmTokenHandlers } = require('../../utils/fcmTokenHandlers');
 const {
     register,
     login,
     sendRegistrationOtp,
     verifyRegistrationOtp,
+    loginWithOtp,
     updateOnboarding,
     getMe,
     uploadMedia,
@@ -74,6 +76,7 @@ router.post('/register', register);
 router.post('/login', login);
 router.post('/send-otp', sendRegistrationOtp);
 router.post('/verify-otp', verifyRegistrationOtp);
+router.post('/login-otp', loginWithOtp);
 router.get('/me', protectVendor, getMe);
 router.get('/banners', protectVendor, getDashboardBanners);
 router.post('/upload', protectVendor, upload.single('file'), uploadMedia);
@@ -157,6 +160,11 @@ router.put('/reviews/:id/reply', protectVendor, requireSubscription, requireVend
 // Notifications
 router.get('/notifications', protectVendor, getNotifications);
 router.put('/notifications/:id/read', protectVendor, markNotificationRead);
+
+// Push notification device tokens: body { token, platform: 'web' | 'app' }
+const vendorFcm = createFcmTokenHandlers('vendor', (req) => req.vendor._id);
+router.post('/fcm-token', protectVendor, vendorFcm.saveFcmToken);
+router.delete('/fcm-token', protectVendor, vendorFcm.removeFcmToken);
 
 // Chat & Messaging
 router.get('/conversations', protectVendor, requireSubscription, requireVendorApproval, getConversations);

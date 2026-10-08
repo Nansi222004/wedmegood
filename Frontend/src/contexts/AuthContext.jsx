@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { unregisterPushToken } from '../services/pushNotifications';
 
 const AuthContext = createContext();
 
@@ -103,7 +104,56 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const postAuth = async (path, body) => {
+    const response = await fetch(`${API_BASE_URL}/user/auth/${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || (data.errors ? data.errors.map(e => e.msg).join(', ') : 'Request failed'));
+    }
+    return data;
+  };
+
+  // purpose: 'register' | 'login'
+  const sendPhoneOtp = async (phone, purpose) => {
+    try {
+      const data = await postAuth('send-otp', { phone, purpose });
+      return { success: true, devOtp: data.devOtp };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const verifySignupOtp = async (phone, otp) => {
+    try {
+      const data = await postAuth('verify-otp', { phone, otp });
+      return { success: true, phoneVerificationToken: data.data.phoneVerificationToken };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const loginWithOtp = async (phone, otp) => {
+    try {
+      const data = await postAuth('login-otp', { phone, otp });
+      const userData = {
+        ...data.data.user,
+        token: data.data.token,
+        isAuthenticated: true
+      };
+      localStorage.setItem('user', JSON.stringify(userData));
+      setUser(userData);
+      return { success: true, user: userData };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
   const logout = () => {
+    unregisterPushToken('user');
     localStorage.removeItem('user');
     setUser(null);
   };
@@ -147,6 +197,9 @@ export const AuthProvider = ({ children }) => {
     isLoading,
     login,
     register,
+    sendPhoneOtp,
+    verifySignupOtp,
+    loginWithOtp,
     logout,
     updateUser,
     continueAsGuest,

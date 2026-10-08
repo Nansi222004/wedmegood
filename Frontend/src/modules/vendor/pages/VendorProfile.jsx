@@ -5,6 +5,7 @@ import { computeProfileCompletion } from '../vendorStore';
 import Icon from '../../../components/ui/Icon';
 import { adminApi } from '../../admin/services/adminApi';
 import { useToast } from '../../../components/ui/Toast';
+import { unregisterPushToken } from '../../../services/pushNotifications';
 
 const VendorProfile = () => {
   const { vendorState, updateVendorState, refreshData } = useVendorState();
@@ -429,6 +430,7 @@ const VendorProfile = () => {
         </div>
         <button 
           onClick={() => {
+            unregisterPushToken('vendor');
             localStorage.removeItem('vendorToken');
             window.location.href = '/vendor/login';
           }}

@@ -181,6 +181,11 @@ const vendorSchema = new mongoose.Schema({
         email: { type: Boolean, default: true },
         whatsapp: { type: Boolean, default: true }
     },
+    // FCM push tokens, kept separately per platform
+    fcmTokens: {
+        web: { type: [String], default: [], select: false },
+        app: { type: [String], default: [], select: false }
+    },
     isActive: {
         type: Boolean,
         default: true
@@ -198,6 +203,9 @@ const vendorSchema = new mongoose.Schema({
 }, {
     timestamps: true
 });
+
+vendorSchema.index({ 'fcmTokens.web': 1 });
+vendorSchema.index({ 'fcmTokens.app': 1 });
 
 // Encrypt password using bcrypt
 vendorSchema.pre('save', async function () {

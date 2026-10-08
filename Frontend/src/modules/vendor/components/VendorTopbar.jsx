@@ -19,8 +19,9 @@ const VendorTopbar = ({ onMenuClick }) => {
 
   // Load notifications
   useEffect(() => {
-    const token = localStorage.getItem('vendorToken');
-    if (token) {
+    const loadNotifications = () => {
+      const token = localStorage.getItem('vendorToken');
+      if (!token) return;
       vendorApi.getNotifications(token)
         .then(res => {
           if (res.success && Array.isArray(res.data)) {
@@ -28,7 +29,12 @@ const VendorTopbar = ({ onMenuClick }) => {
           }
         })
         .catch(() => {});
-    }
+    };
+
+    loadNotifications();
+    // Refresh when a push notification arrives while the portal is open
+    window.addEventListener('vendor-notifications-updated', loadNotifications);
+    return () => window.removeEventListener('vendor-notifications-updated', loadNotifications);
   }, [vendorState?.status]);
 
   const defaultNotifications = notifications.length > 0 ? notifications : [

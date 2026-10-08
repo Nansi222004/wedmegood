@@ -758,7 +758,6 @@ export const userApi = {
   markAllNotificationsRead: async () => {
     return request('/user/notifications/read-all', { method: 'PUT' });
   },
-
   getUserActivities: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return request(`/user/activities${query ? `?${query}` : ''}`, { method: 'GET' });

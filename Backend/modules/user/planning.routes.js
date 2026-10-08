@@ -150,6 +150,8 @@ router.get('/notifications/unread-count', notificationController.getUnreadNotifi
 router.put('/notifications/read-all', notificationController.markAllNotificationsRead);
 router.put('/notifications/:id/read', notificationController.markNotificationRead);
 router.get('/activities', notificationController.getUserActivities);
+router.post('/fcm-token', notificationController.saveFcmToken);
+router.delete('/fcm-token', notificationController.removeFcmToken);
 
 module.exports = router;
 

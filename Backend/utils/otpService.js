@@ -1,4 +1,6 @@
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
+const { isSmsConfigured, sendOtpSms } = require('./smsService');
 
 // In-memory OTP storage (in production, use Redis or database)
 const otpStore = new Map();
@@ -198,30 +200,42 @@ const checkRateLimit = (identifier, type, maxRequests = 3, windowMs = 5 * 60 * 1
   };
 };
 
-// Mock SMS service for phone OTP (in production, integrate with actual SMS provider)
+// Send an OTP over SMS via SMS India Hub. Without SMSINDIAHUB_API_KEY (local development)
+// the OTP is only logged, and callers may expose it through isDevOtpMode().
 const sendSMSOTP = async (phone, otp, name) => {
+  if (!isSmsConfigured()) {
+    console.log(`MOCK SMS (SMSINDIAHUB_API_KEY not set): OTP ${otp} for ${phone} (${name})`);
+    return { success: true, message: 'SMS mocked' };
+  }
+
   try {
-    // This is a mock implementation
-    // In production, integrate with services like Twilio, AWS SNS, or local SMS providers
-    
-    console.log(`MOCK SMS: Sending OTP ${otp} to ${phone} for ${name}`);
-    
-    // Example with Twilio (commented out for demo):
-    /*
-    const twilio = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-    
-    await twilio.messages.create({
-      body: `Your Utsavo verification code is: ${otp}. Valid for 10 minutes.`,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: `+91${phone}`
-    });
-    */
-    
-    return { success: true, message: 'SMS sent successfully' };
-    
+    const { jobId } = await sendOtpSms(phone, otp);
+    console.log(`OTP SMS sent to ${phone.slice(0, 2)}******${phone.slice(-2)} (job ${jobId})`);
+    return { success: true, message: 'SMS sent successfully', jobId };
   } catch (error) {
-    console.error('SMS sending error:', error);
+    console.error('SMS sending error:', error.message);
     return { success: false, error: error.message };
+  }
+};
+
+// Dev conveniences (returning the OTP in the API response, master OTP 123456) are only
+// allowed outside production AND when no real SMS gateway is configured.
+const isDevOtpMode = () => process.env.NODE_ENV !== 'production' && !isSmsConfigured();
+
+// Short-lived proof that a phone number passed OTP verification, handed to the
+// client by the verify-otp endpoints and required by the register endpoints.
+const phoneTokenSecret = () => process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+const issuePhoneVerificationToken = (phone, purpose, expiresIn = '30m') =>
+  jwt.sign({ phone, purpose, type: 'phone-verification' }, phoneTokenSecret(), { expiresIn });
+
+const isPhoneVerificationTokenValid = (token, phone, purpose) => {
+  if (!token) return false;
+  try {
+    const decoded = jwt.verify(token, phoneTokenSecret());
+    return decoded.type === 'phone-verification' && decoded.phone === phone && decoded.purpose === purpose;
+  } catch {
+    return false;
   }
 };
 
@@ -266,6 +280,9 @@ module.exports = {
   generateCustomOTP,
   checkRateLimit,
   sendSMSOTP,
+  isDevOtpMode,
+  issuePhoneVerificationToken,
+  isPhoneVerificationTokenValid,
   validatePhoneNumber,
   validateEmail,
   generatePatternOTP

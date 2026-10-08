@@ -6,7 +6,7 @@ import { useTheme } from '../../../hooks/useTheme';
 const Signup = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { register } = useAuth();
+  const { register, sendPhoneOtp, verifySignupOtp } = useAuth();
   const { theme } = useTheme();
   const [formData, setFormData] = useState({
     name: '',
@@ -18,6 +18,13 @@ const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState('');
+  // Phone OTP verification
+  const [otp, setOtp] = useState('');
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [phoneVerificationToken, setPhoneVerificationToken] = useState('');
+  const isPhoneVerified = Boolean(phoneVerificationToken);
 
   const searchParams = new URLSearchParams(location.search);
   const redirectUrl = searchParams.get('redirect');
@@ -30,12 +37,50 @@ const Signup = () => {
     document.head.appendChild(link);
   }, []);
 
+  const handleSendOtp = async () => {
+    if (!/^[6-9]\d{9}$/.test(formData.phone)) {
+      setError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    setError('');
+    setIsSendingOtp(true);
+    const result = await sendPhoneOtp(formData.phone, 'register');
+    setIsSendingOtp(false);
+    if (result.success) {
+      setIsOtpSent(true);
+      setOtp(result.devOtp || '');
+    } else {
+      setError(result.error);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otp.length !== 6) {
+      setError('Please enter the 6-digit OTP.');
+      return;
+    }
+    setError('');
+    setIsVerifyingOtp(true);
+    const result = await verifySignupOtp(formData.phone, otp);
+    setIsVerifyingOtp(false);
+    if (result.success) {
+      setPhoneVerificationToken(result.phoneVerificationToken);
+      setIsOtpSent(false);
+    } else {
+      setError(result.error);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!agreed) return;
+    if (!isPhoneVerified) {
+      setError('Please verify your mobile number with OTP first.');
+      return;
+    }
     setError('');
-    
-    const result = await register(formData);
+
+    const result = await register({ ...formData, phoneVerificationToken });
     if (result.success) {
       navigate(redirectUrl || '/user/wedding-details');
     } else {
@@ -89,15 +134,60 @@ const Signup = () => {
 
           <div className="space-y-1">
             <label className="text-[#5D3E3E] text-xs font-bold pl-1" style={{ fontFamily: '"Playfair Display", serif' }}>Phone Number :</label>
-            <input
-              type="tel"
-              value={formData.phone}
-              onChange={(e) => setFormData({...formData, phone: e.target.value})}
-              className="w-full bg-white rounded-xl py-3.5 px-5 text-[#5D3E3E] text-sm font-semibold shadow-sm focus:ring-2 focus:ring-[#5D3E3E]/20 transition-all border-none placeholder-[#BE9B9B]"
-              placeholder="10-digit mobile number"
-              required
-            />
+            <div className="relative">
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={formData.phone}
+                onChange={(e) => {
+                  setFormData({...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10)});
+                  setIsOtpSent(false);
+                  setOtp('');
+                  setPhoneVerificationToken('');
+                }}
+                className={`w-full bg-white rounded-xl py-3.5 px-5 pr-28 text-[#5D3E3E] text-sm font-semibold shadow-sm focus:ring-2 focus:ring-[#5D3E3E]/20 transition-all placeholder-[#BE9B9B] ${isPhoneVerified ? 'border border-green-500' : 'border-none'}`}
+                placeholder="10-digit mobile number"
+                required
+              />
+              {isPhoneVerified ? (
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-green-600 text-[11px] font-bold">✓ Verified</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSendOtp}
+                  disabled={isSendingOtp || formData.phone.length !== 10}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-[#5D3E3E] text-white text-[10px] font-bold uppercase tracking-wider rounded-lg px-3 py-2 disabled:opacity-40 transition-opacity"
+                >
+                  {isSendingOtp ? 'Sending...' : (isOtpSent ? 'Resend' : 'Send OTP')}
+                </button>
+              )}
+            </div>
           </div>
+
+          {isOtpSent && !isPhoneVerified && (
+            <div className="space-y-1">
+              <label className="text-[#5D3E3E] text-xs font-bold pl-1" style={{ fontFamily: '"Playfair Display", serif' }}>OTP :</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="w-full bg-white rounded-xl py-3.5 px-5 pr-28 text-[#5D3E3E] text-sm font-semibold tracking-[0.3em] shadow-sm focus:ring-2 focus:ring-[#5D3E3E]/20 transition-all border-none placeholder-[#BE9B9B] placeholder:tracking-normal"
+                  placeholder={`OTP sent to +91 ${formData.phone}`}
+                />
+                <button
+                  type="button"
+                  onClick={handleVerifyOtp}
+                  disabled={isVerifyingOtp || otp.length !== 6}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-green-600 text-white text-[10px] font-bold uppercase tracking-wider rounded-lg px-3 py-2 disabled:opacity-40 transition-opacity"
+                >
+                  {isVerifyingOtp ? 'Verifying...' : 'Verify'}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-1">
             <label className="text-[#5D3E3E] text-xs font-bold pl-1" style={{ fontFamily: '"Playfair Display", serif' }}>City :</label>

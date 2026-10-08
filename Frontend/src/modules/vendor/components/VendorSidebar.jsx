@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import Icon from '../../../components/ui/Icon';
 import { useVendorState } from '../useVendorState';
+import { unregisterPushToken } from '../../../services/pushNotifications';
 
 const STOREFRONT_ITEMS = new Set([
   'Dashboard',
@@ -167,6 +168,7 @@ const VendorSidebar = ({ onClose, counts = {} }) => {
             <button
               type="button"
               onClick={() => {
+                unregisterPushToken('vendor');
                 localStorage.removeItem('vendorToken');
                 window.location.href = '/vendor/login';
               }}
@@ -186,6 +188,7 @@ const VendorSidebar = ({ onClose, counts = {} }) => {
             type="button"
             className="w-full h-9 rounded-xl text-xs font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 active:scale-95 transition-all flex items-center justify-center gap-2"
             onClick={() => {
+              unregisterPushToken('vendor');
               localStorage.removeItem('vendorToken');
               window.location.href = '/vendor/login';
             }}

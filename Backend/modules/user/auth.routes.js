@@ -46,12 +46,24 @@ const registerValidation = [
     })
 ];
 
+// `email` carries the login identifier: an email address or a 10-digit mobile number
 const loginValidation = [
   body('email')
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Please provide a valid email address'),
-  
+    .trim()
+    .notEmpty()
+    .withMessage('Email or mobile number is required')
+    .bail()
+    .custom((value) => {
+      const digits = value.replace(/[\s-]/g, '').replace(/^(\+91|91|0)(?=\d{10}$)/, '');
+      if (/^[6-9]\d{9}$/.test(digits) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return true;
+      throw new Error('Please provide a valid email address or 10-digit mobile number');
+    }),
+
+  // Normalize emails the same way registration does so lookups match
+  body('email')
+    .if(body('email').isEmail())
+    .normalizeEmail(),
+
   body('password')
     .notEmpty()
     .withMessage('Password is required')
@@ -97,6 +109,24 @@ const resendOTPValidation = [
     .withMessage('Please provide a valid 10-digit Indian phone number')
 ];
 
+const indianPhoneValidation = body('phone')
+  .matches(/^[6-9]\d{9}$/)
+  .withMessage('Please provide a valid 10-digit Indian phone number');
+
+const otpValidation = body('otp')
+  .isLength({ min: 6, max: 6 })
+  .isNumeric()
+  .withMessage('OTP must be a 6-digit number');
+
+const sendOTPValidation = [
+  indianPhoneValidation,
+  body('purpose')
+    .isIn(['register', 'login'])
+    .withMessage('Purpose must be either register or login')
+];
+
+const phoneOTPValidation = [indianPhoneValidation, otpValidation];
+
 const forgotPasswordValidation = [
   body('email')
     .isEmail()
@@ -122,6 +152,9 @@ router.post('/login', loginValidation, authController.login);
 router.post('/verify-email', emailVerificationValidation, authController.verifyEmail);
 router.post('/verify-phone', phoneVerificationValidation, authController.verifyPhone);
 router.post('/resend-otp', resendOTPValidation, authController.resendOTP);
+router.post('/send-otp', sendOTPValidation, authController.sendOtp);
+router.post('/verify-otp', phoneOTPValidation, authController.verifySignupOtp);
+router.post('/login-otp', phoneOTPValidation, authController.loginWithOtp);
 router.post('/forgot-password', forgotPasswordValidation, authController.forgotPassword);
 router.post('/reset-password', resetPasswordValidation, authController.resetPassword);
 

@@ -1,6 +1,14 @@
 const mongoose = require('mongoose');
 const UserNotification = require('./UserNotification');
 const UserActivity = require('./UserActivity');
+const { createFcmTokenHandlers } = require('../../utils/fcmTokenHandlers');
+
+// @desc    Register / remove an FCM push token for the current device
+// @route   POST | DELETE /api/user/fcm-token   body: { token, platform: 'web' | 'app' }
+// @access  Private (User)
+const { saveFcmToken, removeFcmToken } = createFcmTokenHandlers('user', (req) => req.user._id);
+exports.saveFcmToken = saveFcmToken;
+exports.removeFcmToken = removeFcmToken;
 
 // @desc    Get paginated user notifications
 // @route   GET /api/user/notifications

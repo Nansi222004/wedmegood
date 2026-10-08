@@ -8,11 +8,14 @@ import VendorChatbot from './VendorChatbot';
 import { useVendorState } from '../useVendorState';
 import { UploadProvider } from '../context/UploadContext';
 import UploadProgressWidget from './UploadProgressWidget';
+import { usePushRegistration } from '../../../hooks/usePushRegistration';
 
 const VendorLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const { vendorState, loading } = useVendorState();
+
+  usePushRegistration('vendor', Boolean(vendorState._id), vendorState._id);
 
   useEffect(() => {
     const token = localStorage.getItem('vendorToken');

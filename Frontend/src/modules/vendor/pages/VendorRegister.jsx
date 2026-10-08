@@ -40,6 +40,7 @@ import {
 import { useVendorState } from '../useVendorState';
 import { vendorApi } from '../vendorApi';
 import { adminApi } from '../../admin/services/adminApi';
+import { unregisterPushToken } from '../../../services/pushNotifications';
 
 // Bespoke, high-fidelity vector illustrations matching a premium Lucide/Feather-style icon pack.
 const getCategoryMockupDetails = (catName) => {
@@ -203,6 +204,8 @@ const VendorRegister = () => {
   // OTP States
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [phoneVerificationToken, setPhoneVerificationToken] = useState('');
+  const [isDevOtp, setIsDevOtp] = useState(false);
   const [otpValue, setOtpValue] = useState('');
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
@@ -211,6 +214,7 @@ const VendorRegister = () => {
   // If a user lands on the registration page while having an old token, wipe it to start fresh.
   useEffect(() => {
     if (localStorage.getItem('vendorToken')) {
+      unregisterPushToken('vendor');
       localStorage.removeItem('vendorToken');
       window.location.href = '/vendor/register/category';
     }
@@ -365,9 +369,8 @@ const VendorRegister = () => {
       const response = await vendorApi.sendRegistrationOtp(formState.phone);
       if (response.success) {
         setIsOtpSent(true);
-        if (response.devOtp) {
-          setOtpValue(response.devOtp);
-        }
+        setIsDevOtp(Boolean(response.devOtp));
+        setOtpValue(response.devOtp || '');
       } else {
         setOtpError(response.message || 'Failed to send OTP.');
         setTimeout(() => setOtpError(''), 3000);
@@ -393,6 +396,7 @@ const VendorRegister = () => {
       const response = await vendorApi.verifyRegistrationOtp(formState.phone, otpValue);
       if (response.success) {
         setIsPhoneVerified(true);
+        setPhoneVerificationToken(response.phoneVerificationToken || '');
         setIsOtpSent(false); // Hide OTP field on success
       } else {
         setOtpError(response.message || 'Invalid OTP.');
@@ -890,7 +894,9 @@ const VendorRegister = () => {
                 )}
                 {isOtpSent && !isPhoneVerified && (
                   <p className="text-[10px] text-indigo-600 font-medium ml-1 mt-1">
-                    Demo Mode: Use prefilled code or <b>123456</b>
+                    {isDevOtp
+                      ? <>Demo Mode: Use prefilled code or <b>123456</b></>
+                      : <>OTP sent to +91 {formState.phone}. Valid for 10 minutes.</>}
                   </p>
                 )}
               </div>
@@ -1014,10 +1020,11 @@ const VendorRegister = () => {
                           }
                         }
 
-                        const payload = { 
-                          ...formState, 
+                        const payload = {
+                          ...formState,
                           profileImage: profileImageUrl,
-                          portfolio: portfolioUrls
+                          portfolio: portfolioUrls,
+                          phoneVerificationToken
                         };
                         
                         // Remove empty or deprecated fields from payload
