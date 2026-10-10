@@ -689,6 +689,17 @@ exports.rejectQuote = async (req, res, next) => {
             });
         }
 
+        // Only an open quote can be declined; an accepted one already has a booking
+        // (that is cancelled through the booking), and closed ones must not be reopened
+        if (!['Sent', 'Pending'].includes(quote.status)) {
+            return res.status(400).json({
+                success: false,
+                message: quote.status === 'Accepted'
+                    ? 'This quote has already been accepted. Cancel the booking instead.'
+                    : `This quote can no longer be rejected (status: ${quote.status})`
+            });
+        }
+
         quote.status = 'Rejected';
         await quote.save();
 

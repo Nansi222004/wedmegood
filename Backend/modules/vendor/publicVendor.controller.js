@@ -212,7 +212,7 @@ exports.getPublicVendors = async (req, res, next) => {
 
                 const bookedVendorIds = await Booking.distinct('vendorId', {
                     eventDate: { $gte: startOfDay, $lte: endOfDay },
-                    status: 'Confirmed'
+                    status: { $in: ['Confirmed', 'In Progress'] }
                 });
 
                 filter.$and = filter.$and || [];
@@ -520,7 +520,7 @@ exports.getVendorAvailability = async (req, res, next) => {
             const conflictingBooking = await Booking.findOne({
                 vendorId: id,
                 eventDate: { $gte: startOfDay, $lte: endOfDay },
-                status: 'Confirmed'
+                status: { $in: ['Confirmed', 'In Progress'] }
             }).select('_id eventDate status').lean();
 
             // Check vendor manual blocked dates
@@ -545,7 +545,7 @@ exports.getVendorAvailability = async (req, res, next) => {
         }
 
         // Return all booked dates for the vendor (or for the requested month)
-        let dateQuery = { vendorId: id, status: 'Confirmed' };
+        let dateQuery = { vendorId: id, status: { $in: ['Confirmed', 'In Progress'] } };
         if (month) {
             const [y, m] = month.split('-').map(Number);
             if (y && m) {
@@ -808,7 +808,7 @@ exports.getRecommendedVendors = async (req, res, next) => {
 
                 const bookedIds = await Booking.distinct('vendorId', {
                     eventDate: { $gte: startOfDay, $lte: endOfDay },
-                    status: 'Confirmed'
+                    status: { $in: ['Confirmed', 'In Progress'] }
                 });
 
                 filter._id = { $nin: bookedIds };

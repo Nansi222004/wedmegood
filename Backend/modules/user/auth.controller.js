@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 const User = require('./user.model');
 const FamilyGroup = require('./FamilyGroup');
-const { sendVerificationEmail, sendWelcomeEmail } = require('../../utils/emailService');
+const { sendVerificationEmail, sendWelcomeEmail, sendPasswordResetEmail } = require('../../utils/emailService');
 const {
   generateOTP,
   storeOTP,
@@ -43,6 +43,7 @@ const sendLoginResponse = async (user, res) => {
   );
 
   user.lastLogin = new Date();
+  user.loginCount = (user.loginCount || 0) + 1;
   await user.save();
 
   res.status(200).json({
@@ -340,7 +341,7 @@ exports.login = async (req, res) => {
     }
 
     // Check if user is active
-    if (!user.isActive) {
+    if (!user.isActive || user.isBlocked) {
       return res.status(401).json({
         success: false,
         message: 'Your account has been deactivated. Please contact support.'
@@ -560,11 +561,14 @@ exports.forgotPassword = async (req, res) => {
 
     const user = await User.findOne({ email });
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found with this email'
-      });
+    // Same response whether or not the account exists, so emails can't be enumerated
+    const genericResponse = {
+      success: true,
+      message: 'If an account exists for this email, password reset instructions have been sent.'
+    };
+
+    if (!user || !user.isActive || user.isBlocked) {
+      return res.status(200).json(genericResponse);
     }
 
     // Generate reset token
@@ -579,15 +583,14 @@ exports.forgotPassword = async (req, res) => {
     user.passwordResetExpires = Date.now() + 3600000; // 1 hour
     await user.save();
 
-    // Send reset email (implement email service)
-    // await sendPasswordResetEmail(email, user.name, resetToken);
+    const emailResult = await sendPasswordResetEmail(user.email, user.name, resetToken);
 
+    // The token is only returned to the caller in local development when the email could
+    // not be sent (no mail account configured). In production it travels by email only.
+    const devMode = process.env.NODE_ENV !== 'production' && !emailResult.success;
     res.status(200).json({
-      success: true,
-      message: 'Password reset instructions sent to your email',
-      data: {
-        resetToken // Remove this in production, only for development
-      }
+      ...genericResponse,
+      ...(devMode && { data: { resetToken } })
     });
 
   } catch (error) {

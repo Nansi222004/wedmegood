@@ -4,6 +4,14 @@ const User = require('../modules/user/user.model');
 
 const initializeAdmin = async () => {
     try {
+        const isProduction = process.env.NODE_ENV === 'production';
+        // In production the admin credentials must be provided; a well-known default login
+        // (a@gmail.com / 1234) on a live system would hand out full admin access.
+        if (isProduction && (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD)) {
+            console.warn('⚠️ ADMIN_EMAIL / ADMIN_PASSWORD are not set; skipping admin auto-creation in production.');
+            return;
+        }
+
         const adminEmail = process.env.ADMIN_EMAIL || 'a@gmail.com';
         const adminPass = process.env.ADMIN_PASSWORD || '1234';
 
@@ -28,7 +36,7 @@ const initializeAdmin = async () => {
         });
 
         await admin.save();
-        console.log('✅ Admin user created (a@gmail.com / 1234)');
+        console.log(`✅ Admin user created (${adminEmail})`);
     } catch (error) {
         console.error('❌ Admin initialization failed:', error.message);
     }

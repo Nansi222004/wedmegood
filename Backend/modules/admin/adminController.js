@@ -309,6 +309,19 @@ exports.updateVendorStatus = async (req, res, next) => {
 
         await existingVendor.save();
 
+        // Tell the vendor about the decision (in-app + push)
+        if (status !== prevStatus && ['Approved', 'Rejected', 'Suspended'].includes(status)) {
+            try {
+                const Notification = require('../vendor/Notification');
+                const messages = {
+                    Approved: 'Your profile has been approved. Subscribe to a plan to start receiving leads.',
+                    Rejected: `Your profile was not approved${reason ? `: ${reason}` : '.'} Update your details and submit again.`,
+                    Suspended: `Your account has been suspended${reason ? `: ${reason}` : '.'} Please contact support.`
+                };
+                await Notification.create({ vendorId: existingVendor._id, message: messages[status], type: 'System' });
+            } catch (_) { /* notification is best effort */ }
+        }
+
         await logAdminAction({
             admin: req.user,
             action: `Changed vendor status for ${existingVendor.businessName} from ${prevStatus} to ${status}`,
@@ -391,11 +404,18 @@ exports.updateVendorFeatured = async (req, res, next) => {
 // @access  Private/Admin
 exports.toggleVendorActive = async (req, res, next) => {
     try {
-        const { isActive } = req.body;
+        const { isActive, reason } = req.body;
 
-        const vendor = await Vendor.findByIdAndUpdate(req.params.id, {
-            isActive
-        }, {
+        if (typeof isActive !== 'boolean') {
+            return res.status(400).json({ success: false, message: 'isActive must be a boolean' });
+        }
+
+        // An admin deactivation is remembered so the vendor cannot switch themselves back on,
+        // and a deactivated vendor can no longer be featured
+        const update = { isActive, deactivatedByAdmin: !isActive };
+        if (!isActive) update.isFeatured = false;
+
+        const vendor = await Vendor.findByIdAndUpdate(req.params.id, update, {
             new: true,
             runValidators: true
         });
@@ -406,6 +426,17 @@ exports.toggleVendorActive = async (req, res, next) => {
                 message: 'Vendor not found'
             });
         }
+
+        await logAdminAction({
+            admin: req.user,
+            action: `${isActive ? 'Activated' : 'Deactivated'} vendor ${vendor.businessName}`,
+            entityType: 'Vendor',
+            entityId: vendor._id,
+            before: { isActive: !isActive },
+            after: { isActive },
+            reason: reason || '',
+            req
+        });
 
         res.status(200).json({
             success: true,
@@ -1088,8 +1119,9 @@ exports.deleteCategory = async (req, res, next) => {
 // @access  Private/Admin
 exports.getProfile = async (req, res, next) => {
     try {
-        const admin = await User.findById(req.user.id).select('-password');
-        res.status(200).json({ success: true, data: admin });
+        const admin = await User.findById(req.user.id).select('-password').lean();
+        // The admin UI reads fullName; the User model stores it as name
+        res.status(200).json({ success: true, data: { ...admin, fullName: admin.name } });
     } catch (err) {
         next(err);
     }
@@ -1100,15 +1132,19 @@ exports.getProfile = async (req, res, next) => {
 // @access  Private/Admin
 exports.updateProfile = async (req, res, next) => {
     try {
-        const { fullName, email, bio, phone } = req.body;
-        const admin = await User.findByIdAndUpdate(req.user.id, {
-            fullName,
-            email,
-            bio,
-            phone
-        }, { new: true, runValidators: true }).select('-password');
+        const { fullName, name, email, bio, phone } = req.body;
+        const updates = {};
+        const newName = (fullName ?? name);
+        if (typeof newName === 'string' && newName.trim()) updates.name = newName.trim();
+        if (typeof email === 'string' && email.trim()) updates.email = email.trim().toLowerCase();
+        if (typeof bio === 'string') updates.bio = bio;
+        if (typeof phone === 'string' && phone.trim()) updates.phone = phone.trim();
 
-        res.status(200).json({ success: true, data: admin });
+        const admin = await User.findByIdAndUpdate(req.user.id, updates, { new: true, runValidators: true })
+            .select('-password')
+            .lean();
+
+        res.status(200).json({ success: true, data: { ...admin, fullName: admin.name } });
     } catch (err) {
         next(err);
     }
@@ -1125,10 +1161,18 @@ exports.changePassword = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Please provide current and new passwords' });
         }
 
-        const admin = await User.findById(req.user.id);
+        if (String(newPassword).length < 8 || !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(String(newPassword))) {
+            return res.status(400).json({
+                success: false,
+                message: 'New password must be at least 8 characters and contain an uppercase letter, a lowercase letter and a number'
+            });
+        }
+
+        // The password field is excluded by default, so it has to be selected explicitly
+        const admin = await User.findById(req.user.id).select('+password');
 
         // Verify current password
-        const isMatch = await admin.matchPassword(currentPassword);
+        const isMatch = await admin.comparePassword(currentPassword);
         if (!isMatch) {
             return res.status(401).json({ success: false, message: 'Invalid current password' });
         }
@@ -1200,7 +1244,7 @@ exports.getVendorLedger = async (req, res, next) => {
         const Booking = require('../vendor/Booking');
 
         const vendors = await Vendor.find().select('businessName fullName email phone portfolio category city status');
-        const bookings = await Booking.find().populate('userId', 'fullName email');
+        const bookings = await Booking.find().populate('userId', 'name email');
 
         const ledger = vendors.map(vendor => {
             const vendorBookings = bookings.filter(b =>
@@ -1292,7 +1336,8 @@ exports.getAnalytics = async (req, res, next) => {
 
         // 2. Category Distribution
         const categories = await Vendor.aggregate([
-            { $group: { _id: "$category", count: { $sum: 1 } } },
+            { $unwind: '$selectedCategories' },
+            { $group: { _id: '$selectedCategories.categoryName', count: { $sum: 1 } } },
             { $sort: { count: -1 } },
             { $limit: 5 }
         ]);
@@ -1395,6 +1440,21 @@ exports.deleteVendor = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Vendor not found' });
         }
 
+        // Deleting would orphan live customer bookings and any money still held for the vendor
+        const [activeBookings, wallet] = await Promise.all([
+            Booking.countDocuments({ vendorId: vendor._id, status: { $in: ['Pending', 'Confirmed', 'In Progress'] } }),
+            VendorWallet.findOne({ vendorId: vendor._id }).lean()
+        ]);
+        const heldFunds = (wallet?.pendingBalance || 0) + (wallet?.availableBalance || 0) + (wallet?.lockedBalance || 0);
+        if (activeBookings > 0 || heldFunds > 0) {
+            return res.status(400).json({
+                success: false,
+                message: activeBookings > 0
+                    ? `Cannot delete a vendor with ${activeBookings} active booking(s). Suspend or deactivate the vendor instead.`
+                    : 'Cannot delete a vendor who still has wallet funds. Settle the payouts first or deactivate the vendor instead.'
+            });
+        }
+
         await vendor.deleteOne();
 
         // Log action
@@ -1418,18 +1478,40 @@ exports.deleteVendor = async (req, res, next) => {
 // @access  Private/Admin
 exports.deleteUser = async (req, res, next) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID format' });
+        }
+
         const user = await User.findById(req.params.id);
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        if (user._id.toString() === req.user._id.toString()) {
+            return res.status(400).json({ success: false, message: 'Administrators cannot delete their own account' });
+        }
+        if (user.role === 'admin') {
+            return res.status(400).json({ success: false, message: 'Administrator accounts cannot be deleted here' });
+        }
+
+        const activeBookings = await Booking.countDocuments({
+            userId: user._id,
+            status: { $in: ['Pending', 'Confirmed', 'In Progress'] }
+        });
+        if (activeBookings > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot delete a user with ${activeBookings} active booking(s). Block the user instead.`
+            });
         }
 
         await user.deleteOne();
 
         // Log action
         await createAdminLog({
-            user: req.user?.fullName || 'Admin',
+            user: req.user?.name || 'Admin',
             adminId: req.user?.id,
-            action: `Deleted user: ${user.fullName}`,
+            action: `Deleted user: ${user.name}`,
             target: 'Users',
             level: 'Warning',
             ip: req.ip || 'Local'
@@ -1529,7 +1611,7 @@ exports.getAllTickets = async (req, res, next) => {
 exports.updateTicketStatus = async (req, res, next) => {
     try {
         const { status } = req.body;
-        const ticket = await SupportTicket.findByIdAndUpdate(req.params.id, { status }, { new: true });
+        const ticket = await SupportTicket.findByIdAndUpdate(req.params.id, { status }, { new: true, runValidators: true });
         if (!ticket) {
             return res.status(404).json({ success: false, message: 'Ticket not found' });
         }
@@ -1922,7 +2004,7 @@ exports.getDashboardSummary = async (req, res, next) => {
 
             // Financial
             Payment.aggregate([
-                { $match: { status: { $in: ['Completed', 'Paid'] } } },
+                { $match: { status: { $in: ['Completed', 'Paid', 'PartiallyRefunded'] } } },
                 {
                     $group: {
                         _id: null,
@@ -1934,7 +2016,7 @@ exports.getDashboardSummary = async (req, res, next) => {
                 }
             ]),
             Payment.aggregate([
-                { $match: { status: 'Refunded' } },
+                { $match: { status: { $in: ['Refunded', 'PartiallyRefunded'] } } },
                 {
                     $group: {
                         _id: null,

@@ -378,7 +378,8 @@ async function createMessage({
     }
 
     // Atomic update of conversation: lastMessage and recipient unread count
-    const incField = senderRole === 'User' ? { vendorUnreadCount: 1 } : { userUnreadCount: 1 };
+    // System messages (e.g. "quote accepted") are triggered by the user, so the vendor is the one to notify
+    const incField = senderRole === 'Vendor' ? { userUnreadCount: 1 } : { vendorUnreadCount: 1 };
     const updatedConversation = await Conversation.findByIdAndUpdate(
         conversationId,
         {

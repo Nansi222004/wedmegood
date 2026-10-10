@@ -82,7 +82,8 @@ const parseDate = (dStr) => {
     const year = parseInt(parts[2], 10);
     return new Date(year, month, day);
   }
-  return new Date(dStr) || new Date(0);
+  const parsed = new Date(dStr);
+  return isNaN(parsed.getTime()) ? new Date(0) : parsed;
 };
 
 const parseViewsNum = (v) => {

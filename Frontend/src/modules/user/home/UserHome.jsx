@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../../contexts/AuthContext';
 import userApi from '../../../services/userApi';
 import usePlatformSettings from '../../../hooks/usePlatformSettings';
 
 const UserHome = () => {
   const { ratingsEnabled } = usePlatformSettings();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
   const [activeCategory, setActiveCategory] = useState('wedding');
   const [favorites, setFavorites] = useState(new Set());
 
@@ -210,27 +208,8 @@ const UserHome = () => {
         // Keep pristine fallback
       });
 
-    if (isAuthenticated) {
-      userApi.getUnreadNotificationCount?.()
-        .then(res => {
-          if (isMounted && typeof res?.count === 'number') {
-            setUnreadNotifications(res.count);
-          }
-        })
-        .catch(() => {});
-    }
-
     return () => { isMounted = false; };
-  }, [isAuthenticated]);
-
-  const handleSearchSubmit = (e) => {
-    e?.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/user/search?q=${encodeURIComponent(searchQuery.trim())}`);
-    } else {
-      navigate('/user/vendors');
-    }
-  };
+  }, []);
 
   return (
     <div className="font-sans antialiased text-gray-800 flex justify-center min-h-screen py-0 md:py-6 selection:bg-[#F2BDCD] selection:text-[#4F1325]">

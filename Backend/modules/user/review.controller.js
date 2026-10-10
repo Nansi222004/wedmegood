@@ -70,6 +70,15 @@ exports.createReview = async (req, res, next) => {
             });
         }
 
+        // The vendor must have confirmed the booking first; reviewing a still-pending booking
+        // (e.g. right after accepting a quote) would allow reviews for services never delivered
+        if (booking.status === 'Pending') {
+            return res.status(400).json({
+                success: false,
+                message: 'You can review a vendor once the booking has been confirmed'
+            });
+        }
+
         // 4. Duplicate Prevention: Only 1 review permitted per booking
         const existingReview = await Review.findOne({
             bookingId: booking._id,

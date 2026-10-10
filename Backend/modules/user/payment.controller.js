@@ -219,6 +219,14 @@ exports.verifyPayment = async (req, res, next) => {
 
         let payment = await Payment.findOne({ razorpayOrderId: razorpay_order_id });
 
+        // A verified order may only be applied to the booking it was created for
+        if (payment && (String(payment.bookingId) !== String(booking._id) || String(payment.userId) !== String(req.user._id))) {
+            return res.status(403).json({
+                success: false,
+                message: 'This payment does not belong to the given booking'
+            });
+        }
+
         // Idempotency: if already paid or completed, do not double-credit wallet or ledger
         if (payment && (payment.status === 'Completed' || payment.status === 'Paid')) {
             return res.status(200).json({

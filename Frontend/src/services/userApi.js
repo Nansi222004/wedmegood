@@ -46,6 +46,11 @@ const request = async (endpoint, options = {}) => {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
+      // A rejected token (expired, or the account was blocked/deactivated) means the stored
+      // session is useless; let the app sign the user out instead of leaving broken pages
+      if (response.status === 401 && token && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+      }
       let errorMessage = data?.message || data?.error;
       if (Array.isArray(data?.errors) && data.errors.length > 0) {
         const errorDetails = data.errors.map(err => err.msg || err.message).filter(Boolean).join(', ');
@@ -336,14 +341,6 @@ export const userApi = {
       method: 'POST',
       body: reviewData
     });
-  },
-
-  getUserReviews: async () => {
-    return request('/user/reviews', { method: 'GET' });
-  },
-
-  getEligibleReviewBookings: async () => {
-    return request('/user/reviews/eligible-bookings', { method: 'GET' });
   },
 
   // Cloudinary File Uploads
@@ -775,11 +772,6 @@ export const userApi = {
     });
   },
 
-  deleteFamilyGroup: async (groupId) => {
-    return request(`/user/family-groups/${groupId}`, {
-      method: 'DELETE'
-    });
-  },
 
   inviteFamilyMember: async (groupId, memberData) => {
     return request(`/user/family-groups/${groupId}/members`, {
@@ -805,19 +797,6 @@ export const userApi = {
     return request(`/user/family-groups/${groupId}/shared-data`, { method: 'GET' });
   },
 
-  getPublicFamilyInvitation: async (token) => {
-    return request(`/public/family-invitations/${token}`, { method: 'GET' });
-  },
-
-  joinFamilyGroupWithToken: async (token) => {
-    return request(`/user/family-groups/join/${token}`, { method: 'POST' });
-  },
-
-  revokeFamilyInvitation: async (groupId, memberId) => {
-    return request(`/user/family-groups/${groupId}/invitations/${memberId}/revoke`, {
-      method: 'DELETE'
-    });
-  },
 
   // 17. Inspiration Gallery
   getInspirationGallery: async (params = {}) => {

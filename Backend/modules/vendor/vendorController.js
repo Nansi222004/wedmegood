@@ -244,13 +244,23 @@ exports.register = async (req, res, next) => {
         // Save dynamic service data if present
         if (req.body.serviceData && Object.keys(req.body.serviceData).length > 0) {
             const VendorService = require('./VendorService');
-            await VendorService.create({
-                vendorId: vendor._id,
-                categoryId: vendor.category,
-                subCategoryId: vendor.subCategory,
-                dynamicData: req.body.serviceData,
-                isActive: true
-            });
+            // The vendor has no top-level category/subCategory; use the first ones they selected.
+            // The vendor account already exists at this point, so a service that cannot be
+            // saved must not turn a successful registration into an error.
+            const firstCategory = vendor.selectedCategories?.[0];
+            const firstSub = firstCategory?.subcategories?.[0];
+            if (firstCategory?.categoryId && firstSub?.subcategoryId) {
+                try {
+                    await VendorService.create({
+                        vendorId: vendor._id,
+                        categoryId: firstCategory.categoryId,
+                        subCategoryId: firstSub.subcategoryId,
+                        serviceData: req.body.serviceData
+                    });
+                } catch (serviceErr) {
+                    console.warn('Registration service data not saved:', serviceErr.message);
+                }
+            }
         }
 
         sendTokenResponse(vendor, 201, res);
@@ -353,10 +363,19 @@ exports.updateOnboarding = async (req, res, next) => {
                 updateData.bank = req.body;
                 nextStep = 'completed';
                 break;
-            case 'completed':
+            case 'completed': {
+                // Only an unsubmitted/rejected profile can be (re)submitted; approved or suspended
+                // vendors must not be able to push themselves back into the review queue
+                if (!['Incomplete', 'Rejected'].includes(req.vendor.status)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Your profile has already been submitted for review'
+                    });
+                }
                 updateData.status = 'Pending';
                 nextStep = 'completed';
                 break;
+            }
             default:
                 return res.status(400).json({
                     success: false,
@@ -891,6 +910,15 @@ exports.updateBookingStatus = async (req, res, next) => {
             }
         }
 
+        // Pending -> Confirmed -> In Progress -> Completed. A booking cannot jump ahead, otherwise
+        // an unconfirmed booking could be completed and its earnings released.
+        if (status === 'In Progress' && booking.status !== 'Confirmed') {
+            return res.status(400).json({ success: false, message: 'Only a confirmed booking can be moved to In Progress' });
+        }
+        if (status === 'Completed' && !['Confirmed', 'In Progress'].includes(booking.status)) {
+            return res.status(400).json({ success: false, message: 'Only a confirmed or in-progress booking can be completed' });
+        }
+
         booking.status = status;
         await booking.save();
 
@@ -1277,7 +1305,8 @@ exports.getSubscriptionPlans = async (req, res, next) => {
     try {
         const plans = await SubscriptionPlan.find({ isActive: true });
 
-        if (plans.length === 0) {
+        // Seed defaults only on a brand-new platform; an admin who deactivated every plan must not get new ones
+        if (plans.length === 0 && (await SubscriptionPlan.countDocuments({})) === 0) {
             const seededPlans = await SubscriptionPlan.create([
                 {
                     name: 'Basic Plan',
@@ -1330,7 +1359,7 @@ exports.createSubscriptionOrder = async (req, res, next) => {
         }
 
         const options = {
-            amount: plan.price * 100, // amount in the smallest currency unit
+            amount: Math.round(plan.price * 100), // amount in the smallest currency unit
             currency: "INR",
             receipt: `sub_${req.vendor._id.toString().slice(-10)}_${Date.now().toString().slice(-8)}`,
             notes: {
@@ -1606,7 +1635,28 @@ exports.getQuotes = async (req, res, next) => {
 };
 
 
-// @desc    Update a quote
+// Tell the customer a quotation has arrived (in-app + push). Best effort, never blocks the vendor.
+const notifyUserQuoteSent = async (quote, vendor) => {
+    if (!quote.userId) return;
+    try {
+        const { notifyAndLogActivity } = require('../../services/notification.service');
+        const vendorName = vendor?.businessName || 'A vendor';
+        const amount = Number(quote.totalAmount || 0).toLocaleString('en-IN');
+        await notifyAndLogActivity({
+            userId: quote.userId,
+            notificationTitle: 'New Quotation Received',
+            notificationMessage: `${vendorName} sent you a quotation for ₹${amount}.`,
+            notificationType: 'quote',
+            activityType: 'quote_received',
+            activityTitle: 'Quotation Received',
+            activityMessage: `Received a quotation of ₹${amount} from ${vendorName}.`,
+            entityType: 'Quote',
+            entityId: quote._id,
+            eventKey: `quote_received_${quote._id}_${new Date(quote.sentAt || Date.now()).getTime()}`
+        });
+    } catch (_) { /* notification is best effort */ }
+};
+
 // @desc    Update a quote
 // @route   PUT /api/vendor/quotes/:id
 // @access  Private
@@ -1628,6 +1678,11 @@ exports.updateQuote = async (req, res, next) => {
         if (quote.status === 'Expired') {
             return res.status(400).json({ success: false, message: 'Cannot modify an expired quote' });
         }
+
+        if (['Superseded', 'Cancelled'].includes(quote.status)) {
+            return res.status(400).json({ success: false, message: `Cannot modify a ${quote.status.toLowerCase()} quote` });
+        }
+        const wasSent = quote.status === 'Sent';
 
         const { calculateQuotePricing } = require('../../utils/quotePricing');
         const payloadToUse = {
@@ -1662,7 +1717,19 @@ exports.updateQuote = async (req, res, next) => {
         if (req.body.validUntil !== undefined) quote.validUntil = req.body.validUntil;
         if (req.body.status && ['Draft', 'Sent'].includes(req.body.status)) quote.status = req.body.status;
 
+        // A draft (or a re-opened rejected quote) going out to the customer
+        const justSent = quote.status === 'Sent' && !wasSent;
+        if (justSent) quote.sentAt = new Date();
+
         await quote.save();
+
+        if (justSent) {
+            await Lead.updateOne(
+                { _id: quote.leadId, status: { $in: ['New', 'Contacted', 'Rejected'] } },
+                { status: 'Quote Sent' }
+            );
+            await notifyUserQuoteSent(quote, req.vendor);
+        }
 
         res.status(200).json({
             success: true,
@@ -1678,14 +1745,15 @@ exports.updateQuote = async (req, res, next) => {
 // @access  Private
 exports.deleteQuote = async (req, res, next) => {
     try {
-        const quote = await Quote.findOneAndDelete({
-            _id: req.params.id,
-            vendorId: req.vendor.id
-        });
-
-        if (!quote) {
+        const existing = await Quote.findOne({ _id: req.params.id, vendorId: req.vendor.id });
+        if (!existing) {
             return res.status(404).json({ success: false, message: 'Quote not found' });
         }
+        // An accepted quote is the contract behind a booking and must stay on record
+        if (existing.status === 'Accepted') {
+            return res.status(400).json({ success: false, message: 'Cannot delete an accepted quote' });
+        }
+        await existing.deleteOne();
 
         res.status(200).json({
             success: true,
@@ -1761,7 +1829,9 @@ exports.createQuote = async (req, res, next) => {
             lead.status = 'Quote Sent';
             await lead.save();
 
-            // Create notification for customer
+            await notifyUserQuoteSent(quote, req.vendor);
+
+            // Log on the vendor's own feed (already read)
             const Notification = require('./Notification');
             await Notification.create({
                 vendorId,
@@ -1985,6 +2055,12 @@ exports.changePassword = async (req, res, next) => {
 exports.deactivateAccount = async (req, res, next) => {
     try {
         const vendor = await Vendor.findById(req.vendor.id);
+        if (!vendor.isActive && vendor.deactivatedByAdmin) {
+            return res.status(403).json({
+                success: false,
+                message: 'Your account was deactivated by the platform. Please contact support to reactivate it.'
+            });
+        }
         vendor.isActive = !vendor.isActive;
         await vendor.save();
 
@@ -2006,7 +2082,12 @@ exports.deactivateAccount = async (req, res, next) => {
 exports.updateSettings = async (req, res, next) => {
     try {
         // Prevent sensitive fields from being updated via this route
-        const forbiddenFields = ['password', 'role', 'status', 'isVerified', 'subscription', 'email', 'fcmTokens'];
+        const forbiddenFields = [
+            'password', 'role', 'status', 'isVerified', 'subscription', 'email', 'fcmTokens',
+            // Platform-controlled: ranking, reputation, availability and account state
+            'isFeatured', 'rating', 'reviewCount', 'profileViews', 'blockedDates', 'isActive', 'deactivatedByAdmin',
+            'isServiceProfileCompleted', 'onboardingStep', 'documents', 'createdAt', 'updatedAt', '_id', '__v'
+        ];
         const updateData = { ...req.body };
 
         forbiddenFields.forEach(field => delete updateData[field]);
@@ -2411,8 +2492,9 @@ exports.requestApproval = async (req, res, next) => {
         const vendor = await Vendor.findById(req.vendor.id);
         if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
 
-        if (vendor.status !== 'Incomplete') {
-            return res.status(400).json({ success: false, message: 'Vendor is already pending or approved' });
+        // Incomplete vendors submit for the first time; rejected vendors fix their profile and resubmit
+        if (!['Incomplete', 'Rejected'].includes(vendor.status)) {
+            return res.status(400).json({ success: false, message: 'Vendor is already pending, approved or suspended' });
         }
 
         vendor.status = 'Pending';
@@ -2495,6 +2577,9 @@ exports.updateInventoryItem = async (req, res, next) => {
                 return res.status(400).json({ success: false, message: 'Invalid category selected' });
             }
         }
+
+        // An item always stays with the vendor that owns it
+        delete req.body.vendor;
 
         // Keep existing images and add new ones if uploaded
         if (req.files && req.files.length > 0) {

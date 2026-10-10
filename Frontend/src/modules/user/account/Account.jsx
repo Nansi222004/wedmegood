@@ -68,6 +68,67 @@ const Account = () => {
   };
 
   // If user is not authenticated, show luxury login form
+
+  // Real user data from auth context
+  const userData = {
+    name: user?.name || 'Celebration Host',
+    phone: user?.phone || '',
+    email: user?.email || 'host@utsavo.com',
+    profileImage: user?.profileImage || '',
+    weddingDate: user?.weddingDate || null,
+    city: user?.city || 'Indore',
+    functionsCount: 4,
+    hasSetBudget: true,
+    monthlyIncome: user?.monthlyIncome || 75000
+  };
+
+  const [budgetData] = useState({
+    totalBudget: 1000000,
+    spent: 320000,
+    remaining: 680000
+  });
+
+  const [activityData, setActivityData] = useState({
+    cartItems: cartState.totalItems,
+    bookings: 0,
+    shortlistedVendors: 0,
+    favouriteVendors: 0,
+    unreadMessages: 0,
+    reviewsGiven: 0
+  });
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let isMounted = true;
+    const loadData = async () => {
+      try {
+        const [statsRes, profileRes] = await Promise.allSettled([
+          userApi.getUserStats(),
+          userApi.getUserProfile()
+        ]);
+
+        if (isMounted && profileRes.status === 'fulfilled' && profileRes.value?.success && profileRes.value.data?.user) {
+          updateUser(profileRes.value.data.user);
+        }
+
+        if (isMounted && statsRes.status === 'fulfilled' && statsRes.value?.success && statsRes.value.data?.stats) {
+          const s = statsRes.value.data.stats;
+          setActivityData((prev) => ({
+            ...prev,
+            bookings: s.bookingsCount || 0,
+            reviewsGiven: s.reviewsCount || 0
+          }));
+        }
+      } catch (err) {
+        console.warn('Could not fetch real user data in Account:', err.message);
+      }
+    };
+
+    loadData();
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated]);
   if (!isAuthenticated) {
     return (
       <div className="bg-[#EDE8E1] min-h-screen text-slate-800 antialiased font-sans flex items-center justify-center px-4 py-8 pb-28">
@@ -159,67 +220,6 @@ const Account = () => {
       </div>
     );
   }
-
-  // Real user data from auth context
-  const userData = {
-    name: user?.name || 'Celebration Host',
-    phone: user?.phone || '',
-    email: user?.email || 'host@utsavo.com',
-    profileImage: user?.profileImage || '',
-    weddingDate: user?.weddingDate || null,
-    city: user?.city || 'Indore',
-    functionsCount: 4,
-    hasSetBudget: true,
-    monthlyIncome: user?.monthlyIncome || 75000
-  };
-
-  const [budgetData] = useState({
-    totalBudget: 1000000,
-    spent: 320000,
-    remaining: 680000
-  });
-
-  const [activityData, setActivityData] = useState({
-    cartItems: cartState.totalItems,
-    bookings: 0,
-    shortlistedVendors: 0,
-    favouriteVendors: 0,
-    unreadMessages: 0,
-    reviewsGiven: 0
-  });
-
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    let isMounted = true;
-    const loadData = async () => {
-      try {
-        const [statsRes, profileRes] = await Promise.allSettled([
-          userApi.getUserStats(),
-          userApi.getUserProfile()
-        ]);
-
-        if (isMounted && profileRes.status === 'fulfilled' && profileRes.value?.success && profileRes.value.data?.user) {
-          updateUser(profileRes.value.data.user);
-        }
-
-        if (isMounted && statsRes.status === 'fulfilled' && statsRes.value?.success && statsRes.value.data?.stats) {
-          const s = statsRes.value.data.stats;
-          setActivityData((prev) => ({
-            ...prev,
-            bookings: s.bookingsCount || 0,
-            reviewsGiven: s.reviewsCount || 0
-          }));
-        }
-      } catch (err) {
-        console.warn('Could not fetch real user data in Account:', err.message);
-      }
-    };
-
-    loadData();
-    return () => {
-      isMounted = false;
-    };
-  }, [isAuthenticated]);
 
   const formatCurrency = (amount) => {
     if (amount >= 100000) {

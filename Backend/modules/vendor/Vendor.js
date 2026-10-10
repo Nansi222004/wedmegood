@@ -190,7 +190,8 @@ const vendorSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
-    isServiceProfileCompleted: {
+    // Set when an admin (not the vendor) deactivated the account, so the vendor cannot undo it
+    deactivatedByAdmin: {
         type: Boolean,
         default: false
     },

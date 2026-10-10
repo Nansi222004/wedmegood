@@ -126,10 +126,10 @@ function initSocketService(io) {
         if (!presenceMap.has(presenceKey)) {
             presenceMap.set(presenceKey, new Set());
             // Broadcast online status to connected clients
+            // Presence goes to every client, so it carries no personal data beyond the opaque id/role
             socket.broadcast.emit('user:online', {
                 id: user.id,
-                role: user.role,
-                name: user.name
+                role: user.role
             });
             socket.broadcast.emit('presence:update', {
                 id: user.id,

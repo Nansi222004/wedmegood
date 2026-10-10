@@ -13,6 +13,16 @@ if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !pr
     });
 }
 
+// The upload folder comes from the client, so it is limited to safe names under utsavo/
+// (never the private family-groups area)
+const safeUploadFolder = (requested) => {
+    const folder = String(requested || '').trim().replace(/[^a-zA-Z0-9/_-]/g, '').replace(/\/{2,}/g, '/');
+    if (!folder.startsWith('utsavo/') || folder.includes('..') || folder.startsWith('utsavo/family-groups')) {
+        return 'utsavo/general';
+    }
+    return folder;
+};
+
 // Configure Storage
 let storage;
 try {
@@ -20,7 +30,7 @@ try {
         cloudinary: cloudinary,
         params: async (req, file) => {
             return {
-                folder: req.body.folder || 'utsavo/general',
+                folder: safeUploadFolder(req.body.folder),
                 allowed_formats: ['jpg', 'png', 'jpeg', 'webp', 'mp4'],
                 resource_type: 'auto'
             };
@@ -37,6 +47,42 @@ const upload = multer({
 
 const path = require('path');
 const fs = require('fs');
+
+// Chat attachments: images plus the documents and voice notes the chat supports. The general
+// uploader above only accepts images/mp4, so PDFs and audio were rejected by Cloudinary.
+const CHAT_MIME_PREFIXES = ['image/', 'audio/'];
+const CHAT_MIMES = [
+    'video/mp4', 'application/pdf', 'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/plain'
+];
+
+let chatStorage;
+try {
+    chatStorage = new CloudinaryStorage({
+        cloudinary: cloudinary,
+        params: async (req, file) => ({
+            folder: 'utsavo/chat',
+            resource_type: 'auto',
+            public_id: `${Date.now()}_${path.parse(file.originalname).name.replace(/[^a-zA-Z0-9_-]/g, '_')}`
+        })
+    });
+} catch (error) {
+    console.error('CLOUDINARY CHAT STORAGE ERROR:', error.message);
+}
+
+const chatUpload = multer({
+    storage: chatStorage || multer.memoryStorage(),
+    limits: { fileSize: 15 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const mime = String(file.mimetype || '').toLowerCase();
+        const ok = CHAT_MIME_PREFIXES.some(p => mime.startsWith(p)) || CHAT_MIMES.includes(mime);
+        if (!ok) return cb(new Error('Unsupported file type. Send an image, PDF/document or voice note.'), false);
+        cb(null, true);
+    }
+});
 
 // Permitted MIME types and extensions for family group attachments
 const ALLOWED_MIMES = [
@@ -163,6 +209,7 @@ const destroyFile = async ({ publicId, resourceType, storagePath }) => {
 module.exports = {
     cloudinary,
     upload,
+    chatUpload,
     familyUpload,
     getSignedAttachmentUrl,
     destroyFile,

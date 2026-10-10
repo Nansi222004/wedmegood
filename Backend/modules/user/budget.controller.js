@@ -4,12 +4,14 @@ const Booking = require('../vendor/Booking');
 const Payment = require('./Payment');
 const User = require('./user.model');
 
+// Suggested split for a new budget. Nothing is booked or paid yet, so every category starts
+// unpaid and unconfirmed (they are confirmed when a quote is accepted / payments are recorded).
 const DEFAULT_CATEGORIES = [
-  { id: 'venue', name: 'Venue', color: '#ec4899', status: 'Confirmed', totalAmount: 100000, advancePaid: 25000, balanceAmount: 75000, spent: 25000 },
-  { id: 'catering', name: 'Catering', color: '#10b981', status: 'Pending with Discussion', totalAmount: 50000, advancePaid: 0, balanceAmount: 50000, spent: 0 },
+  { id: 'venue', name: 'Venue', color: '#ec4899', status: 'Pending with Budget', totalAmount: 100000, advancePaid: 0, balanceAmount: 100000, spent: 0 },
+  { id: 'catering', name: 'Catering', color: '#10b981', status: 'Pending with Budget', totalAmount: 50000, advancePaid: 0, balanceAmount: 50000, spent: 0 },
   { id: 'photography', name: 'Photography', color: '#f59e0b', status: 'Pending with Budget', totalAmount: 30000, advancePaid: 0, balanceAmount: 30000, spent: 0 },
-  { id: 'decoration', name: 'Decoration', color: '#8b5cf6', status: 'Confirmed', totalAmount: 50000, advancePaid: 10000, balanceAmount: 40000, spent: 10000 },
-  { id: 'invitations', name: 'Invitations', color: '#06b6d4', status: 'Pending with Discussion', totalAmount: 15000, advancePaid: 0, balanceAmount: 15000, spent: 0 },
+  { id: 'decoration', name: 'Decoration', color: '#8b5cf6', status: 'Pending with Budget', totalAmount: 50000, advancePaid: 0, balanceAmount: 50000, spent: 0 },
+  { id: 'invitations', name: 'Invitations', color: '#06b6d4', status: 'Pending with Budget', totalAmount: 15000, advancePaid: 0, balanceAmount: 15000, spent: 0 },
   { id: 'entertainment', name: 'Entertainment', color: '#ef4444', status: 'Pending with Budget', totalAmount: 20000, advancePaid: 0, balanceAmount: 20000, spent: 0 }
 ];
 
@@ -23,12 +25,16 @@ exports.getBudget = async (req, res) => {
     let budget = await Budget.findOne({ userId });
 
     // Derive authoritative transaction metrics from real Bookings and Payments
+    // (statuses are stored capitalised; payments recorded by the vendor outside the app count too)
     const [realBookings, realPayments] = await Promise.all([
-      Booking.find({ userId, status: { $nin: ['cancelled', 'rejected'] } }).lean(),
-      Payment.find({ userId, status: 'completed' }).lean()
+      Booking.find({ userId, status: { $ne: 'Cancelled' } }).lean(),
+      Payment.find({ userId, status: { $in: ['Completed', 'Paid', 'PartiallyRefunded'] } }).lean()
     ]);
 
-    const authoritativeSpent = realPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const { reconcileBookingPayments } = require('../../utils/financialReconciliation');
+    const authoritativeSpent = realBookings.reduce(
+      (sum, b) => sum + (reconcileBookingPayments(b, realPayments).paidAmount || 0), 0
+    );
     const authoritativeBookedValue = realBookings.reduce((sum, b) => sum + (Number(b.totalPrice) || 0), 0);
 
     if (!budget) {

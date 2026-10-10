@@ -10,12 +10,12 @@ const {
 
 const router = express.Router();
 
-router.use(protectVendor);
-
-router.get('/earnings', getVendorEarnings);
-router.get('/transactions', getVendorTransactions);
-router.get('/withdrawals', getVendorWithdrawals);
-router.post('/withdrawals', requestWithdrawal);
-router.get('/withdrawals/:id', getVendorWithdrawalById);
+// Auth is applied per route: this router is mounted at '/', so a router-level guard would
+// also intercept every route registered after it (including public ones like /subscription/plans)
+router.get('/earnings', protectVendor, getVendorEarnings);
+router.get('/transactions', protectVendor, getVendorTransactions);
+router.get('/withdrawals', protectVendor, getVendorWithdrawals);
+router.post('/withdrawals', protectVendor, requestWithdrawal);
+router.get('/withdrawals/:id', protectVendor, getVendorWithdrawalById);
 
 module.exports = router;

@@ -858,15 +858,20 @@ exports.getGroupMessages = async (req, res) => {
     const { id } = req.params;
 
     // Check membership
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid group ID format' });
+    }
+
     const group = await FamilyGroup.findById(id);
     if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
     
     const isMember = group.userId.equals(userId) || group.members.some(m => m.userId && m.userId.equals(userId) && m.status === 'accepted');
     if (!isMember) return res.status(403).json({ success: false, message: 'Not a member of this group' });
 
-    const messages = await FamilyGroupMessage.find({ groupId: id })
-      .sort({ createdAt: 1 })
-      .limit(100);
+    // The latest 100 messages, shown oldest-first (sorting ascending would freeze the chat on the first 100)
+    const messages = (await FamilyGroupMessage.find({ groupId: id })
+      .sort({ createdAt: -1 })
+      .limit(100)).reverse();
 
     const populatedMessages = messages.map(msg => {
       const msgObj = msg.toObject();
@@ -897,7 +902,17 @@ exports.sendMessage = async (req, res) => {
   try {
     const userId = req.user._id;
     const { id } = req.params;
-    const { message, type, clientMessageId, attachments } = req.body;
+    const { message, type, clientMessageId } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid group ID format' });
+    }
+
+    // Files are only ever attached through the upload endpoint, which stores them privately and
+    // creates the message itself. Client-supplied attachment objects are ignored: they could point
+    // at another group's files or at a path on the server (storagePath) that the download
+    // gateway would then serve.
+    const attachments = [];
 
     // Check membership
     const group = await FamilyGroup.findById(id);
@@ -927,9 +942,9 @@ exports.sendMessage = async (req, res) => {
       senderId: userId,
       senderName,
       senderAvatar,
-      message: (message || '').trim(),
-      type: type || (attachments && attachments.length ? attachments[0].type : 'text'),
-      attachments: Array.isArray(attachments) ? attachments : [],
+      message: (typeof message === 'string' ? message : '').trim().slice(0, 5000),
+      type: 'text',
+      attachments,
       clientMessageId
     });
 
@@ -1770,8 +1785,13 @@ exports.getPrivateAttachment = async (req, res) => {
     }
 
     // Local disk private storage fallback
-    if (attachment.storagePath && fs.existsSync(attachment.storagePath)) {
-      return res.sendFile(path.resolve(attachment.storagePath));
+    if (attachment.storagePath) {
+      // Only files inside this group's private upload folder may ever be served
+      const groupDir = path.resolve(__dirname, '../../uploads/private/family-groups', String(id));
+      const resolved = path.resolve(attachment.storagePath);
+      if (resolved.startsWith(groupDir + path.sep) && fs.existsSync(resolved)) {
+        return res.sendFile(resolved);
+      }
     }
 
     if (attachment.url && attachment.url.startsWith('http')) {

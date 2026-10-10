@@ -333,6 +333,13 @@ const GroupChat = () => {
     }
   };
 
+  // The contact picker has no data source yet (availableContacts is never filled), so this only
+  // closes the dialog; members are invited through the quick-invite form below.
+  const handleAddMembers = () => {
+    setShowAddMembers(false);
+    setSelectedNewMembers([]);
+  };
+
   const handleQuickInviteMember = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     if (!quickInviteName.trim()) {

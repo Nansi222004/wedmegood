@@ -103,7 +103,7 @@ const VendorCalendar = () => {
       // Fetch Weather for this vendor's location and viewing month
       if (vendorId) {
         try {
-          const availRes = await fetch(`/api/vendors/${vendorId}/availability?month=${monthStr}`);
+          const availRes = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api'}/vendors/${vendorId}/availability?month=${monthStr}`);
           const availData = await availRes.json();
           if (availData.success && availData.weatherForecasts) {
             setWeatherMap(availData.weatherForecasts);

@@ -77,6 +77,12 @@ const corsOptions = {
 const app = express();
 const httpServer = http.createServer(app);
 
+// Behind nginx/Vercel the client IP arrives via X-Forwarded-For; without this every
+// user shares the proxy's IP in the rate limiter.
+if (process.env.NODE_ENV === 'production' || process.env.TRUST_PROXY) {
+  app.set('trust proxy', Number(process.env.TRUST_PROXY) || 1);
+}
+
 // Apply CORS middleware before any routes or handlers
 app.use(cors(corsOptions));
 
@@ -124,6 +130,34 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
+// Brute-force protection for credential endpoints: failed logins / OTP guesses / reset tokens are
+// capped per IP (successful requests do not count), and anything that sends an SMS or email is
+// capped more tightly so it cannot be used to spam people or run up messaging costs.
+const credentialLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many attempts. Please try again in a few minutes.' }
+});
+const messageSendLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests. Please try again in a few minutes.' }
+});
+app.use([
+  '/api/user/auth/login', '/api/user/auth/login-otp', '/api/user/auth/verify-otp',
+  '/api/user/auth/verify-email', '/api/user/auth/verify-phone', '/api/user/auth/reset-password',
+  '/api/vendor/login', '/api/vendor/login-otp', '/api/vendor/verify-otp'
+], credentialLimiter);
+app.use([
+  '/api/user/auth/send-otp', '/api/user/auth/resend-otp', '/api/user/auth/forgot-password',
+  '/api/vendor/send-otp'
+], messageSendLimiter);
+
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -159,25 +193,6 @@ app.get('/health', (req, res) => {
       environment: process.env.NODE_ENV || 'development',
     db_state: mongoose.connection.readyState
   });
-});
-
-// Seed trigger for production (TEMPORARY - PLEASE DELETE AFTER USE)
-const Category = require('./modules/admin/Category');
-app.get('/api/seed-categories-secure-xyz', async (req, res) => {
-    try {
-        const categories = [
-            { name: 'Venues', description: 'Banquets, Farmhouses, and Hotels', slug: 'venues' },
-            { name: 'Photographers', description: 'Wedding photography and videography', slug: 'photographers' },
-            { name: 'Makeup Artists', description: 'Bridal makeup and hair styling', slug: 'makeup-artists' },
-            { name: 'Decorators', description: 'Event decor and floral arrangements', slug: 'decorators' },
-            { name: 'Catering', description: 'Food and beverage services', slug: 'catering' }
-        ];
-        await Category.deleteMany({});
-        await Category.insertMany(categories);
-        res.json({ success: true, message: "Categories seeded successfully" });
-    } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
-    }
 });
 
 // Maintenance mode middleware (allows /health and /api/admin/*)
@@ -269,6 +284,7 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
   await connectDB();
   await initializeAdmin();
+  require('./services/subscription.service').startSubscriptionExpiryJob();
 
   httpServer.listen(PORT, () => {
     console.log(`🚀 Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);

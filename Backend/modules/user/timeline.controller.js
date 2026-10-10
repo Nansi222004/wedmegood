@@ -1,6 +1,24 @@
 const mongoose = require('mongoose');
 const TimelineEvent = require('./TimelineEvent');
 const User = require('./user.model');
+const ChecklistTask = require('./ChecklistTask');
+
+// Roadmap stages, from the earliest planning window to the wedding week
+const MILESTONE_STAGES = [
+  { title: '12 Months Before', color: '#10b981', minMonths: 9 },
+  { title: '6 Months Before', color: '#f59e0b', minMonths: 4 },
+  { title: '3 Months Before', color: '#ec4899', minMonths: 1 },
+  { title: 'Wedding Week', color: '#8b5cf6', minMonths: 0 }
+];
+
+// "10 months before" -> 10, "2 weeks before" -> 0.5, anything else -> 1
+const timeframeToMonths = (timeframe = '') => {
+  const m = String(timeframe).match(/(\d+(?:\.\d+)?)\s*(month|week|day)/i);
+  if (!m) return 1;
+  const n = Number(m[1]);
+  const unit = m[2].toLowerCase();
+  return unit === 'month' ? n : unit === 'week' ? n / 4 : n / 30;
+};
 
 const INITIAL_TIMELINE_EVENTS = [
   { title: 'Venue Recce & Tasting', date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), time: '11:00 AM', location: 'Selected Banquet Hall', category: 'Venue', status: 'upcoming', order: 1 },
@@ -24,8 +42,10 @@ exports.getTimeline = async (req, res) => {
       events = await TimelineEvent.insertMany(seeded);
     }
 
-    const user = await User.findById(userId).select('weddingDetails');
-    const weddingDateVal = user?.weddingDetails?.weddingDate ? new Date(user.weddingDetails.weddingDate) : new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
+    const user = await User.findById(userId).select('weddingDetails weddingDate');
+    // The date given at sign-up counts too; only fall back to a placeholder when no date is known
+    const knownWeddingDate = user?.weddingDetails?.weddingDate || user?.weddingDate;
+    const weddingDateVal = knownWeddingDate ? new Date(knownWeddingDate) : new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
     const today = new Date();
     const daysRemaining = Math.max(0, Math.ceil((weddingDateVal - today) / (1000 * 60 * 60 * 24)));
 
@@ -33,12 +53,23 @@ exports.getTimeline = async (req, res) => {
     const completedEvents = events.filter(e => e.status === 'completed').length;
     const upcomingEvents = events.filter(e => e.status === 'upcoming').length;
 
-    const milestones = [
-      { title: '12 Months Before', tasks: ['Set budget', 'Book venue', 'Create guest list'], completed: 3, total: 3, color: '#10b981' },
-      { title: '6 Months Before', tasks: ['Book photographer', 'Order invitations', 'Book caterer'], completed: 2, total: 3, color: '#f59e0b' },
-      { title: '3 Months Before', tasks: ['Bridal fittings', 'Confirm vendors', 'Send digital invites'], completed: completedEvents > 0 ? 1 : 0, total: 3, color: '#ec4899' },
-      { title: 'Wedding Week', tasks: ['Confirm schedule', 'Relax & enjoy', 'Get married!'], completed: 0, total: 3, color: '#8b5cf6' }
-    ];
+    // Milestone progress comes from the user's own checklist (grouped by when each task is due),
+    // not from fixed numbers that would show every couple the same fake progress
+    const checklist = await ChecklistTask.find({ userId }).select('task timeframe completed').lean();
+    const milestones = MILESTONE_STAGES.map((stage) => {
+      const stageTasks = checklist.filter((t) => {
+        const months = timeframeToMonths(t.timeframe);
+        const stageIndex = MILESTONE_STAGES.findIndex((s) => months >= s.minMonths);
+        return MILESTONE_STAGES[stageIndex]?.title === stage.title;
+      });
+      return {
+        title: stage.title,
+        color: stage.color,
+        tasks: stageTasks.slice(0, 3).map((t) => t.task),
+        completed: stageTasks.filter((t) => t.completed).length,
+        total: stageTasks.length
+      };
+    });
 
     res.status(200).json({
       success: true,

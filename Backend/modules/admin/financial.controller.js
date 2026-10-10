@@ -18,9 +18,9 @@ exports.getFinancialSummary = async (req, res, next) => {
             walletStats,
             withdrawalStats
         ] = await Promise.all([
-            // Completed / Paid Customer Payments
+            // Collected customer payments (partially refunded ones still hold money)
             Payment.aggregate([
-                { $match: { status: { $in: ['Completed', 'Paid'] } } },
+                { $match: { status: { $in: ['Completed', 'Paid', 'PartiallyRefunded'] } } },
                 {
                     $group: {
                         _id: null,
@@ -33,7 +33,7 @@ exports.getFinancialSummary = async (req, res, next) => {
             ]),
             // Refunds
             Payment.aggregate([
-                { $match: { status: 'Refunded' } },
+                { $match: { status: { $in: ['Refunded', 'PartiallyRefunded'] } } },
                 {
                     $group: {
                         _id: null,
@@ -80,7 +80,9 @@ exports.getFinancialSummary = async (req, res, next) => {
         const pendingPayoutsCount = ['Requested', 'Pending', 'Approved', 'Processing']
             .reduce((sum, st) => sum + (withdrawalsByStatus[st]?.count || 0), 0);
 
-        const netPlatformRevenue = Math.max(0, payments.totalCommission - refunds.totalRefunded);
+        // Commission on refunded money is already reversed on each payment record (fully refunded
+        // payments are excluded above), so the remaining commission is the net revenue.
+        const netPlatformRevenue = Math.max(0, payments.totalCommission);
 
         res.status(200).json({
             success: true,
@@ -391,7 +393,8 @@ exports.processRefund = async (req, res, next) => {
     try {
         const { paymentId, bookingId, reason, refundAmount: reqRefundAmount } = req.body;
 
-        const query = {};
+        // Only money that was actually collected can be refunded (never Pending/Failed attempts)
+        const query = { status: { $in: ['Completed', 'Paid', 'PartiallyRefunded'] } };
         if (paymentId && mongoose.Types.ObjectId.isValid(paymentId)) {
             query._id = paymentId;
         } else if (bookingId && mongoose.Types.ObjectId.isValid(bookingId)) {
@@ -403,9 +406,14 @@ exports.processRefund = async (req, res, next) => {
             });
         }
 
-        const payment = await Payment.findOne(query);
+        const payment = await Payment.findOne(query).sort('-createdAt');
         if (!payment) {
-            return res.status(404).json({ success: false, message: 'Payment record not found' });
+            return res.status(404).json({ success: false, message: 'No refundable payment found' });
+        }
+
+        if (reqRefundAmount !== undefined && reqRefundAmount !== null && reqRefundAmount !== '' &&
+            (!Number.isFinite(Number(reqRefundAmount)) || Number(reqRefundAmount) <= 0)) {
+            return res.status(400).json({ success: false, message: 'Refund amount must be a positive number' });
         }
 
         const existingPaymentRefund = Number(payment.refundAmount) || 0;
@@ -418,7 +426,9 @@ exports.processRefund = async (req, res, next) => {
             });
         }
 
-        const refundAmount = reqRefundAmount ? Math.min(maxRefundableOnPayment, Number(reqRefundAmount)) : maxRefundableOnPayment;
+        const refundAmount = reqRefundAmount
+            ? Math.round(Math.min(maxRefundableOnPayment, Number(reqRefundAmount)) * 100) / 100
+            : maxRefundableOnPayment;
 
         if (refundAmount <= 0) {
             return res.status(400).json({ success: false, message: 'Invalid refund amount' });

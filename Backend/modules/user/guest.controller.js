@@ -1,6 +1,9 @@
 const mongoose = require('mongoose');
 const Guest = require('./Guest');
 
+// Search text is matched literally; unescaped it could be an invalid or catastrophic regex
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // @desc    Get user's guest list and statistics
 // @route   GET /api/user/guests
 // @access  Private (User)
@@ -15,9 +18,9 @@ exports.getGuests = async (req, res) => {
     if (side && side !== 'All') filter.side = side;
     if (search && search.trim()) {
       filter.$or = [
-        { name: { $regex: search.trim(), $options: 'i' } },
-        { phone: { $regex: search.trim(), $options: 'i' } },
-        { email: { $regex: search.trim(), $options: 'i' } }
+        { name: { $regex: escapeRegex(search.trim()), $options: 'i' } },
+        { phone: { $regex: escapeRegex(search.trim()), $options: 'i' } },
+        { email: { $regex: escapeRegex(search.trim()), $options: 'i' } }
       ];
     }
 

@@ -24,7 +24,9 @@ const VendorOperationalGuard = ({ moduleName, children }) => {
   }
 
   const isApproved = vendorState?.status === 'Approved';
-  const isSubscribed = vendorState?.subscription?.status === 'Active';
+  const sub = vendorState?.subscription;
+  // Matches the API: a passed end date counts as expired even before the server's sweep updates the status
+  const isSubscribed = sub?.status === 'Active' && !(sub?.endDate && new Date(sub.endDate) < new Date());
   const isActive = vendorState?.isActive !== false && vendorState?.status !== 'Suspended';
 
   const canAccessOperations = isApproved && isSubscribed && isActive;

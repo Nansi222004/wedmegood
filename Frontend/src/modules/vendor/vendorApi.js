@@ -677,7 +677,7 @@ export const vendorApi = {
     },
 
     getBlockedDates: async (token) => {
-        const response = await fetch(`${BASE_URL}/blocked-dates`, {
+        const response = await fetch(`${BASE_URL}/calendar/blocked-dates`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -685,7 +685,7 @@ export const vendorApi = {
     },
 
     addBlockedDate: async (date, token) => {
-        const response = await fetch(`${BASE_URL}/blocked-dates`, {
+        const response = await fetch(`${BASE_URL}/calendar/blocked-dates`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -697,13 +697,9 @@ export const vendorApi = {
     },
 
     removeBlockedDate: async (date, token) => {
-        const response = await fetch(`${BASE_URL}/blocked-dates`, {
+        const response = await fetch(`${BASE_URL}/calendar/blocked-dates/${encodeURIComponent(date)}`, {
             method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ date })
+            headers: { 'Authorization': `Bearer ${token}` }
         });
         return response.json();
     }

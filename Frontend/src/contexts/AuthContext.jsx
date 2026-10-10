@@ -39,6 +39,17 @@ export const AuthProvider = ({ children }) => {
     checkAuthState();
   }, []);
 
+  // The API client fires this when the server rejects the stored token
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      unregisterPushToken('user');
+      localStorage.removeItem('user');
+      setUser(null);
+    };
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+  }, []);
+
   const login = async (email, password) => {
     try {
       const response = await fetch(`${API_BASE_URL}/user/auth/login`, {

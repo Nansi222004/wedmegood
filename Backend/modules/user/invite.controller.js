@@ -3,6 +3,17 @@ const crypto = require('crypto');
 const EInvite = require('./EInvite');
 const Guest = require('./Guest');
 
+// An RSVP deadline picked as a plain date (midnight) should stay open for that whole day
+const isPastRsvpDeadline = (deadline) => {
+  if (!deadline) return false;
+  const d = new Date(deadline);
+  if (isNaN(d.getTime())) return false;
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0) {
+    d.setUTCHours(23, 59, 59, 999);
+  }
+  return new Date() > d;
+};
+
 // ==========================================
 // OWNER APIS (Private - Authenticated User)
 // ==========================================
@@ -479,7 +490,7 @@ exports.getPublicInvite = async (req, res) => {
       enableContact: Boolean(invite.enableContact),
       contactPerson: invite.enableContact ? invite.contactPerson : undefined,
       contactPhone: invite.enableContact ? invite.contactPhone : undefined,
-      isExpired: invite.rsvpDeadline ? new Date() > new Date(invite.rsvpDeadline) : false
+      isExpired: isPastRsvpDeadline(invite.rsvpDeadline)
     };
 
     res.status(200).json({
@@ -535,7 +546,7 @@ exports.submitPublicRSVP = async (req, res) => {
       return res.status(400).json({ success: false, message: 'RSVP is disabled for this invitation' });
     }
 
-    if (invite.rsvpDeadline && new Date() > new Date(invite.rsvpDeadline)) {
+    if (isPastRsvpDeadline(invite.rsvpDeadline)) {
       return res.status(400).json({
         success: false,
         message: 'The RSVP deadline for this invitation has passed'

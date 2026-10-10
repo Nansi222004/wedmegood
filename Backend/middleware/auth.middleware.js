@@ -117,7 +117,10 @@ const protectVendor = async (req, res, next) => {
 
 // Check if vendor has active subscription
 const requireSubscription = (req, res, next) => {
-  if (!req.vendor.subscription || req.vendor.subscription.status !== 'Active') {
+  const sub = req.vendor.subscription;
+  // A passed end date counts as expired even before the hourly sweep flips the status
+  const lapsed = sub?.endDate && new Date(sub.endDate) < new Date();
+  if (!sub || sub.status !== 'Active' || lapsed) {
     return res.status(403).json({
       success: false,
       message: 'Active subscription required. Please complete your subscription.',
@@ -129,6 +132,14 @@ const requireSubscription = (req, res, next) => {
 
 // Check if vendor is approved by admin
 const requireVendorApproval = (req, res, next) => {
+  // A deactivated account (by the vendor or by an admin) is paused: no leads, quotes, bookings or chat
+  if (req.vendor.isActive === false) {
+    return res.status(403).json({
+      success: false,
+      message: 'Your account is deactivated. Reactivate it from Settings to continue.',
+      accountInactive: true
+    });
+  }
   if (req.vendor.status !== 'Approved') {
     return res.status(403).json({
       success: false,

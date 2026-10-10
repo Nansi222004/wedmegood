@@ -207,7 +207,7 @@ exports.getDashboardSummary = async (req, res) => {
     let recommendedVendors = await Vendor.find({
       status: 'Approved',
       isActive: true,
-      city: { $regex: new RegExp(userCity, 'i') }
+      city: { $regex: new RegExp(String(userCity).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }
     })
       .select('businessName city profileImage startingPrice rating reviewCount selectedCategories')
       .sort({ isFeatured: -1, rating: -1, _id: -1 })

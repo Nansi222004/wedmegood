@@ -1,4 +1,6 @@
+const mongoose = require('mongoose');
 const chatService = require('./chat.service');
+const Vendor = require('../vendor/Vendor');
 
 // @desc    Start or get conversation with a vendor
 // @route   POST /api/user/conversations
@@ -8,6 +10,14 @@ exports.createConversation = async (req, res, next) => {
         const { vendorId } = req.body;
         if (!vendorId) {
             return res.status(400).json({ success: false, message: 'vendorId is required' });
+        }
+        if (!mongoose.Types.ObjectId.isValid(vendorId)) {
+            return res.status(400).json({ success: false, message: 'Invalid vendorId' });
+        }
+        // Only live marketplace vendors can be chatted with
+        const vendor = await Vendor.findOne({ _id: vendorId, status: 'Approved', isActive: true }).select('_id').lean();
+        if (!vendor) {
+            return res.status(404).json({ success: false, message: 'Vendor not found or not available' });
         }
         const conversation = await chatService.getOrCreateConversation({
             userId: req.user._id,

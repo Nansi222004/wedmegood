@@ -1,7 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const { upload } = require('../../utils/cloudinary');
-const { protect, protectVendor } = require('../../middleware/auth.middleware');
+const { chatUpload } = require('../../utils/cloudinary');
+const { protect, protectVendor, requireSubscription, requireVendorApproval } = require('../../middleware/auth.middleware');
 const User = require('../user/user.model');
 const Vendor = require('../vendor/Vendor');
 const Conversation = require('../vendor/Conversation');
@@ -98,6 +98,8 @@ userRouter.post('/:id/reports', chatController.createReport);
 // -----------------------------------------------------------------
 const vendorRouter = express.Router();
 vendorRouter.use(protectVendor);
+// Same rule as the rest of the vendor panel: chat is for approved, subscribed vendors only
+vendorRouter.use(requireSubscription, requireVendorApproval);
 vendorRouter.get('/', chatController.getVendorConversations);
 vendorRouter.get('/:id', chatController.getVendorConversationById);
 vendorRouter.get('/:id/messages', chatController.getConversationMessages);
@@ -112,7 +114,7 @@ vendorRouter.post('/:id/reports', chatController.createReport);
 const uploadRouter = express.Router();
 
 const handleAttachmentUpload = (req, res, next) => {
-    upload.single('file')(req, res, (err) => {
+    chatUpload.single('file')(req, res, (err) => {
         if (err) {
             return res.status(400).json({
                 success: false,

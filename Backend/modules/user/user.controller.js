@@ -169,48 +169,9 @@ exports.updateProfile = async (req, res) => {
 // @desc    Partially update user profile
 // @route   PATCH /api/user/profile
 // @access  Private
-exports.patchProfile = async (req, res) => {
-  try {
-    // Check for validation errors
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array()
-      });
-    }
-
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      req.body,
-      { new: true, runValidators: true }
-    );
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Profile updated successfully',
-      data: {
-        user: user.toAPIResponse()
-      }
-    });
-
-  } catch (error) {
-    console.error('Patch profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while updating profile',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-};
+// updateProfile already applies only the provided fields, and (unlike a raw req.body update)
+// only from an allow-list, so a user can never set role, isBlocked, password, etc. themselves.
+exports.patchProfile = (req, res) => exports.updateProfile(req, res);
 
 // @desc    Change password
 // @route   POST /api/user/profile/change-password
@@ -294,6 +255,18 @@ exports.deleteAccount = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'User not found'
+      });
+    }
+
+    // Vendors would be left with orphaned bookings, so live bookings must be settled or cancelled first
+    const activeBookings = await Booking.countDocuments({
+      userId: user._id,
+      status: { $in: ['Pending', 'Confirmed', 'In Progress'] }
+    });
+    if (activeBookings > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `You have ${activeBookings} active booking(s). Please cancel or complete them before deleting your account.`
       });
     }
 
@@ -460,8 +433,10 @@ exports.updateFamilyMember = async (req, res) => {
       });
     }
 
-    // Update family member details
-    Object.assign(familyMember, req.body);
+    // Update family member details (only the editable fields, never userId/isRegistered)
+    ['name', 'email', 'phone', 'relationship'].forEach((field) => {
+      if (req.body[field] !== undefined) familyMember[field] = req.body[field];
+    });
 
     await user.save();
 
@@ -817,9 +792,19 @@ exports.getWeddingProgress = async (req, res) => {
 
 exports.updateWeddingProgress = async (req, res) => {
   try {
+    // Only the known numeric progress counters may be set; replacing the whole object
+    // with the raw body would wipe the others (e.g. totalChecklistItems)
+    const progressFields = ['checklistCompleted', 'totalChecklistItems', 'budgetPlanned', 'vendorsBooked', 'guestsAdded'];
+    const set = {};
+    for (const field of progressFields) {
+      const value = Number(req.body[field]);
+      if (req.body[field] !== undefined && Number.isFinite(value) && value >= 0) {
+        set[`weddingProgress.${field}`] = value;
+      }
+    }
     const user = await User.findByIdAndUpdate(
       req.user._id,
-      { $set: { 'weddingProgress': req.body } },
+      { $set: set },
       { new: true }
     );
     
@@ -838,18 +823,18 @@ exports.updateWeddingProgress = async (req, res) => {
 
 exports.searchUsers = async (req, res) => {
   try {
-    const { query } = req.query;
+    const query = typeof req.query.query === 'string' ? req.query.query.trim() : '';
+    if (query.length < 2) {
+      return res.status(400).json({ success: false, message: 'Search text must be at least 2 characters' });
+    }
+    // Escape the text so it is matched literally (no regex injection / catastrophic patterns)
+    const pattern = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     const users = await User.find({
       $and: [
-        { isActive: true, isBlocked: false },
-        {
-          $or: [
-            { name: { $regex: query, $options: 'i' } },
-            { city: { $regex: query, $options: 'i' } }
-          ]
-        }
+        { isActive: true, isBlocked: false, _id: { $ne: req.user._id } },
+        { $or: [{ name: pattern }, { city: pattern }] }
       ]
-    }).select('name city profileImage weddingDate');
+    }).select('name city profileImage').limit(20);
 
     res.status(200).json({
       success: true,

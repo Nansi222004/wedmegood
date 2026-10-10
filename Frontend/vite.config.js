@@ -10,6 +10,10 @@ export default defineConfig({
   ],
   server: {
     port: 5173,
-    host: true
+    host: true,
+    // Some pages call the API with a relative /api URL; forward those to the backend in development
+    proxy: {
+      '/api': process.env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:5000'
+    }
   }
 });

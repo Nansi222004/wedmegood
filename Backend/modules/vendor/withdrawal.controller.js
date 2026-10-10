@@ -3,6 +3,7 @@ const VendorWallet = require('./VendorWallet');
 const WithdrawalRequest = require('./WithdrawalRequest');
 const Vendor = require('./Vendor');
 const FinancialLedger = require('../admin/FinancialLedger');
+const PlatformSettings = require('../admin/PlatformSettings');
 
 // Helper to ensure vendor wallet exists
 async function getOrCreateWallet(vendorId) {
@@ -164,6 +165,16 @@ exports.requestWithdrawal = async (req, res, next) => {
             });
         }
 
+        // Minimum withdrawal configured by the admin in platform settings
+        const settings = await PlatformSettings.findOne({}, 'minWithdrawalAmount').lean();
+        const minWithdrawal = Number(settings?.minWithdrawalAmount) || 0;
+        if (minWithdrawal > 0 && requestedAmount < minWithdrawal) {
+            return res.status(400).json({
+                success: false,
+                message: `Minimum withdrawal amount is ₹${minWithdrawal.toLocaleString('en-IN')}`
+            });
+        }
+
         // Fetch vendor bank details
         const vendor = await Vendor.findById(vendorId).select('bank bankDetails businessName');
         const bankData = req.body.bankDetails || vendor?.bank || vendor?.bankDetails;
@@ -210,20 +221,30 @@ exports.requestWithdrawal = async (req, res, next) => {
             });
         }
 
-        // Create Withdrawal Request record
-        const withdrawal = await WithdrawalRequest.create({
-            vendorId,
-            amount: requestedAmount,
-            currency: 'INR',
-            status: 'Requested',
-            payoutMethod,
-            bankDetails: {
-                accountName: bankData.accountName || vendor?.businessName,
-                accountNumber: bankData.accountNumber,
-                ifsc: bankData.ifsc,
-                upiId: bankData.upiId
-            }
-        });
+        // Create Withdrawal Request record. If this fails after the funds were locked, release them
+        // again so the money does not stay stuck in lockedBalance with no request to resolve it.
+        let withdrawal;
+        try {
+            withdrawal = await WithdrawalRequest.create({
+                vendorId,
+                amount: requestedAmount,
+                currency: 'INR',
+                status: 'Requested',
+                payoutMethod,
+                bankDetails: {
+                    accountName: bankData.accountName || vendor?.businessName,
+                    accountNumber: bankData.accountNumber,
+                    ifsc: bankData.ifsc,
+                    upiId: bankData.upiId
+                }
+            });
+        } catch (createErr) {
+            await VendorWallet.findOneAndUpdate(
+                { vendorId },
+                { $inc: { availableBalance: requestedAmount, lockedBalance: -requestedAmount } }
+            );
+            throw createErr;
+        }
 
         // Record pending debit in FinancialLedger
         await FinancialLedger.create({

@@ -37,7 +37,12 @@ const userSchema = new mongoose.Schema({
     default: null,
     validate: {
       validator: function (value) {
-        return !value || value > new Date();
+        if (!value) return true;
+        // Mongoose re-runs validators on every loaded path when a document is saved, so a
+        // wedding date that has since passed must not block unrelated saves (e.g. login).
+        // It is only enforced when the date is being set/changed (and on update queries).
+        if (typeof this.isModified === 'function' && !this.isNew && !this.isModified('weddingDate')) return true;
+        return value > new Date();
       },
       message: 'Wedding date must be in the future'
     }
@@ -48,6 +53,13 @@ const userSchema = new mongoose.Schema({
     required: [true, 'City is required'],
     trim: true,
     maxlength: [30, 'City name cannot exceed 30 characters']
+  },
+
+  // Short free-text bio (used by the admin profile)
+  bio: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Bio cannot exceed 500 characters']
   },
 
   profileImage: {
@@ -403,8 +415,9 @@ userSchema.pre('save', async function () {
     // This will be handled in the controller
   }
 
-  // Validate wedding date is in future
-  if (this.weddingDate && this.weddingDate <= new Date()) {
+  // Validate wedding date is in future, only when it is being changed. Otherwise users
+  // whose wedding date has passed could no longer log in (login saves lastLogin).
+  if (this.isModified('weddingDate') && this.weddingDate && this.weddingDate <= new Date()) {
     throw new Error('Wedding date must be in the future');
   }
 });
