@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { unregisterPushToken } from '../services/pushNotifications';
-import { clearApiCache } from '../services/userApi';
+import { clearApiCache, syncGuestFavorites } from '../services/userApi';
 
 const AuthContext = createContext();
 
@@ -73,6 +73,7 @@ export const AuthProvider = ({ children }) => {
         
         localStorage.setItem('user', JSON.stringify(userData));
         setUser(userData);
+        syncGuestFavorites().catch(() => {});
         
         return { success: true, user: userData };
       } else {
@@ -105,6 +106,7 @@ export const AuthProvider = ({ children }) => {
         
         localStorage.setItem('user', JSON.stringify(newUserData));
         setUser(newUserData);
+        syncGuestFavorites().catch(() => {});
         
         return { success: true, user: newUserData };
       } else {
@@ -159,6 +161,7 @@ export const AuthProvider = ({ children }) => {
       };
       localStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
+      syncGuestFavorites().catch(() => {});
       return { success: true, user: userData };
     } catch (error) {
       return { success: false, error: error.message };

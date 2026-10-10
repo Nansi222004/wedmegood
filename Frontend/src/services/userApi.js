@@ -133,6 +133,57 @@ const requestUncached = async (endpoint, options = {}) => {
   }
 };
 
+// ---------------------------------------------------------------------------------------------
+// Guest favourites. "Continue as guest" has no account and therefore no API token, so the server
+// refuses favourites ("no token provided"). Guests keep their saved vendors on this device
+// instead; they are moved into the account when the person logs in or signs up.
+// ---------------------------------------------------------------------------------------------
+const GUEST_FAVORITES_KEY = 'guestFavorites';
+const isGuestSession = () => !getAuthToken();
+
+const readGuestFavorites = () => {
+  try {
+    const list = JSON.parse(localStorage.getItem(GUEST_FAVORITES_KEY) || '[]');
+    return Array.isArray(list) ? list.filter((id) => typeof id === 'string') : [];
+  } catch (_) {
+    return [];
+  }
+};
+const writeGuestFavorites = (ids) => {
+  try { localStorage.setItem(GUEST_FAVORITES_KEY, JSON.stringify(Array.from(new Set(ids)))); } catch (_) { /* storage full/blocked */ }
+};
+
+const toFavoriteCard = (vendor) => {
+  const categories = (vendor.selectedCategories || []).map((c) => c.categoryName).filter(Boolean);
+  return {
+    favoriteId: vendor._id,
+    id: vendor._id,
+    vendorId: vendor._id,
+    name: vendor.businessName || vendor.fullName || 'Vendor',
+    category: categories[0] || vendor.category || 'Wedding',
+    categories,
+    rating: Number(vendor.rating) || 0,
+    reviews: Number(vendor.reviewCount) || 0,
+    price: vendor.startingPrice > 0 ? `₹${Number(vendor.startingPrice).toLocaleString('en-IN')}` : (vendor.pricing?.range || 'Price on request'),
+    location: vendor.city || 'India',
+    image: vendor.profileImage || vendor.portfolio?.[0]?.url || 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=400&h=300&fit=crop',
+    isAvailable: true,
+    isFeatured: Boolean(vendor.isFeatured)
+  };
+};
+
+const FAVORITE_CATEGORY_KEYWORDS = { photography: ['photo'], decoration: ['decor'], catering: ['cater'], makeup: ['makeup', 'make-up', 'make up'], venues: ['venue'] };
+
+/** Moves favourites saved while browsing as a guest into the account that just logged in. */
+export const syncGuestFavorites = async () => {
+  const ids = readGuestFavorites();
+  if (ids.length === 0 || !getAuthToken()) return;
+  const results = await Promise.allSettled(ids.map((vendorId) => request('/user/favorites', { method: 'POST', body: { vendorId } })));
+  // Keep only the ones that failed (e.g. a vendor that is no longer available is dropped silently)
+  const failed = ids.filter((_, i) => results[i].status === 'rejected' && results[i].reason?.status >= 500);
+  writeGuestFavorites(failed);
+};
+
 export const userApi = {
   // Public Vendors & Marketplace
   getVendors: async (params = {}) => {
@@ -533,11 +584,26 @@ export const userApi = {
 
   // 5. Canonical Favorites / Shortlist
   getFavorites: async (category = '') => {
+    if (isGuestSession()) {
+      const settled = await Promise.allSettled(readGuestFavorites().map((id) => request(`/vendors/${id}`, { method: 'GET' })));
+      let favorites = settled
+        .filter((r) => r.status === 'fulfilled' && r.value?.data)
+        .map((r) => toFavoriteCard(r.value.data));
+      if (category && category !== 'all') {
+        const words = FAVORITE_CATEGORY_KEYWORDS[String(category).toLowerCase()] || [String(category).toLowerCase()];
+        favorites = favorites.filter((f) => (f.categories.length ? f.categories : [f.category]).some((name) => words.some((w) => String(name).toLowerCase().includes(w))));
+      }
+      return { success: true, data: { favorites, count: favorites.length } };
+    }
     const query = category && category !== 'all' ? `?category=${category}` : '';
     return request(`/user/favorites${query}`, { method: 'GET' });
   },
 
   addFavorite: async (vendorId, notes = '') => {
+    if (isGuestSession()) {
+      writeGuestFavorites([...readGuestFavorites(), String(vendorId)]);
+      return { success: true, message: 'Vendor saved on this device. Log in to keep it in your account.', isFavorite: true, data: { isFavorite: true } };
+    }
     return request('/user/favorites', {
       method: 'POST',
       body: { vendorId, notes }
@@ -545,12 +611,20 @@ export const userApi = {
   },
 
   removeFavorite: async (vendorId) => {
+    if (isGuestSession()) {
+      writeGuestFavorites(readGuestFavorites().filter((id) => id !== String(vendorId)));
+      return { success: true, isFavorite: false, data: { isFavorite: false } };
+    }
     return request(`/user/favorites/${vendorId}`, {
       method: 'DELETE'
     });
   },
 
   checkFavorite: async (vendorId) => {
+    if (isGuestSession()) {
+      const saved = readGuestFavorites().includes(String(vendorId));
+      return { success: true, isFavorite: saved, data: { isFavorite: saved } };
+    }
     return request(`/user/favorites/check/${vendorId}`, {
       method: 'GET'
     });

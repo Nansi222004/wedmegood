@@ -13,7 +13,7 @@ exports.getFavorites = async (req, res) => {
     const favorites = await Favorite.find({ userId })
       .populate({
         path: 'vendorId',
-        select: 'businessName name category serviceType rating reviewsCount pricing address city coverImage images status isFeatured'
+        select: 'businessName fullName selectedCategories rating reviewCount pricing city profileImage portfolio status isFeatured'
       })
       .sort({ createdAt: -1 });
 
@@ -27,12 +27,15 @@ exports.getFavorites = async (req, res) => {
           id: v._id,
           vendorId: v._id,
           name: v.businessName || v.name,
-          category: v.category || v.serviceType || 'wedding',
-          rating: v.rating?.average || 4.8,
-          reviews: v.rating?.count || 12,
-          price: v.pricing?.priceRange || (v.pricing?.startingPrice ? `₹${v.pricing.startingPrice.toLocaleString()}` : 'Price on request'),
-          location: `${v.address?.city || v.city || 'India'}`,
-          image: v.coverImage || (v.images && v.images[0]?.url) || 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=400&h=300&fit=crop',
+          // Real data from the vendor profile (the old code read fields vendors do not have and
+          // showed a made-up 4.8 rating / 12 reviews for everyone)
+          category: v.selectedCategories?.[0]?.categoryName || 'Wedding',
+          categories: (v.selectedCategories || []).map(c => c.categoryName).filter(Boolean),
+          rating: Number(v.rating) || 0,
+          reviews: Number(v.reviewCount) || 0,
+          price: v.pricing?.range || 'Price on request',
+          location: v.city || 'India',
+          image: v.profileImage || v.portfolio?.[0]?.url || 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=400&h=300&fit=crop',
           addedDate: fav.createdAt.toISOString().split('T')[0],
           isAvailable: true,
           isFeatured: v.isFeatured || false,
@@ -41,7 +44,13 @@ exports.getFavorites = async (req, res) => {
       });
 
     if (category && category !== 'all') {
-      formatted = formatted.filter(v => v.category.toLowerCase() === category.toLowerCase());
+      // The page filters by ids like "photography"; vendors store names like "Photographers"
+      const KEYWORDS = { photography: ['photo'], decoration: ['decor'], catering: ['cater'], makeup: ['makeup', 'make-up', 'make up'], venues: ['venue'] };
+      const wanted = String(category).toLowerCase();
+      const words = KEYWORDS[wanted] || [wanted];
+      formatted = formatted.filter(v =>
+        (v.categories.length ? v.categories : [v.category]).some(name =>
+          words.some(w => String(name).toLowerCase().includes(w))));
     }
 
     res.status(200).json({
@@ -182,6 +191,8 @@ exports.checkFavorite = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      // top-level too: the vendor cards read res.isFavorite, so hearts never showed as saved
+      isFavorite: !!favorite,
       data: {
         isFavorite: !!favorite
       }
