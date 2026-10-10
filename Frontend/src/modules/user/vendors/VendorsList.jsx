@@ -205,8 +205,9 @@ const VendorsList = () => {
   };
 
   const toggleSaveVendor = async (vendorId, isCurrentlySaved) => {
-    if (!user) {
-      showToast('Please log in to save vendors to your favourites', 'error', 3000);
+    // Guest mode has a placeholder user but no account
+    if (!user || user.isGuest) {
+      showToast('You are not logged in. Please log in to save vendors.', 'error', 3000);
       navigate('/login', { state: { from: location.pathname } });
       return false;
     }
