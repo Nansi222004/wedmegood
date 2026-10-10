@@ -1,6 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react';
+import { useEffect, useLayoutEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
 
 // Instantly resets scroll position on page mount before browser paint
 const ScrollReset = () => {
@@ -8,105 +7,6 @@ const ScrollReset = () => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, []);
   return null;
-};
-
-// Determines horizontal index of route (0 = leftmost tab, 4 = rightmost tab)
-const getRouteIndex = (path) => {
-  if (!path) return 0;
-  if (path === '/user/home' || path === '/user/dashboard' || path === '/user/legacy-dashboard') return 0;
-
-  // Discover & Vendor category
-  if (
-    path.startsWith('/user/vendor') ||
-    path.startsWith('/user/search') ||
-    path.startsWith('/user/photographer') ||
-    path.startsWith('/user/venue') ||
-    path.startsWith('/user/makeup') ||
-    path.startsWith('/user/decorator') ||
-    path.startsWith('/user/inspiration') ||
-    path.startsWith('/user/trending') ||
-    path.startsWith('/user/bridal-looks') ||
-    path.startsWith('/user/decor') ||
-    path.startsWith('/user/special-offers') ||
-    path.startsWith('/user/news')
-  ) {
-    return 1;
-  }
-
-  // Create Event & Planning Tools category
-  if (
-    path.startsWith('/user/requirements') ||
-    path.startsWith('/user/planning') ||
-    path.startsWith('/user/wedding-') ||
-    path.startsWith('/user/tools') ||
-    path.startsWith('/user/budget') ||
-    path.startsWith('/user/checklist') ||
-    path.startsWith('/user/guest') ||
-    path.startsWith('/user/timeline') ||
-    path.startsWith('/user/calendar') ||
-    path.startsWith('/user/festivals') ||
-    path.startsWith('/user/horoscope') ||
-    path.startsWith('/user/e-invite') ||
-    path.startsWith('/user/ai-assistant') ||
-    path.startsWith('/user/genie-services')
-  ) {
-    return 2;
-  }
-
-  // Saved / Favourites / Bookings category
-  if (
-    path.startsWith('/user/favourite') ||
-    path.startsWith('/user/shortlist') ||
-    path.startsWith('/user/booking') ||
-    path.startsWith('/user/quote') ||
-    path.startsWith('/user/cart') ||
-    path.startsWith('/user/checkout')
-  ) {
-    return 3;
-  }
-
-  // Profile & Account & Settings category
-  if (
-    path.startsWith('/user/account') ||
-    path.startsWith('/user/family') ||
-    path.startsWith('/user/chat') ||
-    path.startsWith('/user/notification') ||
-    path.startsWith('/user/privacy') ||
-    path.startsWith('/user/language') ||
-    path.startsWith('/user/help') ||
-    path.startsWith('/user/faq')
-  ) {
-    return 4;
-  }
-
-  return 2;
-};
-
-// Directional page animation variants - strictly horizontal with locked Y-axis
-const pageTransitionVariants = {
-  enter: (dir) => ({
-    x: dir > 0 ? 16 : -16,
-    y: 0,
-    opacity: 0,
-  }),
-  center: {
-    x: 0,
-    y: 0,
-    opacity: 1,
-    transition: {
-      x: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
-      opacity: { duration: 0.15, ease: [0.22, 1, 0.36, 1] },
-    },
-  },
-  // The outgoing page must clear quickly: with mode="wait" its exit delays showing the next page
-  exit: () => ({
-    x: 0,
-    y: 0,
-    opacity: 0,
-    transition: {
-      opacity: { duration: 0.07, ease: 'linear' },
-    },
-  }),
 };
 
 import { useAuth } from '../contexts/AuthContext';
@@ -221,25 +121,6 @@ const AppRouter = () => {
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
-  // Track horizontal navigation direction between routes
-  const lastPathRef = useRef(location.pathname);
-  const directionRef = useRef(1);
-
-  if (lastPathRef.current !== location.pathname) {
-    const prevIdx = getRouteIndex(lastPathRef.current);
-    const currIdx = getRouteIndex(location.pathname);
-    if (currIdx !== prevIdx) {
-      directionRef.current = currIdx > prevIdx ? 1 : -1;
-    } else {
-      const prevDepth = lastPathRef.current.split('/').filter(Boolean).length;
-      const currDepth = location.pathname.split('/').filter(Boolean).length;
-      directionRef.current = currDepth >= prevDepth ? 1 : -1;
-    }
-    lastPathRef.current = location.pathname;
-  }
-
-  const direction = directionRef.current;
-
   // Warm the cache for the main user pages after the first screen has rendered
   useEffect(() => {
     if (!isAuthenticated || !location.pathname.startsWith('/user')) return undefined;
@@ -353,17 +234,10 @@ const AppRouter = () => {
                   location.pathname === '/user/home' ||
                   location.pathname === '/user/dashboard'
                 ) ? "relative z-0 min-h-[calc(100vh-140px)] overflow-x-hidden" : "pb-16 md:pb-0 relative z-0 min-h-[calc(100vh-140px)] overflow-x-hidden"}>
-                  <AnimatePresence mode="wait" custom={direction} initial={false}>
-                    <motion.div
-                      key={location.pathname}
-                      custom={direction}
-                      variants={pageTransitionVariants}
-                      initial="enter"
-                      animate="center"
-                      exit="exit"
-                      className="w-full"
-                      style={{ transformOrigin: 'top center' }}
-                    >
+                  {/* Opacity-only fade on a plain keyed div. The old slide (transform + exit animation
+                      with mode="wait") re-laid-out heavy pages mid-animation and turned every
+                      position:fixed element inside a page into a jumping one while it ran. */}
+                  <div key={location.pathname} className="w-full page-fade-in">
                       <ScrollReset />
                       <Suspense fallback={<PageLoader />}>
                       <Routes location={location}>
@@ -514,8 +388,7 @@ const AppRouter = () => {
                     <Route path="*" element={<Navigate to="/user/home" replace />} />
                   </Routes>
                       </Suspense>
-                    </motion.div>
-                  </AnimatePresence>
+                  </div>
                 </main>
                 <BottomNav />
               </div>
