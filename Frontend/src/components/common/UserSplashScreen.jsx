@@ -16,7 +16,7 @@ const ARCH_H = 500; // rainbow arch band height
 const TAGLINE_TOP = 754;
 const TAGLINE_H = 40;
 
-// Each leaf and dot of the rainbow celebration arch, cut from /utsavo_arch_pieces.png
+// Each leaf and dot of the rainbow celebration arch, cut from /utsavo_arch_pieces.webp
 // (a 1024 x 574 sprite atlas): x/y/w/h place it on the artboard, ax/ay locate it in
 // the atlas, cx/cy is its visual centre (bloom origin).
 const ARCH_ATLAS_W = 1024;
@@ -74,7 +74,7 @@ const UserSplashScreen = ({ onComplete }) => {
     setFading(true);
     setTimeout(() => {
       if (typeof onComplete === 'function') onComplete();
-    }, 450);
+    }, 350);
   }, [fading, onComplete]);
 
   // Handle keyboard Escape or Space to skip
@@ -88,10 +88,11 @@ const UserSplashScreen = ({ onComplete }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleDismiss]);
 
-  // Total duration: 3.2s
+  // Total duration: 2.7s (the last animation step finishes at about 2.6s). The progress readout
+  // updates every 100ms; at 25ms it re-rendered this whole SVG scene more than a hundred times.
   useEffect(() => {
     const startTime = Date.now();
-    const duration = 3200;
+    const duration = 2700;
 
     const interval = setInterval(() => {
       const elapsed = Date.now() - startTime;
@@ -102,7 +103,7 @@ const UserSplashScreen = ({ onComplete }) => {
         clearInterval(interval);
         handleDismiss();
       }
-    }, 25);
+    }, 100);
 
     return () => clearInterval(interval);
   }, [handleDismiss]);
@@ -370,7 +371,7 @@ const UserSplashScreen = ({ onComplete }) => {
                       height={piece.h}
                       viewBox={`${piece.ax} ${piece.ay} ${piece.w} ${piece.h}`}
                     >
-                      <image href="/utsavo_arch_pieces.png" width={ARCH_ATLAS_W} height={ARCH_ATLAS_H} />
+                      <image href="/utsavo_arch_pieces.webp" width={ARCH_ATLAS_W} height={ARCH_ATLAS_H} />
                     </svg>
                   </g>
                 );
@@ -379,7 +380,7 @@ const UserSplashScreen = ({ onComplete }) => {
 
             {/* High-Fidelity Rainbow Arch Layer (Fades in smoothly to seal the perfection) */}
             <img
-              src="/utsavo_rainbow_arch.png"
+              src="/utsavo_rainbow_arch.webp"
               alt="Utsavo Rainbow Arch"
               className="absolute left-0 top-0 w-full object-contain pointer-events-none z-15"
               style={{
@@ -442,7 +443,7 @@ const UserSplashScreen = ({ onComplete }) => {
               }}
             >
               <img
-                src="/utsavo_tagline.png"
+                src="/utsavo_tagline.webp"
                 alt="Celebrate Every Moment"
                 className="w-full h-full object-contain"
               />
@@ -452,8 +453,8 @@ const UserSplashScreen = ({ onComplete }) => {
             <div
               className="absolute inset-0 pointer-events-none z-30 opacity-40 overflow-hidden"
               style={{
-                maskImage: 'url(/utsavo_logo_artboard.png)',
-                WebkitMaskImage: 'url(/utsavo_logo_artboard.png)',
+                maskImage: 'url(/utsavo_logo_artboard.webp)',
+                WebkitMaskImage: 'url(/utsavo_logo_artboard.webp)',
                 maskSize: 'contain',
                 WebkitMaskSize: 'contain',
                 maskRepeat: 'no-repeat',

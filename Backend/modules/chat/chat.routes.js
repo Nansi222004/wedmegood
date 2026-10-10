@@ -5,6 +5,7 @@ const { protect, protectVendor, requireSubscription, requireVendorApproval } = r
 const User = require('../user/user.model');
 const Vendor = require('../vendor/Vendor');
 const Conversation = require('../vendor/Conversation');
+const { findCachedById } = require('../../utils/entityCache');
 const chatController = require('./chat.controller');
 
 const router = express.Router();
@@ -30,14 +31,14 @@ const protectAny = async (req, res, next) => {
         }
 
         // Try User first
-        const user = await User.findById(decoded.id);
+        const user = await findCachedById(User, decoded.id);
         if (user && user.isActive !== false && !user.isBlocked) {
             req.user = user;
             return next();
         }
 
         // Try Vendor next
-        const vendor = await Vendor.findById(decoded.id);
+        const vendor = await findCachedById(Vendor, decoded.id);
         if (vendor && vendor.isActive !== false && vendor.status !== 'Suspended') {
             req.vendor = vendor;
             return next();

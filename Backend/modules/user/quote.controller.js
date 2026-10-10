@@ -12,30 +12,17 @@ const { reconcileQuoteFinancials } = require('../../utils/financialReconciliatio
 // @access  Private (User)
 exports.getUserQuotes = async (req, res, next) => {
     try {
-        const quotes = await Quote.find({ userId: req.user._id })
-            .populate('vendorId', 'businessName city profileImage phone pricing rating reviewCount')
-            .populate('leadId')
-            .sort('-createdAt')
-            .lean();
-
-        const quoteIds = quotes.map(q => q._id);
-        const bookingIds = quotes.map(q => q.bookingId).filter(Boolean);
-
-        // Fetch associated bookings and payments for reconciliation
-        const bookings = await Booking.find({
-            $or: [
-                { quoteId: { $in: quoteIds } },
-                ...(bookingIds.length > 0 ? [{ _id: { $in: bookingIds } }] : [])
-            ]
-        }).lean();
-
-        const allBookingIds = bookings.map(b => b._id);
-        const payments = await Payment.find({
-            $or: [
-                { quoteId: { $in: quoteIds } },
-                ...(allBookingIds.length > 0 ? [{ bookingId: { $in: allBookingIds } }] : [])
-            ]
-        }).sort('-createdAt').lean();
+        // A user's quotes, bookings and payments are independent queries (all keyed by the user),
+        // so they are fetched together instead of one after another
+        const [quotes, bookings, payments] = await Promise.all([
+            Quote.find({ userId: req.user._id })
+                .populate('vendorId', 'businessName city profileImage phone pricing rating reviewCount')
+                .populate('leadId')
+                .sort('-createdAt')
+                .lean(),
+            Booking.find({ userId: req.user._id }).lean(),
+            Payment.find({ userId: req.user._id }).sort('-createdAt').lean()
+        ]);
 
         const enrichedQuotes = quotes.map(quote => {
             const matchedBooking = bookings.find(b =>

@@ -79,4 +79,7 @@ const leadSchema = new mongoose.Schema({
     timestamps: true
 });
 
+leadSchema.index({ vendorId: 1, createdAt: -1 });
+leadSchema.index({ userId: 1, createdAt: -1 });
+
 module.exports = mongoose.models.Lead || mongoose.model('Lead', leadSchema);

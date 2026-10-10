@@ -35,14 +35,17 @@ exports.getTimeline = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    let events = await TimelineEvent.find({ userId }).sort({ date: 1, order: 1 });
+    let [events, user, checklist] = await Promise.all([
+      TimelineEvent.find({ userId }).sort({ date: 1, order: 1 }),
+      User.findById(userId).select('weddingDetails weddingDate'),
+      ChecklistTask.find({ userId }).select('task timeframe completed').lean()
+    ]);
 
     if (events.length === 0) {
       const seeded = INITIAL_TIMELINE_EVENTS.map(e => ({ ...e, userId }));
       events = await TimelineEvent.insertMany(seeded);
     }
 
-    const user = await User.findById(userId).select('weddingDetails weddingDate');
     // The date given at sign-up counts too; only fall back to a placeholder when no date is known
     const knownWeddingDate = user?.weddingDetails?.weddingDate || user?.weddingDate;
     const weddingDateVal = knownWeddingDate ? new Date(knownWeddingDate) : new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
@@ -55,7 +58,6 @@ exports.getTimeline = async (req, res) => {
 
     // Milestone progress comes from the user's own checklist (grouped by when each task is due),
     // not from fixed numbers that would show every couple the same fake progress
-    const checklist = await ChecklistTask.find({ userId }).select('task timeframe completed').lean();
     const milestones = MILESTONE_STAGES.map((stage) => {
       const stageTasks = checklist.filter((t) => {
         const months = timeframeToMonths(t.timeframe);

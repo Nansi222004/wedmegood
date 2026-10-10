@@ -95,7 +95,7 @@ const Header = () => {
             className="flex items-center justify-center cursor-pointer select-none active:scale-[0.98] transition-transform px-1"
           >
             <img
-              src="/utsavo_header_logo.png"
+              src="/utsavo_header_logo.webp"
               alt="Utsavo - Celebrate Every Moment"
               className="h-7 sm:h-8 md:h-9 w-auto max-w-[150px] sm:max-w-[170px] object-contain"
             />

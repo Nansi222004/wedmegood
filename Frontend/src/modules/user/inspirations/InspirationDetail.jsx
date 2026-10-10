@@ -100,7 +100,7 @@ const InspirationDetail = () => {
         <div 
           className="bg-[#FDFBF9] rounded-[32px] shadow-sm p-6 sm:p-8 space-y-8 relative overflow-hidden border border-white"
           style={{
-            backgroundImage: "url('/invitation%20bg.png')",
+            backgroundImage: "url('/invitation%20bg.webp')",
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
             backgroundSize: '100% 100%'
@@ -211,7 +211,7 @@ const InspirationDetail = () => {
                  <div 
                    className="absolute bottom-0 left-0 right-0 h-[110px] px-4 flex flex-col justify-center bg-[#FDFBF9] rounded-[28px]"
                    style={{
-                     backgroundImage: "url('/exproler%20section%20bg.png')",
+                     backgroundImage: "url('/exproler%20section%20bg.webp')",
                      backgroundPosition: 'center',
                      backgroundRepeat: 'no-repeat',
                      backgroundSize: '100% 100%'

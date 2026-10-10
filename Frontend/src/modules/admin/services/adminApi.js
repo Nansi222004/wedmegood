@@ -1,17 +1,28 @@
+import { createCachedFetch } from '../../../services/cachedFetch';
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://wedmegood-u0n7.onrender.com/api';
+const ADMIN_LIVE_ONLY = /\/(financial|payments|withdrawals|logs|audit-logs|tickets|chat-reports|complaints|stats|analytics|dashboard|leads|quotes|bookings)(\/|\?|$)/;
+
 const API_URL = `${API_BASE_URL}/admin`;
+
+// Admin lists are reused for a few seconds when moving between pages; anything operational or
+// time-sensitive (money, logs, tickets, reports, dashboards) is always fetched live.
+const apiFetch = createCachedFetch({
+    ttlMs: 10000,
+    neverCache: ADMIN_LIVE_ONLY
+});
 
 export const adminApi = {
     getVendors: async (token, params = {}) => {
         const query = new URLSearchParams(params).toString();
-        const res = await fetch(`${API_URL}/vendors${query ? `?${query}` : ''}`, {
+        const res = await apiFetch(`${API_URL}/vendors${query ? `?${query}` : ''}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
     },
 
     getVendorsWithServices: async (token) => {
-        const res = await fetch(`${API_URL}/vendors-services`, {
+        const res = await apiFetch(`${API_URL}/vendors-services`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
@@ -19,21 +30,21 @@ export const adminApi = {
 
     getUsers: async (token, params = {}) => {
         const query = new URLSearchParams(params).toString();
-        const res = await fetch(`${API_URL}/users${query ? `?${query}` : ''}`, {
+        const res = await apiFetch(`${API_URL}/users${query ? `?${query}` : ''}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
     },
 
     getUserById: async (id, token) => {
-        const res = await fetch(`${API_URL}/users/${id}`, {
+        const res = await apiFetch(`${API_URL}/users/${id}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
     },
 
     updateUserStatus: async (id, data, token) => {
-        const res = await fetch(`${API_URL}/users/${id}/status`, {
+        const res = await apiFetch(`${API_URL}/users/${id}/status`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -45,7 +56,7 @@ export const adminApi = {
     },
 
     updateVendorFeatured: async (vendorId, isFeatured, token) => {
-        const res = await fetch(`${API_URL}/vendors/${vendorId}/featured`, {
+        const res = await apiFetch(`${API_URL}/vendors/${vendorId}/featured`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -57,7 +68,7 @@ export const adminApi = {
     },
 
     updateVendorStatus: async (vendorId, status, token) => {
-        const res = await fetch(`${API_URL}/vendors/${vendorId}/status`, {
+        const res = await apiFetch(`${API_URL}/vendors/${vendorId}/status`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -69,7 +80,7 @@ export const adminApi = {
     },
 
     toggleVendorActive: async (vendorId, isActive, token) => {
-        const res = await fetch(`${API_URL}/vendors/${vendorId}/active`, {
+        const res = await apiFetch(`${API_URL}/vendors/${vendorId}/active`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -81,7 +92,7 @@ export const adminApi = {
     },
 
     toggleServiceActive: async (serviceId, isActive, token) => {
-        const res = await fetch(`${API_URL}/services/${serviceId}/active`, {
+        const res = await apiFetch(`${API_URL}/services/${serviceId}/active`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -93,7 +104,7 @@ export const adminApi = {
     },
 
     getStats: async (token) => {
-        const res = await fetch(`${API_URL}/stats`, {
+        const res = await apiFetch(`${API_URL}/stats`, {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
@@ -102,14 +113,14 @@ export const adminApi = {
     },
 
     getSubscriptionPlans: async (token) => {
-        const res = await fetch(`${API_URL}/subscription-plans`, {
+        const res = await apiFetch(`${API_URL}/subscription-plans`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
     },
 
     createSubscriptionPlan: async (data, token) => {
-        const res = await fetch(`${API_URL}/subscription-plans`, {
+        const res = await apiFetch(`${API_URL}/subscription-plans`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -121,7 +132,7 @@ export const adminApi = {
     },
 
     updateSubscriptionPlan: async (id, data, token) => {
-        const res = await fetch(`${API_URL}/subscription-plans/${id}`, {
+        const res = await apiFetch(`${API_URL}/subscription-plans/${id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -133,7 +144,7 @@ export const adminApi = {
     },
 
     deleteSubscriptionPlan: async (id, token) => {
-        const res = await fetch(`${API_URL}/subscription-plans/${id}`, {
+        const res = await apiFetch(`${API_URL}/subscription-plans/${id}`, {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -146,12 +157,12 @@ export const adminApi = {
     getCategories: async (token) => {
         const url = token ? `${API_URL}/categories/all` : `${API_URL}/categories`;
         const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-        const res = await fetch(url, { headers });
+        const res = await apiFetch(url, { headers });
         return await res.json();
     },
 
     createCategory: async (data, token) => {
-        const res = await fetch(`${API_URL}/categories`, {
+        const res = await apiFetch(`${API_URL}/categories`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -163,7 +174,7 @@ export const adminApi = {
     },
 
     updateCategory: async (id, data, token) => {
-        const res = await fetch(`${API_URL}/categories/${id}`, {
+        const res = await apiFetch(`${API_URL}/categories/${id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -175,7 +186,7 @@ export const adminApi = {
     },
 
     deleteCategory: async (id, token) => {
-        const res = await fetch(`${API_URL}/categories/${id}`, {
+        const res = await apiFetch(`${API_URL}/categories/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -184,14 +195,14 @@ export const adminApi = {
 
     getReviews: async (token, params = {}) => {
         const query = new URLSearchParams(params).toString();
-        const res = await fetch(`${API_URL}/reviews${query ? `?${query}` : ''}`, {
+        const res = await apiFetch(`${API_URL}/reviews${query ? `?${query}` : ''}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
     },
 
     updateReviewStatus: async (id, status, token) => {
-        const res = await fetch(`${API_URL}/reviews/${id}/status`, {
+        const res = await apiFetch(`${API_URL}/reviews/${id}/status`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -203,7 +214,7 @@ export const adminApi = {
     },
 
     deleteReview: async (id, token) => {
-        const res = await fetch(`${API_URL}/reviews/${id}`, {
+        const res = await apiFetch(`${API_URL}/reviews/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -211,7 +222,7 @@ export const adminApi = {
     },
 
     getAnalytics: async (token) => {
-        const res = await fetch(`${API_URL}/analytics`, {
+        const res = await apiFetch(`${API_URL}/analytics`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
@@ -219,21 +230,21 @@ export const adminApi = {
 
     getBookings: async (token, params = {}) => {
         const query = new URLSearchParams(params).toString();
-        const res = await fetch(`${API_URL}/bookings${query ? `?${query}` : ''}`, {
+        const res = await apiFetch(`${API_URL}/bookings${query ? `?${query}` : ''}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
     },
 
     getVendorLedger: async (token) => {
-        const res = await fetch(`${API_URL}/vendor-ledger`, {
+        const res = await apiFetch(`${API_URL}/vendor-ledger`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
     },
 
     deleteVendor: async (id, token) => {
-        const res = await fetch(`${API_URL}/vendors/${id}`, {
+        const res = await apiFetch(`${API_URL}/vendors/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -241,7 +252,7 @@ export const adminApi = {
     },
 
     deleteUser: async (id, token) => {
-        const res = await fetch(`${API_URL}/users/${id}`, {
+        const res = await apiFetch(`${API_URL}/users/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -249,14 +260,14 @@ export const adminApi = {
     },
 
     getPolicy: async (type, token) => {
-        const res = await fetch(`${API_URL}/policies/${type}`, {
+        const res = await apiFetch(`${API_URL}/policies/${type}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
     },
 
     updatePolicy: async (type, data, token) => {
-        const res = await fetch(`${API_URL}/policies/${type}`, {
+        const res = await apiFetch(`${API_URL}/policies/${type}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -268,14 +279,14 @@ export const adminApi = {
     },
 
     getTickets: async (token) => {
-        const res = await fetch(`${API_URL}/tickets`, {
+        const res = await apiFetch(`${API_URL}/tickets`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
     },
 
     updateTicketStatus: async (id, status, token) => {
-        const res = await fetch(`${API_URL}/tickets/${id}/status`, {
+        const res = await apiFetch(`${API_URL}/tickets/${id}/status`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -287,7 +298,7 @@ export const adminApi = {
     },
 
     replyToTicket: async (id, message, token) => {
-        const res = await fetch(`${API_URL}/tickets/${id}/reply`, {
+        const res = await apiFetch(`${API_URL}/tickets/${id}/reply`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -299,7 +310,7 @@ export const adminApi = {
     },
 
     deleteTicket: async (id, token) => {
-        const res = await fetch(`${API_URL}/tickets/${id}`, {
+        const res = await apiFetch(`${API_URL}/tickets/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -308,12 +319,12 @@ export const adminApi = {
 
     // FAQ Management
     getFAQs: async () => {
-        const res = await fetch(`${API_URL}/faqs`);
+        const res = await apiFetch(`${API_URL}/faqs`);
         return await res.json();
     },
 
     createFAQ: async (data, token) => {
-        const res = await fetch(`${API_URL}/faqs`, {
+        const res = await apiFetch(`${API_URL}/faqs`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -325,7 +336,7 @@ export const adminApi = {
     },
 
     updateFAQ: async (id, data, token) => {
-        const res = await fetch(`${API_URL}/faqs/${id}`, {
+        const res = await apiFetch(`${API_URL}/faqs/${id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -337,7 +348,7 @@ export const adminApi = {
     },
 
     deleteFAQ: async (id, token) => {
-        const res = await fetch(`${API_URL}/faqs/${id}`, {
+        const res = await apiFetch(`${API_URL}/faqs/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -346,12 +357,12 @@ export const adminApi = {
 
     // Support Config
     getSupportConfig: async () => {
-        const res = await fetch(`${API_URL}/support-config`);
+        const res = await apiFetch(`${API_URL}/support-config`);
         return await res.json();
     },
 
     updateSupportConfig: async (data, token) => {
-        const res = await fetch(`${API_URL}/support-config`, {
+        const res = await apiFetch(`${API_URL}/support-config`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -365,11 +376,11 @@ export const adminApi = {
     // SubCategories
     getSubCategories: async (categoryId, token) => {
         const url = categoryId ? `${API_URL}/subcategories?categoryId=${categoryId}` : `${API_URL}/subcategories`;
-        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+        const res = await apiFetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
         return await res.json();
     },
     createSubCategory: async (data, token) => {
-        const res = await fetch(`${API_URL}/subcategories`, {
+        const res = await apiFetch(`${API_URL}/subcategories`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(data)
@@ -377,7 +388,7 @@ export const adminApi = {
         return await res.json();
     },
     updateSubCategory: async (id, data, token) => {
-        const res = await fetch(`${API_URL}/subcategories/${id}`, {
+        const res = await apiFetch(`${API_URL}/subcategories/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(data)
@@ -385,7 +396,7 @@ export const adminApi = {
         return await res.json();
     },
     deleteSubCategory: async (id, token) => {
-        const res = await fetch(`${API_URL}/subcategories/${id}`, {
+        const res = await apiFetch(`${API_URL}/subcategories/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -398,11 +409,11 @@ export const adminApi = {
         if (categoryId) query.push(`categoryId=${categoryId}`);
         if (subCategoryId) query.push(`subCategoryId=${subCategoryId}`);
         const url = `${API_URL}/form-templates` + (query.length ? `?${query.join('&')}` : '');
-        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+        const res = await apiFetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
         return await res.json();
     },
     createFormTemplate: async (data, token) => {
-        const res = await fetch(`${API_URL}/form-templates`, {
+        const res = await apiFetch(`${API_URL}/form-templates`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(data)
@@ -410,7 +421,7 @@ export const adminApi = {
         return await res.json();
     },
     updateFormTemplate: async (id, data, token) => {
-        const res = await fetch(`${API_URL}/form-templates/${id}`, {
+        const res = await apiFetch(`${API_URL}/form-templates/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(data)
@@ -418,7 +429,7 @@ export const adminApi = {
         return await res.json();
     },
     deleteFormTemplate: async (id, token) => {
-        const res = await fetch(`${API_URL}/form-templates/${id}`, {
+        const res = await apiFetch(`${API_URL}/form-templates/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -428,11 +439,11 @@ export const adminApi = {
     // VendorServices (Dynamic)
     getDynamicVendorServices: async (status, token) => {
         const url = status ? `${API_URL}/vendor-services?status=${status}` : `${API_URL}/vendor-services`;
-        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+        const res = await apiFetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
         return await res.json();
     },
     updateVendorServiceStatus: async (id, status, token) => {
-        const res = await fetch(`${API_URL}/vendor-services/${id}/status`, {
+        const res = await apiFetch(`${API_URL}/vendor-services/${id}/status`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ status })
@@ -441,7 +452,7 @@ export const adminApi = {
     },
 
     getVendorInventories: async (token) => {
-        const res = await fetch(`${API_URL}/vendor-inventory`, {
+        const res = await apiFetch(`${API_URL}/vendor-inventory`, {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
@@ -452,14 +463,14 @@ export const adminApi = {
     // Phase 5: Financial Management & Payouts
     getPayments: async (token, params = {}) => {
         const query = new URLSearchParams(params).toString();
-        const res = await fetch(`${API_URL}/financial/payments${query ? `?${query}` : ''}`, {
+        const res = await apiFetch(`${API_URL}/financial/payments${query ? `?${query}` : ''}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
     },
 
     getFinancialSummary: async (token) => {
-        const res = await fetch(`${API_URL}/financial/summary`, {
+        const res = await apiFetch(`${API_URL}/financial/summary`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
@@ -467,7 +478,7 @@ export const adminApi = {
 
     getFinancialTransactions: async (token, params = {}) => {
         const query = new URLSearchParams(params).toString();
-        const res = await fetch(`${API_URL}/financial/transactions${query ? `?${query}` : ''}`, {
+        const res = await apiFetch(`${API_URL}/financial/transactions${query ? `?${query}` : ''}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
@@ -475,14 +486,14 @@ export const adminApi = {
 
     getWithdrawals: async (token, params = {}) => {
         const query = new URLSearchParams(params).toString();
-        const res = await fetch(`${API_URL}/financial/withdrawals${query ? `?${query}` : ''}`, {
+        const res = await apiFetch(`${API_URL}/financial/withdrawals${query ? `?${query}` : ''}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
     },
 
     updateWithdrawalStatus: async (id, data, token) => {
-        const res = await fetch(`${API_URL}/financial/withdrawals/${id}`, {
+        const res = await apiFetch(`${API_URL}/financial/withdrawals/${id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -494,7 +505,7 @@ export const adminApi = {
     },
 
     processRefund: async (data, token) => {
-        const res = await fetch(`${API_URL}/financial/refund`, {
+        const res = await apiFetch(`${API_URL}/financial/refund`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -506,7 +517,7 @@ export const adminApi = {
     },
 
     getReconciliation: async (token) => {
-        const res = await fetch(`${API_URL}/financial/reconciliation`, {
+        const res = await apiFetch(`${API_URL}/financial/reconciliation`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
@@ -514,7 +525,7 @@ export const adminApi = {
 
     // Phase 6: Dashboard, Operations & Settings
     getDashboardSummary: async (token) => {
-        const res = await fetch(`${API_URL}/dashboard/summary`, {
+        const res = await apiFetch(`${API_URL}/dashboard/summary`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
@@ -522,7 +533,7 @@ export const adminApi = {
 
     getLeads: async (token, params = {}) => {
         const query = new URLSearchParams(params).toString();
-        const res = await fetch(`${API_URL}/leads${query ? `?${query}` : ''}`, {
+        const res = await apiFetch(`${API_URL}/leads${query ? `?${query}` : ''}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
@@ -530,7 +541,7 @@ export const adminApi = {
 
     getQuotes: async (token, params = {}) => {
         const query = new URLSearchParams(params).toString();
-        const res = await fetch(`${API_URL}/quotes${query ? `?${query}` : ''}`, {
+        const res = await apiFetch(`${API_URL}/quotes${query ? `?${query}` : ''}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
@@ -538,14 +549,14 @@ export const adminApi = {
 
     getComplaints: async (token, params = {}) => {
         const query = new URLSearchParams(params).toString();
-        const res = await fetch(`${API_URL}/complaints${query ? `?${query}` : ''}`, {
+        const res = await apiFetch(`${API_URL}/complaints${query ? `?${query}` : ''}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
     },
 
     updateComplaintStatus: async (id, data, token) => {
-        const res = await fetch(`${API_URL}/complaints/${id}/status`, {
+        const res = await apiFetch(`${API_URL}/complaints/${id}/status`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -558,7 +569,7 @@ export const adminApi = {
 
     // Confirm a complaint's vendor as fake and list it on the users' Fake Vendors page
     markComplaintVendorAsFake: async (id, data, token) => {
-        const res = await fetch(`${API_URL}/complaints/${id}/mark-fake`, {
+        const res = await apiFetch(`${API_URL}/complaints/${id}/mark-fake`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -571,14 +582,14 @@ export const adminApi = {
 
     getFakeVendorListings: async (token, params = {}) => {
         const query = new URLSearchParams(params).toString();
-        const res = await fetch(`${API_URL}/fake-vendors${query ? `?${query}` : ''}`, {
+        const res = await apiFetch(`${API_URL}/fake-vendors${query ? `?${query}` : ''}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
     },
 
     createFakeVendorListing: async (data, token) => {
-        const res = await fetch(`${API_URL}/fake-vendors`, {
+        const res = await apiFetch(`${API_URL}/fake-vendors`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -590,7 +601,7 @@ export const adminApi = {
     },
 
     updateFakeVendorListing: async (id, data, token) => {
-        const res = await fetch(`${API_URL}/fake-vendors/${id}`, {
+        const res = await apiFetch(`${API_URL}/fake-vendors/${id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -602,7 +613,7 @@ export const adminApi = {
     },
 
     deleteFakeVendorListing: async (id, token) => {
-        const res = await fetch(`${API_URL}/fake-vendors/${id}`, {
+        const res = await apiFetch(`${API_URL}/fake-vendors/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -610,14 +621,14 @@ export const adminApi = {
     },
 
     getPlatformSettings: async (token) => {
-        const res = await fetch(`${API_URL}/settings`, {
+        const res = await apiFetch(`${API_URL}/settings`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();
     },
 
     updatePlatformSettings: async (data, token) => {
-        const res = await fetch(`${API_URL}/settings`, {
+        const res = await apiFetch(`${API_URL}/settings`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -630,7 +641,7 @@ export const adminApi = {
 
     getAuditLogs: async (token, params = {}) => {
         const query = new URLSearchParams(params).toString();
-        const res = await fetch(`${API_URL}/logs${query ? `?${query}` : ''}`, {
+        const res = await apiFetch(`${API_URL}/logs${query ? `?${query}` : ''}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         return await res.json();

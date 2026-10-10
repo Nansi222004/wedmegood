@@ -1,16 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../../../components/ui/Icon';
-import weddingImg from '../../../assets/wedding.png';
+import weddingImg from '../../../assets/wedding.webp';
 import { useVendorState } from '../useVendorState';
 import { vendorApi } from '../vendorApi';
 import { computeProfileCompletion } from '../vendorStore';
 import VendorPendingApproval from '../components/VendorPendingApproval';
 
 // Advertisement Banner Images
-import ads1 from '../../../assets/vendor/ads1.png';
-import ads2 from '../../../assets/vendor/ads2.png';
-import ads3 from '../../../assets/vendor/ads3.png';
+import ads1 from '../../../assets/vendor/ads1.webp';
+import ads2 from '../../../assets/vendor/ads2.webp';
+import ads3 from '../../../assets/vendor/ads3.webp';
 import ProfileCompletionTracker from '../components/ProfileCompletionTracker';
 
 const VendorDashboard = () => {

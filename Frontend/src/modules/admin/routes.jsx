@@ -1,35 +1,37 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AdminLayout from './components/AdminLayout';
-import AdminDashboard from './pages/AdminDashboard';
-import AdminVendors from './pages/AdminVendors';
-import AdminUsers from './pages/AdminUsers';
-import AdminSubscriptions from './pages/AdminSubscriptions';
-import AdminPayments from './pages/AdminPayments';
-import AdminEditorial from './pages/AdminEditorial';
-import AdminSettings from './pages/AdminSettings';
-import AdminLogs from './pages/AdminLogs';
-import AdminBookings from './pages/AdminBookings';
-import AdminAnalytics from './pages/AdminAnalytics';
-import AdminBanners from './pages/AdminBanners';
-import AdminProfile from './pages/AdminProfile';
-import AdminLogin from './pages/AdminLogin';
-import AdminForgotPassword from './pages/AdminForgotPassword';
-import AdminResetPassword from './pages/AdminResetPassword';
-import AdminGateways from './pages/AdminGateways';
-import AdminVendorVerification from './pages/AdminVendorVerification';
-import AdminVendorServices from './pages/AdminVendorServices';
-import AdminCategories from './pages/AdminCategories';
-import AdminSubCategories from './pages/AdminSubCategories';
-import AdminFormTemplates from './pages/AdminFormTemplates';
-import AdminReviews from './pages/AdminReviews';
-import AdminVendorLedger from './pages/AdminVendorLedger';
-import AdminPolicies from './pages/AdminPolicies';
-import AdminSupport from './pages/AdminSupport';
-import AdminVendorInventory from './pages/AdminVendorInventory';
-import AdminLeads from './pages/AdminLeads';
-import AdminQuotes from './pages/AdminQuotes';
-import AdminComplaints from './pages/AdminComplaints';
-import AdminFakeVendors from './pages/AdminFakeVendors';
+import PageLoader from '../../components/common/PageLoader';
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const AdminVendors = lazy(() => import('./pages/AdminVendors'));
+const AdminUsers = lazy(() => import('./pages/AdminUsers'));
+const AdminSubscriptions = lazy(() => import('./pages/AdminSubscriptions'));
+const AdminPayments = lazy(() => import('./pages/AdminPayments'));
+const AdminEditorial = lazy(() => import('./pages/AdminEditorial'));
+const AdminSettings = lazy(() => import('./pages/AdminSettings'));
+const AdminLogs = lazy(() => import('./pages/AdminLogs'));
+const AdminBookings = lazy(() => import('./pages/AdminBookings'));
+const AdminAnalytics = lazy(() => import('./pages/AdminAnalytics'));
+const AdminBanners = lazy(() => import('./pages/AdminBanners'));
+const AdminProfile = lazy(() => import('./pages/AdminProfile'));
+const AdminLogin = lazy(() => import('./pages/AdminLogin'));
+const AdminForgotPassword = lazy(() => import('./pages/AdminForgotPassword'));
+const AdminResetPassword = lazy(() => import('./pages/AdminResetPassword'));
+const AdminGateways = lazy(() => import('./pages/AdminGateways'));
+const AdminVendorVerification = lazy(() => import('./pages/AdminVendorVerification'));
+const AdminVendorServices = lazy(() => import('./pages/AdminVendorServices'));
+const AdminCategories = lazy(() => import('./pages/AdminCategories'));
+const AdminSubCategories = lazy(() => import('./pages/AdminSubCategories'));
+const AdminFormTemplates = lazy(() => import('./pages/AdminFormTemplates'));
+const AdminReviews = lazy(() => import('./pages/AdminReviews'));
+const AdminVendorLedger = lazy(() => import('./pages/AdminVendorLedger'));
+const AdminPolicies = lazy(() => import('./pages/AdminPolicies'));
+const AdminSupport = lazy(() => import('./pages/AdminSupport'));
+const AdminVendorInventory = lazy(() => import('./pages/AdminVendorInventory'));
+const AdminLeads = lazy(() => import('./pages/AdminLeads'));
+const AdminQuotes = lazy(() => import('./pages/AdminQuotes'));
+const AdminComplaints = lazy(() => import('./pages/AdminComplaints'));
+const AdminFakeVendors = lazy(() => import('./pages/AdminFakeVendors'));
 
 // Simple placeholder page component
 
@@ -44,6 +46,7 @@ const PlaceholderPage = ({ title }) => (
 
 const AdminRoutes = () => {
   return (
+    <Suspense fallback={<PageLoader />}>
     <Routes>
       <Route path="login" element={<AdminLogin />} />
       <Route path="forgot-password" element={<AdminForgotPassword />} />
@@ -82,6 +85,7 @@ const AdminRoutes = () => {
       {/* Fallback */}
       <Route path="*" element={<Navigate to="dashboard" replace />} />
     </Routes>
+    </Suspense>
   );
 };
 

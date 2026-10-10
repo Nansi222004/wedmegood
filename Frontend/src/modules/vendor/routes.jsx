@@ -1,35 +1,37 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import './vendorTheme.css';
 import VendorLayout from './components/VendorLayout';
+import PageLoader from '../../components/common/PageLoader';
 import VendorPublicLayout from './components/VendorPublicLayout';
-import VendorRegister from './pages/VendorRegister';
-import VendorLogin from './pages/VendorLogin';
-import VendorSubscriptionOnboarding from './pages/VendorSubscriptionOnboarding';
-import VendorReviewOnboarding from './pages/VendorReviewOnboarding';
-import VendorSubmittedOnboarding from './pages/VendorSubmittedOnboarding';
-import VendorDashboard from './pages/VendorDashboard';
-import VendorServices from './pages/VendorServices';
-import VendorPricing from './pages/VendorPricing';
-import VendorPortfolio from './pages/VendorPortfolio';
-import VendorLeads from './pages/VendorLeads';
-import VendorQuotes from './pages/VendorQuotes';
-import VendorBookings from './pages/VendorBookings';
-import VendorCalendar from './pages/VendorCalendar';
-import VendorChat from './pages/VendorChat';
-import VendorEarnings from './pages/VendorEarnings';
-import VendorReviews from './pages/VendorReviews';
-import VendorProfile from './pages/VendorProfile';
-import VendorSupport from './pages/VendorSupport';
-import VendorSettings from './pages/VendorSettings';
-import VendorInventory from './pages/VendorInventory';
-import VendorNotifications from './pages/VendorNotifications';
+const VendorRegister = lazy(() => import('./pages/VendorRegister'));
+const VendorLogin = lazy(() => import('./pages/VendorLogin'));
+const VendorSubscriptionOnboarding = lazy(() => import('./pages/VendorSubscriptionOnboarding'));
+const VendorReviewOnboarding = lazy(() => import('./pages/VendorReviewOnboarding'));
+const VendorSubmittedOnboarding = lazy(() => import('./pages/VendorSubmittedOnboarding'));
+const VendorDashboard = lazy(() => import('./pages/VendorDashboard'));
+const VendorServices = lazy(() => import('./pages/VendorServices'));
+const VendorPricing = lazy(() => import('./pages/VendorPricing'));
+const VendorPortfolio = lazy(() => import('./pages/VendorPortfolio'));
+const VendorLeads = lazy(() => import('./pages/VendorLeads'));
+const VendorQuotes = lazy(() => import('./pages/VendorQuotes'));
+const VendorBookings = lazy(() => import('./pages/VendorBookings'));
+const VendorCalendar = lazy(() => import('./pages/VendorCalendar'));
+const VendorChat = lazy(() => import('./pages/VendorChat'));
+const VendorEarnings = lazy(() => import('./pages/VendorEarnings'));
+const VendorReviews = lazy(() => import('./pages/VendorReviews'));
+const VendorProfile = lazy(() => import('./pages/VendorProfile'));
+const VendorSupport = lazy(() => import('./pages/VendorSupport'));
+const VendorSettings = lazy(() => import('./pages/VendorSettings'));
+const VendorInventory = lazy(() => import('./pages/VendorInventory'));
+const VendorNotifications = lazy(() => import('./pages/VendorNotifications'));
 import VendorOperationalGuard from './components/VendorOperationalGuard';
 import { VendorProvider } from './useVendorState';
 
 const VendorRoutes = () => {
   return (
     <VendorProvider>
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route element={<VendorPublicLayout />}>
           <Route path="register" element={<Navigate to="/vendor/register/category" replace />} />
@@ -113,6 +115,7 @@ const VendorRoutes = () => {
         <Route path="" element={<Navigate to="/vendor/login" replace />} />
         <Route path="*" element={<Navigate to="/vendor/login" replace />} />
       </Routes>
+      </Suspense>
     </VendorProvider>
   );
 };

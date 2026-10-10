@@ -66,11 +66,11 @@ const ResetPassword = () => {
     <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden" style={{ backgroundColor: '#BE9B9B' }}>
       {/* Leaves decoration */}
       <div className="absolute top-0 left-0 w-full h-40 opacity-90 pointer-events-none" style={{ mixBlendMode: 'multiply' }}>
-        <img src="/assets/vendor/straight_leaves.png" alt="leaves top" className="w-full h-full object-cover scale-x-125 origin-top" />
+        <img src="/assets/vendor/straight_leaves.webp" alt="leaves top" className="w-full h-full object-cover scale-x-125 origin-top" />
       </div>
 
       <div className="absolute bottom-0 left-0 w-full h-40 opacity-90 pointer-events-none rotate-180 -mb-16" style={{ mixBlendMode: 'multiply' }}>
-        <img src="/assets/vendor/straight_leaves.png" alt="leaves bottom" className="w-full h-full object-cover scale-x-125 origin-top" />
+        <img src="/assets/vendor/straight_leaves.webp" alt="leaves bottom" className="w-full h-full object-cover scale-x-125 origin-top" />
       </div>
 
       <div className="w-full max-w-sm relative z-10 flex flex-col items-center">

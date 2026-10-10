@@ -217,12 +217,12 @@ const EInvites = () => {
   return (
     <div className="min-h-screen pb-32 relative bg-transparent">
       {/* Background Image for the whole page */}
-      <div className="fixed inset-0 pointer-events-none z-[-1]" style={{ backgroundImage: "url('/uservendorre%20page%20bg.png')", backgroundSize: 'cover', backgroundPosition: 'center', opacity: 1 }} />
+      <div className="fixed inset-0 pointer-events-none z-[-1]" style={{ backgroundImage: "url('/uservendorre%20page%20bg.webp')", backgroundSize: 'cover', backgroundPosition: 'center', opacity: 1 }} />
 
       {/* Header Container */}
       <div className="relative z-10 px-6 py-6 mb-8 mt-6 rounded-[3rem] bg-white/80 backdrop-blur-md shadow-sm border border-white mx-2 overflow-hidden">
         {/* Background floral accent for header */}
-        <div className="absolute inset-0 opacity-40 pointer-events-none" style={{ backgroundImage: "url('/uservendorre%20page%20bg.png')", backgroundSize: 'cover', backgroundPosition: 'center -100px' }}></div>
+        <div className="absolute inset-0 opacity-40 pointer-events-none" style={{ backgroundImage: "url('/uservendorre%20page%20bg.webp')", backgroundSize: 'cover', backgroundPosition: 'center -100px' }}></div>
         
         <div className="relative flex items-center justify-between">
           <div className="flex items-center gap-4">

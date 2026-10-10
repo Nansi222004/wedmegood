@@ -447,6 +447,9 @@ userSchema.methods.toAPIResponse = function () {
   };
 };
 
+// Writes through mongoose drop the cached account used by the auth middleware
+require('../../utils/entityCache').attachInvalidation(userSchema);
+
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 module.exports = User;

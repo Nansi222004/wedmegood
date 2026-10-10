@@ -1,5 +1,5 @@
 import Icon from '../../../components/ui/Icon';
-import weddingImg from '../../../assets/wedding.png';
+import weddingImg from '../../../assets/wedding.webp';
 
 const VendorPendingApproval = () => {
     return (

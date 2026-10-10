@@ -163,5 +163,10 @@ const bookingSchema = new mongoose.Schema({
     timestamps: true
 });
 
+// Lookups by owner (lists), by vendor + date (availability / conflicts) and by quote
+bookingSchema.index({ userId: 1, createdAt: -1 });
+bookingSchema.index({ vendorId: 1, eventDate: 1, status: 1 });
+bookingSchema.index({ vendorId: 1, createdAt: -1 });
+
 module.exports = mongoose.models.Booking || mongoose.model('Booking', bookingSchema);
 

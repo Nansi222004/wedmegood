@@ -1,4 +1,6 @@
+import { Suspense } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
+import PageLoader from '../../../components/common/PageLoader';
 import '../vendorTheme.css';
 
 const VendorPublicLayout = () => {
@@ -20,7 +22,7 @@ const VendorPublicLayout = () => {
         <div className={`absolute ${isLoginPage ? 'top-5' : 'top-2'} sm:top-3.5 left-0 right-0 flex justify-center w-full z-50 pointer-events-none`}>
           <div className="pointer-events-auto flex items-center gap-2.5 sm:gap-3 cursor-pointer group" onClick={() => window.location.href = '/'}>
             <div className="relative">
-              <img src="/assets/vendor/logo_theme.png" alt="Utsavo Logo" className="h-8 sm:h-11 w-auto hover:scale-105 transition-all duration-500 rounded-lg shadow-md ring-1 ring-white/10" />
+              <img src="/assets/vendor/logo_theme.webp" alt="Utsavo Logo" className="h-8 sm:h-11 w-auto hover:scale-105 transition-all duration-500 rounded-lg shadow-md ring-1 ring-white/10" />
               <div className="absolute inset-0 rounded-lg bg-gradient-to-tr from-rose-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
             </div>
             <div className="flex flex-col justify-center">
@@ -48,7 +50,9 @@ const VendorPublicLayout = () => {
       }`}>
         <div className="flex-1 flex items-center justify-center">
           <div className="mx-auto max-w-6xl w-full">
-            <Outlet />
+            <Suspense fallback={<PageLoader />}>
+              <Outlet />
+            </Suspense>
           </div>
         </div>
       </div>

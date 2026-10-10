@@ -230,7 +230,8 @@ exports.getPublicVendors = async (req, res, next) => {
 
         // Get review stats for matching vendors
         const vendorIds = rawVendors.map(v => v._id);
-        const reviews = await Review.aggregate([
+        const [reviews, canonicalServices] = await Promise.all([
+        Review.aggregate([
             { $match: { vendorId: { $in: vendorIds }, status: 'Approved' } },
             {
                 $group: {
@@ -239,6 +240,14 @@ exports.getPublicVendors = async (req, res, next) => {
                     count: { $sum: 1 }
                 }
             }
+        ]),
+        Service.find({
+            vendor: { $in: vendorIds },
+            isActive: { $ne: false }
+        })
+            .populate('category', 'name slug')
+            .sort('-createdAt')
+            .lean()
         ]);
 
         const reviewMap = {};
@@ -250,13 +259,7 @@ exports.getPublicVendors = async (req, res, next) => {
         });
 
         // Batch fetch active canonical services for all matching vendors
-        const canonicalServices = await Service.find({
-            vendor: { $in: vendorIds },
-            isActive: { $ne: false }
-        })
-            .populate('category', 'name slug')
-            .sort('-createdAt')
-            .lean();
+        
 
         const servicesByVendor = {};
         canonicalServices.forEach(srv => {
@@ -601,7 +604,8 @@ exports.getFeaturedVendors = async (req, res, next) => {
 
         // Attach review stats
         const vendorIds = vendors.map(v => v._id);
-        const reviews = await Review.aggregate([
+        const [reviews, canonicalServices] = await Promise.all([
+        Review.aggregate([
             { $match: { vendorId: { $in: vendorIds }, status: 'Approved' } },
             {
                 $group: {
@@ -610,6 +614,14 @@ exports.getFeaturedVendors = async (req, res, next) => {
                     count: { $sum: 1 }
                 }
             }
+        ]),
+        Service.find({
+            vendor: { $in: vendorIds },
+            isActive: { $ne: false }
+        })
+            .populate('category', 'name slug')
+            .sort('-createdAt')
+            .lean()
         ]);
 
         const reviewMap = {};
@@ -620,13 +632,7 @@ exports.getFeaturedVendors = async (req, res, next) => {
             };
         });
 
-        const canonicalServices = await Service.find({
-            vendor: { $in: vendorIds },
-            isActive: { $ne: false }
-        })
-            .populate('category', 'name slug')
-            .sort('-createdAt')
-            .lean();
+        
 
         const servicesByVendor = {};
         canonicalServices.forEach(srv => {
@@ -820,9 +826,18 @@ exports.getRecommendedVendors = async (req, res, next) => {
             .lean();
 
         const vendorIds = vendors.map(v => v._id);
-        const reviews = await Review.aggregate([
+        const [reviews, canonicalServices] = await Promise.all([
+        Review.aggregate([
             { $match: { vendorId: { $in: vendorIds }, status: 'Approved' } },
             { $group: { _id: '$vendorId', avgRating: { $avg: '$rating' }, count: { $sum: 1 } } }
+        ]),
+        Service.find({
+            vendor: { $in: vendorIds },
+            isActive: { $ne: false }
+        })
+            .populate('category', 'name slug')
+            .sort('-createdAt')
+            .lean()
         ]);
 
         const reviewMap = Object.fromEntries(reviews.map(r => [
@@ -830,13 +845,7 @@ exports.getRecommendedVendors = async (req, res, next) => {
             { rating: Math.round(r.avgRating * 10) / 10, count: r.count }
         ]));
 
-        const canonicalServices = await Service.find({
-            vendor: { $in: vendorIds },
-            isActive: { $ne: false }
-        })
-            .populate('category', 'name slug')
-            .sort('-createdAt')
-            .lean();
+        
 
         const servicesByVendor = {};
         canonicalServices.forEach(srv => {

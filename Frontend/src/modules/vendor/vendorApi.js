@@ -1,8 +1,17 @@
+import { createCachedFetch } from '../../services/cachedFetch';
+
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api') + '/vendor';
+
+// Slow-changing data is reused for a few seconds; anything that changes because of other people
+// (new leads/bookings/quotes, chat, notifications, earnings) is always fetched live.
+const apiFetch = createCachedFetch({
+    ttlMs: 15000,
+    neverCache: /\/(leads|bookings|quotes|notifications|conversations|messages|earnings|transactions|withdrawals|stats|support)(\/|\?|$)/
+});
 
 export const vendorApi = {
     register: async (data) => {
-        const response = await fetch(`${BASE_URL}/register`, {
+        const response = await apiFetch(`${BASE_URL}/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -11,7 +20,7 @@ export const vendorApi = {
     },
 
     login: async (email, password) => {
-        const response = await fetch(`${BASE_URL}/login`, {
+        const response = await apiFetch(`${BASE_URL}/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password })
@@ -20,7 +29,7 @@ export const vendorApi = {
     },
 
     sendRegistrationOtp: async (phone) => {
-        const response = await fetch(`${BASE_URL}/send-otp`, {
+        const response = await apiFetch(`${BASE_URL}/send-otp`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone })
@@ -29,7 +38,7 @@ export const vendorApi = {
     },
 
     sendLoginOtp: async (phone) => {
-        const response = await fetch(`${BASE_URL}/send-otp`, {
+        const response = await apiFetch(`${BASE_URL}/send-otp`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone, purpose: 'login' })
@@ -38,7 +47,7 @@ export const vendorApi = {
     },
 
     loginWithOtp: async (phone, otp) => {
-        const response = await fetch(`${BASE_URL}/login-otp`, {
+        const response = await apiFetch(`${BASE_URL}/login-otp`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone, otp })
@@ -47,7 +56,7 @@ export const vendorApi = {
     },
 
     verifyRegistrationOtp: async (phone, otp) => {
-        const response = await fetch(`${BASE_URL}/verify-otp`, {
+        const response = await apiFetch(`${BASE_URL}/verify-otp`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone, otp })
@@ -58,7 +67,7 @@ export const vendorApi = {
     uploadPublicMedia: async (file) => {
         const formData = new FormData();
         formData.append('file', file);
-        const response = await fetch(`${BASE_URL}/upload/public`, {
+        const response = await apiFetch(`${BASE_URL}/upload/public`, {
             method: 'POST',
             body: formData
         });
@@ -68,7 +77,7 @@ export const vendorApi = {
     uploadPublicMultipleMedia: async (files) => {
         const formData = new FormData();
         files.forEach(file => formData.append('files', file));
-        const response = await fetch(`${BASE_URL}/upload-multiple/public`, {
+        const response = await apiFetch(`${BASE_URL}/upload-multiple/public`, {
             method: 'POST',
             body: formData
         });
@@ -77,7 +86,7 @@ export const vendorApi = {
 
     updateOnboarding: async (step, data, token) => {
 
-        const response = await fetch(`${BASE_URL}/onboarding/${step}`, {
+        const response = await apiFetch(`${BASE_URL}/onboarding/${step}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -89,7 +98,7 @@ export const vendorApi = {
     },
 
     getProfile: async (token) => {
-        const response = await fetch(`${BASE_URL}/me`, {
+        const response = await apiFetch(`${BASE_URL}/me`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -101,7 +110,7 @@ export const vendorApi = {
     uploadMedia: async (file, token) => {
         const formData = new FormData();
         formData.append('file', file);
-        const response = await fetch(`${BASE_URL}/upload`, {
+        const response = await apiFetch(`${BASE_URL}/upload`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -114,7 +123,7 @@ export const vendorApi = {
     uploadMultipleMedia: async (files, token) => {
         const formData = new FormData();
         files.forEach(file => formData.append('files', file));
-        const response = await fetch(`${BASE_URL}/upload-multiple`, {
+        const response = await apiFetch(`${BASE_URL}/upload-multiple`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -229,7 +238,7 @@ export const vendorApi = {
     },
 
     getStats: async (token) => {
-        const response = await fetch(`${BASE_URL}/stats`, {
+        const response = await apiFetch(`${BASE_URL}/stats`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -237,7 +246,7 @@ export const vendorApi = {
     },
 
     getLeads: async (token) => {
-        const response = await fetch(`${BASE_URL}/leads`, {
+        const response = await apiFetch(`${BASE_URL}/leads`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -246,7 +255,7 @@ export const vendorApi = {
 
     updateLeadStatus: async (id, payload, token) => {
         const bodyData = typeof payload === 'object' ? payload : { status: payload };
-        const response = await fetch(`${BASE_URL}/leads/${id}`, {
+        const response = await apiFetch(`${BASE_URL}/leads/${id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -258,7 +267,7 @@ export const vendorApi = {
     },
 
     getBookings: async (token) => {
-        const response = await fetch(`${BASE_URL}/bookings`, {
+        const response = await apiFetch(`${BASE_URL}/bookings`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -266,7 +275,7 @@ export const vendorApi = {
     },
 
     updateBookingStatus: async (id, status, token) => {
-        const response = await fetch(`${BASE_URL}/bookings/${id}/status`, {
+        const response = await apiFetch(`${BASE_URL}/bookings/${id}/status`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -279,7 +288,7 @@ export const vendorApi = {
 
     // Finalised amount and payments received outside the app (reference entries)
     setBookingFinalAmount: async (id, finalAmount, token) => {
-        const response = await fetch(`${BASE_URL}/bookings/${id}/final-amount`, {
+        const response = await apiFetch(`${BASE_URL}/bookings/${id}/final-amount`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -291,7 +300,7 @@ export const vendorApi = {
     },
 
     addBookingPaymentEntry: async (id, entry, token) => {
-        const response = await fetch(`${BASE_URL}/bookings/${id}/payment-entries`, {
+        const response = await apiFetch(`${BASE_URL}/bookings/${id}/payment-entries`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -303,7 +312,7 @@ export const vendorApi = {
     },
 
     deleteBookingPaymentEntry: async (id, entryId, token) => {
-        const response = await fetch(`${BASE_URL}/bookings/${id}/payment-entries/${entryId}`, {
+        const response = await apiFetch(`${BASE_URL}/bookings/${id}/payment-entries/${entryId}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -311,7 +320,7 @@ export const vendorApi = {
     },
 
     getReviews: async (token) => {
-        const response = await fetch(`${BASE_URL}/reviews`, {
+        const response = await apiFetch(`${BASE_URL}/reviews`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -319,7 +328,7 @@ export const vendorApi = {
     },
 
     replyToReview: async (id, reply, token) => {
-        const response = await fetch(`${BASE_URL}/reviews/${id}/reply`, {
+        const response = await apiFetch(`${BASE_URL}/reviews/${id}/reply`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -331,7 +340,7 @@ export const vendorApi = {
     },
 
     getNotifications: async (token) => {
-        const response = await fetch(`${BASE_URL}/notifications`, {
+        const response = await apiFetch(`${BASE_URL}/notifications`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -339,7 +348,7 @@ export const vendorApi = {
     },
 
     markNotificationRead: async (id, token) => {
-        const response = await fetch(`${BASE_URL}/notifications/${id}/read`, {
+        const response = await apiFetch(`${BASE_URL}/notifications/${id}/read`, {
             method: 'PUT',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -348,7 +357,7 @@ export const vendorApi = {
 
     getSubscriptionPlans: async (token) => {
         const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-        const response = await fetch(`${BASE_URL}/subscription/plans`, {
+        const response = await apiFetch(`${BASE_URL}/subscription/plans`, {
             method: 'GET',
             headers
         });
@@ -356,7 +365,7 @@ export const vendorApi = {
     },
 
     createSubscriptionOrder: async (data, token) => {
-        const response = await fetch(`${BASE_URL}/subscription/order`, {
+        const response = await apiFetch(`${BASE_URL}/subscription/order`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -368,7 +377,7 @@ export const vendorApi = {
     },
 
     verifySubscriptionPayment: async (data, token) => {
-        const response = await fetch(`${BASE_URL}/subscription/verify`, {
+        const response = await apiFetch(`${BASE_URL}/subscription/verify`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -380,7 +389,7 @@ export const vendorApi = {
     },
 
     updateProfile: async (data, token) => {
-        const response = await fetch(`${BASE_URL}/settings`, {
+        const response = await apiFetch(`${BASE_URL}/settings`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -392,7 +401,7 @@ export const vendorApi = {
     },
 
     changePassword: async (currentPassword, newPassword, token) => {
-        const response = await fetch(`${BASE_URL}/settings/password`, {
+        const response = await apiFetch(`${BASE_URL}/settings/password`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -404,7 +413,7 @@ export const vendorApi = {
     },
 
     deactivateAccount: async (token) => {
-        const response = await fetch(`${BASE_URL}/settings/deactivate`, {
+        const response = await apiFetch(`${BASE_URL}/settings/deactivate`, {
             method: 'PUT',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -414,7 +423,7 @@ export const vendorApi = {
 
 
     getQuotes: async (token) => {
-        const response = await fetch(`${BASE_URL}/quotes`, {
+        const response = await apiFetch(`${BASE_URL}/quotes`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -422,7 +431,7 @@ export const vendorApi = {
     },
 
     createQuote: async (data, token) => {
-        const response = await fetch(`${BASE_URL}/quotes`, {
+        const response = await apiFetch(`${BASE_URL}/quotes`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -434,7 +443,7 @@ export const vendorApi = {
     },
 
     updateQuote: async (id, data, token) => {
-        const response = await fetch(`${BASE_URL}/quotes/${id}`, {
+        const response = await apiFetch(`${BASE_URL}/quotes/${id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -446,7 +455,7 @@ export const vendorApi = {
     },
 
     createBooking: async (data, token) => {
-        const response = await fetch(`${BASE_URL}/bookings`, {
+        const response = await apiFetch(`${BASE_URL}/bookings`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -458,7 +467,7 @@ export const vendorApi = {
     },
 
     deleteQuote: async (id, token) => {
-        const response = await fetch(`${BASE_URL}/quotes/${id}`, {
+        const response = await apiFetch(`${BASE_URL}/quotes/${id}`, {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -468,7 +477,7 @@ export const vendorApi = {
     },
 
     downloadQuotePdf: async (id, token) => {
-        const response = await fetch(`${BASE_URL}/quotes/${id}/pdf`, {
+        const response = await apiFetch(`${BASE_URL}/quotes/${id}/pdf`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -485,7 +494,7 @@ export const vendorApi = {
     },
 
     getEarnings: async (token) => {
-        const response = await fetch(`${BASE_URL}/earnings`, {
+        const response = await apiFetch(`${BASE_URL}/earnings`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -495,7 +504,7 @@ export const vendorApi = {
     getTransactions: async (token, params = {}) => {
         const query = new URLSearchParams(params).toString();
         const url = `${BASE_URL}/transactions${query ? `?${query}` : ''}`;
-        const response = await fetch(url, {
+        const response = await apiFetch(url, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -503,7 +512,7 @@ export const vendorApi = {
     },
 
     getWithdrawals: async (token) => {
-        const response = await fetch(`${BASE_URL}/withdrawals`, {
+        const response = await apiFetch(`${BASE_URL}/withdrawals`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -511,7 +520,7 @@ export const vendorApi = {
     },
 
     requestWithdrawal: async (data, token) => {
-        const response = await fetch(`${BASE_URL}/withdrawals`, {
+        const response = await apiFetch(`${BASE_URL}/withdrawals`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -523,7 +532,7 @@ export const vendorApi = {
     },
 
     updatePortfolio: async (data, token) => {
-        const response = await fetch(`${BASE_URL}/portfolio`, {
+        const response = await apiFetch(`${BASE_URL}/portfolio`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -535,7 +544,7 @@ export const vendorApi = {
     },
 
     getDashboardBanners: async (token) => {
-        const response = await fetch(`${BASE_URL}/banners`, {
+        const response = await apiFetch(`${BASE_URL}/banners`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -543,12 +552,12 @@ export const vendorApi = {
     },
 
     getFAQs: async () => {
-        const response = await fetch(`${BASE_URL.replace('/vendor', '/admin')}/faqs`);
+        const response = await apiFetch(`${BASE_URL.replace('/vendor', '/admin')}/faqs`);
         return response.json();
     },
 
     getSupportConfig: async () => {
-        const response = await fetch(`${BASE_URL.replace('/vendor', '/admin')}/support-config`);
+        const response = await apiFetch(`${BASE_URL.replace('/vendor', '/admin')}/support-config`);
         return response.json();
     },
 
@@ -556,12 +565,12 @@ export const vendorApi = {
     // Service Management
     // ---------------------------------
     getCategories: async () => {
-        const response = await fetch(`${BASE_URL.replace('/vendor', '/admin')}/categories`);
+        const response = await apiFetch(`${BASE_URL.replace('/vendor', '/admin')}/categories`);
         return response.json();
     },
 
     getServices: async (token) => {
-        const response = await fetch(`${BASE_URL}/services`, {
+        const response = await apiFetch(`${BASE_URL}/services`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -569,7 +578,7 @@ export const vendorApi = {
     },
 
     createService: async (formData, token) => {
-        const response = await fetch(`${BASE_URL}/services`, {
+        const response = await apiFetch(`${BASE_URL}/services`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
             body: formData
@@ -578,7 +587,7 @@ export const vendorApi = {
     },
 
     updateService: async (id, formData, token) => {
-        const response = await fetch(`${BASE_URL}/services/${id}`, {
+        const response = await apiFetch(`${BASE_URL}/services/${id}`, {
             method: 'PUT',
             headers: { 'Authorization': `Bearer ${token}` },
             body: formData
@@ -587,7 +596,7 @@ export const vendorApi = {
     },
 
     deleteService: async (id, token) => {
-        const response = await fetch(`${BASE_URL}/services/${id}`, {
+        const response = await apiFetch(`${BASE_URL}/services/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -595,7 +604,7 @@ export const vendorApi = {
     },
 
     getDynamicVendorServices: async (token) => {
-        const response = await fetch(`${BASE_URL}/dynamic-services`, {
+        const response = await apiFetch(`${BASE_URL}/dynamic-services`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -603,7 +612,7 @@ export const vendorApi = {
     },
 
     createDynamicVendorService: async (data, token) => {
-        const response = await fetch(`${BASE_URL}/dynamic-services`, {
+        const response = await apiFetch(`${BASE_URL}/dynamic-services`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
             body: data
@@ -612,7 +621,7 @@ export const vendorApi = {
     },
 
     getProfileProgress: async (token) => {
-        const response = await fetch(`${BASE_URL}/profile-progress`, {
+        const response = await apiFetch(`${BASE_URL}/profile-progress`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -620,7 +629,7 @@ export const vendorApi = {
     },
 
     uploadMissingDocuments: async (data, token) => {
-        const response = await fetch(`${BASE_URL}/upload-document`, {
+        const response = await apiFetch(`${BASE_URL}/upload-document`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
@@ -632,7 +641,7 @@ export const vendorApi = {
     },
 
     requestApproval: async (token) => {
-        const response = await fetch(`${BASE_URL}/request-approval`, {
+        const response = await apiFetch(`${BASE_URL}/request-approval`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
@@ -643,7 +652,7 @@ export const vendorApi = {
     },
 
     getInventory: async (token) => {
-        const response = await fetch(`${BASE_URL}/inventory`, {
+        const response = await apiFetch(`${BASE_URL}/inventory`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -651,7 +660,7 @@ export const vendorApi = {
     },
 
     createInventoryItem: async (data, token) => {
-        const response = await fetch(`${BASE_URL}/inventory`, {
+        const response = await apiFetch(`${BASE_URL}/inventory`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
             body: data // FormData for file uploads
@@ -660,7 +669,7 @@ export const vendorApi = {
     },
 
     updateInventoryItem: async (id, data, token) => {
-        const response = await fetch(`${BASE_URL}/inventory/${id}`, {
+        const response = await apiFetch(`${BASE_URL}/inventory/${id}`, {
             method: 'PUT',
             headers: { 'Authorization': `Bearer ${token}` },
             body: data // FormData for file uploads
@@ -669,7 +678,7 @@ export const vendorApi = {
     },
 
     deleteInventoryItem: async (id, token) => {
-        const response = await fetch(`${BASE_URL}/inventory/${id}`, {
+        const response = await apiFetch(`${BASE_URL}/inventory/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -677,7 +686,7 @@ export const vendorApi = {
     },
 
     getBlockedDates: async (token) => {
-        const response = await fetch(`${BASE_URL}/calendar/blocked-dates`, {
+        const response = await apiFetch(`${BASE_URL}/calendar/blocked-dates`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -685,7 +694,7 @@ export const vendorApi = {
     },
 
     addBlockedDate: async (date, token) => {
-        const response = await fetch(`${BASE_URL}/calendar/blocked-dates`, {
+        const response = await apiFetch(`${BASE_URL}/calendar/blocked-dates`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -697,7 +706,7 @@ export const vendorApi = {
     },
 
     removeBlockedDate: async (date, token) => {
-        const response = await fetch(`${BASE_URL}/calendar/blocked-dates/${encodeURIComponent(date)}`, {
+        const response = await apiFetch(`${BASE_URL}/calendar/blocked-dates/${encodeURIComponent(date)}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });

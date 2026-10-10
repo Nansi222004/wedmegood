@@ -24,6 +24,7 @@ const vendorRoutes = require('./modules/vendor');
 const adminRoutes = require('./modules/admin');
 const uploadRoutes = require('./modules/upload/upload.routes');
 const initializeAdmin = require('./utils/adminInit');
+const { cacheResponse, clearOnWrite } = require('./utils/responseCache');
 
 // Build list of base allowed origins
 const defaultAllowedOrigins = [
@@ -195,6 +196,9 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Any successful write clears the public-response cache (listings, categories, banners)
+app.use('/api', clearOnWrite);
+
 // Maintenance mode middleware (allows /health and /api/admin/*)
 const { maintenanceMiddleware } = require('./middleware/maintenance.middleware');
 app.use(maintenanceMiddleware);
@@ -206,8 +210,8 @@ const { getAllCategories } = require('./modules/admin/adminController');
 
 app.use('/api/public', publicRoutes);
 app.use('/api/vendors', publicVendorRoutes);
-app.get('/api/categories', getAllCategories);
-app.get('/api/banners', require('./modules/user/banner.controller').getPublicBanners);
+app.get('/api/categories', cacheResponse(60000, 30), getAllCategories);
+app.get('/api/banners', cacheResponse(30000, 15), require('./modules/user/banner.controller').getPublicBanners);
 app.use('/api/user', userRoutes);
 app.use('/api/vendor', vendorRoutes);
 app.use('/api/upload', uploadRoutes);

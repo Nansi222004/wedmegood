@@ -9,17 +9,17 @@ const { reconcileBookingPayments } = require('../../utils/financialReconciliatio
 // @access  Private (User)
 exports.getUserBookings = async (req, res, next) => {
     try {
-        const bookings = await Booking.find({ userId: req.user._id })
-            .populate('vendorId', 'businessName city profileImage phone pricing rating reviewCount email category')
-            .populate('leadId')
-            .populate('quoteId')
-            .sort('-createdAt')
-            .lean();
-
-        const bookingIds = bookings.map(b => b._id);
-        const payments = await Payment.find({
-            bookingId: { $in: bookingIds }
-        }).sort('-createdAt').lean();
+        // Bookings and payments are independent queries (payments belong to the same user), so they
+        // run together: every database round trip costs tens of milliseconds
+        const [bookings, payments] = await Promise.all([
+            Booking.find({ userId: req.user._id })
+                .populate('vendorId', 'businessName city profileImage phone pricing rating reviewCount email category')
+                .populate('leadId')
+                .populate('quoteId')
+                .sort('-createdAt')
+                .lean(),
+            Payment.find({ userId: req.user._id }).sort('-createdAt').lean()
+        ]);
 
         const enrichedBookings = bookings.map(booking => {
             const financial = reconcileBookingPayments(booking, payments);

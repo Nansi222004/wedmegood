@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
+import PageLoader from '../../../components/common/PageLoader';
 import Icon from '../../../components/ui/Icon';
 import VendorSidebar from './VendorSidebar';
 import VendorTopbar from './VendorTopbar';
@@ -135,7 +136,9 @@ const VendorLayout = () => {
                   </div>
                 </div>
               ) : (
-                <Outlet />
+                <Suspense fallback={<PageLoader />}>
+                  <Outlet />
+                </Suspense>
               )}
             </main>
           </div>

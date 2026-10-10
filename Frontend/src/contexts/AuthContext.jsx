@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { unregisterPushToken } from '../services/pushNotifications';
+import { clearApiCache } from '../services/userApi';
 
 const AuthContext = createContext();
 
@@ -42,6 +43,7 @@ export const AuthProvider = ({ children }) => {
   // The API client fires this when the server rejects the stored token
   useEffect(() => {
     const handleUnauthorized = () => {
+      clearApiCache();
       unregisterPushToken('user');
       localStorage.removeItem('user');
       setUser(null);
@@ -164,6 +166,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    clearApiCache();
     unregisterPushToken('user');
     localStorage.removeItem('user');
     setUser(null);
@@ -172,6 +175,11 @@ export const AuthProvider = ({ children }) => {
   const updateUser = (updatedData) => {
     setUser(prev => {
       const updatedUser = { ...(prev || {}), ...updatedData, isAuthenticated: true };
+      // Many pages re-sync the profile on mount; when nothing changed keep the same object so the
+      // whole app (everything reading the auth context) is not re-rendered for no reason
+      try {
+        if (prev && JSON.stringify(prev) === JSON.stringify(updatedUser)) return prev;
+      } catch (e) { /* fall through and update */ }
       try {
         localStorage.setItem('user', JSON.stringify(updatedUser));
       } catch (e) {

@@ -87,7 +87,7 @@ const Login = () => {
     <div 
       className="min-h-screen relative flex flex-col justify-end overflow-hidden font-['Outfit']"
       style={{ 
-        backgroundImage: "url('/login%20page%20bg.png')",
+        backgroundImage: "url('/login%20page%20bg.webp')",
         backgroundSize: 'cover',
         backgroundPosition: 'top center',
         backgroundRepeat: 'no-repeat'

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
+import PageLoader from '../../../components/common/PageLoader';
 import AdminSidebar from './AdminSidebar';
 import Icon from '../../../components/ui/Icon';
 import '../adminTheme.css';
@@ -88,7 +89,9 @@ const AdminLayout = () => {
 
                 <main className="flex-1 p-6 relative overflow-y-auto min-h-0 flex flex-col" data-lenis-prevent="true">
                     <div className="max-w-[1600px] mx-auto w-full flex-1 flex flex-col min-h-0">
-                        <Outlet />
+                        <Suspense fallback={<PageLoader />}>
+                          <Outlet />
+                        </Suspense>
                     </div>
 
                     {/* Background Decoration */}

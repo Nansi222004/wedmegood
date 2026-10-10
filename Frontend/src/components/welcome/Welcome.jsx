@@ -15,7 +15,7 @@ const Welcome = () => {
       <div 
         className={`fixed inset-0 z-0 bg-cover bg-center bg-no-repeat transition-opacity duration-1000 pointer-events-none ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
         style={{
-          backgroundImage: "url('/background.png')",
+          backgroundImage: "url('/background.webp')",
           backgroundColor: '#FAF6F0',
         }}
       />
@@ -83,7 +83,7 @@ const Welcome = () => {
         <div className={`pt-1 sm:pt-2 transition-all duration-1000 transform ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
           <div className="flex flex-col items-center justify-center">
             <img
-              src="/utsavo_logo_transparent.png"
+              src="/utsavo_logo_transparent.webp"
               alt="Utsavo - Celebrate Every Moment"
               className="w-40 sm:w-48 md:w-52 h-auto object-contain drop-shadow-[0_6px_20px_rgba(236,26,103,0.12)]"
             />

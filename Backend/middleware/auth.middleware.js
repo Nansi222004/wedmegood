@@ -1,11 +1,14 @@
 const jwt = require('jsonwebtoken');
 const User = require('../modules/user/user.model');
 const Vendor = require('../modules/vendor/Vendor');
+const { findCachedById } = require('../utils/entityCache');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // Protect routes - require authentication
 const protect = async (req, res, next) => {
+  // Several routers are mounted on the same path and each applies protect; authenticate once
+  if (req.user) return next();
   try {
     let token;
 
@@ -27,10 +30,10 @@ const protect = async (req, res, next) => {
       const decoded = jwt.verify(token, JWT_SECRET);
 
       // Get user from token
-      let user = await User.findById(decoded.id);
+      let user = await findCachedById(User, decoded.id);
 
       if (!user && decoded.role === 'vendor') {
-        const vendor = await Vendor.findById(decoded.id);
+        const vendor = await findCachedById(Vendor, decoded.id);
         if (vendor) {
           user = vendor;
         }
@@ -89,7 +92,7 @@ const protectVendor = async (req, res, next) => {
 
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
-      const vendor = await Vendor.findById(decoded.id);
+      const vendor = await findCachedById(Vendor, decoded.id);
 
       if (!vendor) {
         return res.status(401).json({
@@ -163,7 +166,7 @@ const optionalAuth = async (req, res, next) => {
     if (token) {
       try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        const user = await User.findById(decoded.id);
+        const user = await findCachedById(User, decoded.id);
 
         if (user && user.isActive && !user.isBlocked) {
           req.user = user;

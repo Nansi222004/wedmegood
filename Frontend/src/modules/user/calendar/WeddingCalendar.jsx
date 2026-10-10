@@ -254,7 +254,7 @@ const WeddingCalendar = () => {
             <div 
               className="rounded-3xl p-5 shadow-sm border border-white/50 bg-white/40"
               style={{
-                backgroundImage: "url('/calender%20bg.png')",
+                backgroundImage: "url('/calender%20bg.webp')",
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat'
@@ -314,7 +314,7 @@ const WeddingCalendar = () => {
             <div 
               className="bg-white/80 backdrop-blur-md rounded-3xl p-6 shadow-sm border border-white/50 relative overflow-hidden"
               style={{
-                backgroundImage: "url('/cakender%20div%20bg.png')",
+                backgroundImage: "url('/cakender%20div%20bg.webp')",
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat'

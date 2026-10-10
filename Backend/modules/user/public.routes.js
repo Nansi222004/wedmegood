@@ -2,6 +2,8 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const inviteController = require('./invite.controller');
 
+const { cacheResponse } = require('../../utils/responseCache');
+
 const router = express.Router();
 
 // Rate limiter for public RSVP to prevent spamming
@@ -28,7 +30,7 @@ router.post('/invites/:slug/rsvp', rsvpLimiter, inviteController.submitPublicRSV
 router.post('/invites/:slug/share', inviteController.trackShare);
 
 // Public active banners for home and discover pages
-router.get('/banners', bannerController.getPublicBanners);
+router.get('/banners', cacheResponse(30000, 15), bannerController.getPublicBanners);
 
 // Public read family group member invitation preview by token
 const familyController = require('./family.controller');
@@ -39,7 +41,7 @@ router.get('/family-groups/preview/:token', familyController.getPublicGroupPrevi
 
 // Public platform settings the apps need (ratings switch, cancellation policy, fake vendor pricing)
 const { getPublicSettings } = require('../../services/platformSettings.service');
-router.get('/settings', async (req, res, next) => {
+router.get('/settings', cacheResponse(15000, 10), async (req, res, next) => {
   try {
     res.status(200).json({ success: true, data: await getPublicSettings() });
   } catch (err) {

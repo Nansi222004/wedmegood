@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -85,7 +85,7 @@ const getRouteIndex = (path) => {
 // Directional page animation variants - strictly horizontal with locked Y-axis
 const pageTransitionVariants = {
   enter: (dir) => ({
-    x: dir > 0 ? 40 : -40,
+    x: dir > 0 ? 16 : -16,
     y: 0,
     opacity: 0,
   }),
@@ -94,104 +94,123 @@ const pageTransitionVariants = {
     y: 0,
     opacity: 1,
     transition: {
-      x: { type: 'spring', stiffness: 380, damping: 34, mass: 0.6 },
-      opacity: { duration: 0.20, ease: [0.22, 1, 0.36, 1] },
+      x: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
+      opacity: { duration: 0.15, ease: [0.22, 1, 0.36, 1] },
     },
   },
-  exit: (dir) => ({
-    x: dir > 0 ? -40 : 40,
+  // The outgoing page must clear quickly: with mode="wait" its exit delays showing the next page
+  exit: () => ({
+    x: 0,
     y: 0,
     opacity: 0,
     transition: {
-      x: { type: 'spring', stiffness: 380, damping: 34, mass: 0.6 },
-      opacity: { duration: 0.16, ease: [0.22, 1, 0.36, 1] },
+      opacity: { duration: 0.07, ease: 'linear' },
     },
   }),
 };
 
 import { useAuth } from '../contexts/AuthContext';
-import Welcome from '../components/welcome/Welcome';
+const Welcome = lazy(() => import('../components/welcome/Welcome'));
 import ProtectedRoute from '../components/auth/ProtectedRoute';
-import Signup from '../modules/user/auth/Signup';
-import Login from '../modules/user/auth/Login';
-import ForgotPassword from '../modules/user/auth/ForgotPassword';
-import ResetPassword from '../modules/user/auth/ResetPassword';
-import UserHome from '../modules/user/home/UserHome';
-import RequirementsForm from '../modules/user/requirements/RequirementsForm';
-import PlanningDetails from '../modules/user/requirements/PlanningDetails';
-import WeddingForm from '../modules/user/requirements/WeddingForm';
-import WeddingDetailsForm from '../modules/user/requirements/WeddingDetailsForm';
-import PlanningDashboard from '../modules/user/requirements/PlanningDashboard';
-import VendorsMain from '../modules/user/vendors/VendorsMain';
-import VendorsList from '../modules/user/vendors/VendorsList';
-import VendorDetail from '../modules/user/vendors/VendorDetail';
-import VendorComparison from '../modules/user/vendors/VendorComparison';
-import Cart from '../modules/user/cart/Cart';
-import Checkout from '../modules/user/cart/Checkout';
-import Account from '../modules/user/account/Account';
-import Profile from '../modules/user/account/Profile';
-import Contact from '../modules/user/account/Contact';
-import Reviews from '../modules/user/account/Reviews';
-import Payments from '../modules/user/account/Payments';
-import Privacy from '../modules/user/settings/Privacy';
-import Language from '../modules/user/settings/Language';
-import Notifications from '../modules/user/settings/Notifications';
-import ChatsList from '../modules/user/chats/ChatsList';
-import VendorChat from '../modules/user/chats/VendorChat';
-import Search from '../modules/user/search/Search';
-import News from '../modules/user/news/News';
-import BudgetPlanner from '../modules/user/tools/BudgetPlanner';
-import WeddingChecklist from '../modules/user/tools/WeddingChecklist';
-import WeddingTimeline from '../modules/user/tools/WeddingTimeline';
-import GuestList from '../modules/user/tools/GuestList';
-import VendorManagement from '../modules/user/tools/VendorManagement';
-import InspirationBoard from '../modules/user/tools/InspirationBoard';
-import AIAssistant from '../modules/user/ai/AIAssistant';
-import QuotationComparison from '../modules/user/quotes/QuotationComparison';
-import FamilyContacts from '../modules/user/family/FamilyContacts';
-import CreateGroup from '../modules/user/family/CreateGroup';
-import GroupChat from '../modules/user/family/GroupChat';
-import FamilyGroups from '../modules/user/family/FamilyGroups';
-import JoinFamilyGroup from '../modules/user/family/JoinFamilyGroup';
-import JoinFamilyGroupGeneral from '../modules/user/family/JoinFamilyGroupGeneral';
+import PageLoader from '../components/common/PageLoader';
+const Signup = lazy(() => import('../modules/user/auth/Signup'));
+const Login = lazy(() => import('../modules/user/auth/Login'));
+const ForgotPassword = lazy(() => import('../modules/user/auth/ForgotPassword'));
+const ResetPassword = lazy(() => import('../modules/user/auth/ResetPassword'));
+const UserHome = lazy(() => import('../modules/user/home/UserHome'));
+const RequirementsForm = lazy(() => import('../modules/user/requirements/RequirementsForm'));
+const PlanningDetails = lazy(() => import('../modules/user/requirements/PlanningDetails'));
+const WeddingForm = lazy(() => import('../modules/user/requirements/WeddingForm'));
+const WeddingDetailsForm = lazy(() => import('../modules/user/requirements/WeddingDetailsForm'));
+const PlanningDashboard = lazy(() => import('../modules/user/requirements/PlanningDashboard'));
+const VendorsMain = lazy(() => import('../modules/user/vendors/VendorsMain'));
+const VendorsList = lazy(() => import('../modules/user/vendors/VendorsList'));
+const VendorDetail = lazy(() => import('../modules/user/vendors/VendorDetail'));
+const VendorComparison = lazy(() => import('../modules/user/vendors/VendorComparison'));
+const Cart = lazy(() => import('../modules/user/cart/Cart'));
+const Checkout = lazy(() => import('../modules/user/cart/Checkout'));
+const Account = lazy(() => import('../modules/user/account/Account'));
+const Profile = lazy(() => import('../modules/user/account/Profile'));
+const Contact = lazy(() => import('../modules/user/account/Contact'));
+const Reviews = lazy(() => import('../modules/user/account/Reviews'));
+const Payments = lazy(() => import('../modules/user/account/Payments'));
+const Privacy = lazy(() => import('../modules/user/settings/Privacy'));
+const Language = lazy(() => import('../modules/user/settings/Language'));
+const Notifications = lazy(() => import('../modules/user/settings/Notifications'));
+const ChatsList = lazy(() => import('../modules/user/chats/ChatsList'));
+const VendorChat = lazy(() => import('../modules/user/chats/VendorChat'));
+const Search = lazy(() => import('../modules/user/search/Search'));
+const News = lazy(() => import('../modules/user/news/News'));
+const BudgetPlanner = lazy(() => import('../modules/user/tools/BudgetPlanner'));
+const WeddingChecklist = lazy(() => import('../modules/user/tools/WeddingChecklist'));
+const WeddingTimeline = lazy(() => import('../modules/user/tools/WeddingTimeline'));
+const GuestList = lazy(() => import('../modules/user/tools/GuestList'));
+const VendorManagement = lazy(() => import('../modules/user/tools/VendorManagement'));
+const InspirationBoard = lazy(() => import('../modules/user/tools/InspirationBoard'));
+const AIAssistant = lazy(() => import('../modules/user/ai/AIAssistant'));
+const QuotationComparison = lazy(() => import('../modules/user/quotes/QuotationComparison'));
+const FamilyContacts = lazy(() => import('../modules/user/family/FamilyContacts'));
+const CreateGroup = lazy(() => import('../modules/user/family/CreateGroup'));
+const GroupChat = lazy(() => import('../modules/user/family/GroupChat'));
+const FamilyGroups = lazy(() => import('../modules/user/family/FamilyGroups'));
+const JoinFamilyGroup = lazy(() => import('../modules/user/family/JoinFamilyGroup'));
+const JoinFamilyGroupGeneral = lazy(() => import('../modules/user/family/JoinFamilyGroupGeneral'));
 import Header from '../components/common/Header';
 import BottomNav from '../components/common/BottomNav';
-import PlaceholderPage from '../components/common/PlaceholderPage';
-import Inspirations from '../modules/user/inspirations/Inspirations';
-import InspirationDetail from '../modules/user/inspirations/InspirationDetail';
-import BridalLooks from '../modules/user/inspirations/BridalLooks';
-import DecorIdeas from '../modules/user/inspirations/DecorIdeas';
-import FeaturedVideo from '../modules/user/inspirations/FeaturedVideo';
-import RealWedding from '../modules/user/inspirations/RealWedding';
-import EInvites from '../modules/user/invites/EInvites';
-import EditInvite from '../modules/user/invites/EditInvite';
-import PreviewInvite from '../modules/user/invites/PreviewInvite';
-import PublicInvite from '../modules/user/invites/PublicInvite';
-import Photographers from '../modules/user/photographers/Photographers';
-import PhotographerDetail from '../modules/user/photographers/PhotographerDetail';
-import PhotographerCollection from '../modules/user/photographers/PhotographerCollection';
-import VenueCollection from '../modules/user/venues/VenueCollection';
-import VenueBooking from '../modules/user/venues/VenueBooking';
-import Makeup from '../modules/user/makeup/Makeup';
-import MakeupDetail from '../modules/user/makeup/MakeupDetail';
-import SpecialOffers from '../modules/user/offers/SpecialOffers';
-import VenueBookingOffer from '../modules/user/offers/VenueBookingOffer';
-import GenieServices from '../modules/user/services/GenieServices';
-import Decorators from '../modules/user/decorators/Decorators';
-import DecoratorDetail from '../modules/user/decorators/DecoratorDetail';
-import Trending from '../modules/user/trending/Trending';
-import Festivals from '../modules/user/calendar/Festivals';
-import Horoscope from '../modules/user/calendar/Horoscope';
-import WeddingCalendar from '../modules/user/calendar/WeddingCalendar';
-import ThemeSystemTest from '../components/demo/ThemeSystemTest';
-import Shortlist from '../modules/user/shortlist/Shortlist';
-import Favourites from '../modules/user/favourites/Favourites';
-import Help from '../modules/user/help/Help';
-import Dashboard from '../modules/user/dashboard/Dashboard';
-import MyBookings from '../modules/user/bookings/MyBookings';
-import FakeVendors from '../modules/user/fakeVendors/FakeVendors';
-import VendorRoutes from '../modules/vendor/routes';
-import AdminRoutes from '../modules/admin/routes';
+const PlaceholderPage = lazy(() => import('../components/common/PlaceholderPage'));
+const Inspirations = lazy(() => import('../modules/user/inspirations/Inspirations'));
+const InspirationDetail = lazy(() => import('../modules/user/inspirations/InspirationDetail'));
+const BridalLooks = lazy(() => import('../modules/user/inspirations/BridalLooks'));
+const DecorIdeas = lazy(() => import('../modules/user/inspirations/DecorIdeas'));
+const FeaturedVideo = lazy(() => import('../modules/user/inspirations/FeaturedVideo'));
+const RealWedding = lazy(() => import('../modules/user/inspirations/RealWedding'));
+const EInvites = lazy(() => import('../modules/user/invites/EInvites'));
+const EditInvite = lazy(() => import('../modules/user/invites/EditInvite'));
+const PreviewInvite = lazy(() => import('../modules/user/invites/PreviewInvite'));
+const PublicInvite = lazy(() => import('../modules/user/invites/PublicInvite'));
+const Photographers = lazy(() => import('../modules/user/photographers/Photographers'));
+const PhotographerDetail = lazy(() => import('../modules/user/photographers/PhotographerDetail'));
+const PhotographerCollection = lazy(() => import('../modules/user/photographers/PhotographerCollection'));
+const VenueCollection = lazy(() => import('../modules/user/venues/VenueCollection'));
+const VenueBooking = lazy(() => import('../modules/user/venues/VenueBooking'));
+const Makeup = lazy(() => import('../modules/user/makeup/Makeup'));
+const MakeupDetail = lazy(() => import('../modules/user/makeup/MakeupDetail'));
+const SpecialOffers = lazy(() => import('../modules/user/offers/SpecialOffers'));
+const VenueBookingOffer = lazy(() => import('../modules/user/offers/VenueBookingOffer'));
+const GenieServices = lazy(() => import('../modules/user/services/GenieServices'));
+const Decorators = lazy(() => import('../modules/user/decorators/Decorators'));
+const DecoratorDetail = lazy(() => import('../modules/user/decorators/DecoratorDetail'));
+const Trending = lazy(() => import('../modules/user/trending/Trending'));
+const Festivals = lazy(() => import('../modules/user/calendar/Festivals'));
+const Horoscope = lazy(() => import('../modules/user/calendar/Horoscope'));
+const WeddingCalendar = lazy(() => import('../modules/user/calendar/WeddingCalendar'));
+const ThemeSystemTest = lazy(() => import('../components/demo/ThemeSystemTest'));
+const Shortlist = lazy(() => import('../modules/user/shortlist/Shortlist'));
+const Favourites = lazy(() => import('../modules/user/favourites/Favourites'));
+const Help = lazy(() => import('../modules/user/help/Help'));
+const Dashboard = lazy(() => import('../modules/user/dashboard/Dashboard'));
+const MyBookings = lazy(() => import('../modules/user/bookings/MyBookings'));
+const FakeVendors = lazy(() => import('../modules/user/fakeVendors/FakeVendors'));
+const VendorRoutes = lazy(() => import('../modules/vendor/routes'));
+const AdminRoutes = lazy(() => import('../modules/admin/routes'));
+
+// Pages a signed-in user is most likely to open next. They are fetched in the background once the
+// first screen is up, so tapping them later is instant instead of waiting for the download.
+const PRELOAD_USER_PAGES = [
+  () => import('../modules/user/home/UserHome'),
+  () => import('../modules/user/vendors/VendorsMain'),
+  () => import('../modules/user/vendors/VendorsList'),
+  () => import('../modules/user/vendors/VendorDetail'),
+  () => import('../modules/user/bookings/MyBookings'),
+  () => import('../modules/user/account/Account'),
+  () => import('../modules/user/chats/ChatsList'),
+  () => import('../modules/user/tools/BudgetPlanner'),
+  () => import('../modules/user/tools/WeddingChecklist')
+];
+
+const whenIdle = (fn) => (typeof window !== 'undefined' && window.requestIdleCallback
+  ? window.requestIdleCallback(fn, { timeout: 4000 })
+  : setTimeout(fn, 1500));
 
 // Photos and videos uploaded by vendors and users should not be saved from the user app
 const blockMediaSave = (e) => {
@@ -221,6 +240,28 @@ const AppRouter = () => {
 
   const direction = directionRef.current;
 
+  // Warm the cache for the main user pages after the first screen has rendered
+  useEffect(() => {
+    if (!isAuthenticated || !location.pathname.startsWith('/user')) return undefined;
+    let cancelled = false;
+    const connection = typeof navigator !== 'undefined' ? navigator.connection : null;
+    if (connection?.saveData) return undefined; // respect "data saver"
+    const run = async () => {
+      for (const load of PRELOAD_USER_PAGES) {
+        if (cancelled) return;
+        try { await load(); } catch (_) { /* a failed prefetch is harmless; the page loads on demand */ }
+        await new Promise((resolve) => whenIdle(resolve));
+      }
+    };
+    const handle = whenIdle(run);
+    return () => {
+      cancelled = true;
+      if (window.cancelIdleCallback && typeof handle === 'number') window.cancelIdleCallback(handle);
+    };
+    // Only once per signed-in session, not on every navigation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
   // Show loading while checking authentication
   if (isLoading) {
     return (
@@ -231,6 +272,7 @@ const AppRouter = () => {
   }
 
   return (
+    <Suspense fallback={<PageLoader />}>
     <Routes>
       {/* Root - Home for logged-in users, Welcome otherwise (ProtectedRoute redirects guests here, so this must not redirect back) */}
       <Route path="/" element={isAuthenticated ? <Navigate to="/user/home" replace /> : <Welcome />} />
@@ -289,7 +331,7 @@ const AppRouter = () => {
                 <div 
                   className="fixed inset-0 z-[-1]" 
                   style={{ 
-                    backgroundImage: location.pathname === '/user/legacy-dashboard' ? "url('/dashboardbackgroundimage.png')" : 'none', 
+                    backgroundImage: location.pathname === '/user/legacy-dashboard' ? "url('/dashboardbackgroundimage.webp')" : 'none', 
                     backgroundSize: '100% 100%', 
                     backgroundPosition: 'center', 
                     backgroundColor: (location.pathname.startsWith('/user/family/group/') || location.pathname.startsWith('/user/chats/'))
@@ -323,6 +365,7 @@ const AppRouter = () => {
                       style={{ transformOrigin: 'top center' }}
                     >
                       <ScrollReset />
+                      <Suspense fallback={<PageLoader />}>
                       <Routes location={location}>
                     <Route path="dashboard" element={<UserHome />} />
                     <Route path="home" element={<UserHome />} />
@@ -470,6 +513,7 @@ const AppRouter = () => {
                     {/* Redirect unknown user routes to home */}
                     <Route path="*" element={<Navigate to="/user/home" replace />} />
                   </Routes>
+                      </Suspense>
                     </motion.div>
                   </AnimatePresence>
                 </main>
@@ -484,6 +528,7 @@ const AppRouter = () => {
       <Route path="/theme-test" element={<ThemeSystemTest />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 };
 

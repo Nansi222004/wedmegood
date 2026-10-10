@@ -27,6 +27,8 @@ const notificationSchema = new mongoose.Schema({
     timestamps: true
 });
 
+notificationSchema.index({ vendorId: 1, createdAt: -1 });
+
 const PUSH_BY_TYPE = {
     Lead: { title: 'New Lead', link: '/vendor/leads' },
     Booking: { title: 'Booking Update', link: '/vendor/bookings' },

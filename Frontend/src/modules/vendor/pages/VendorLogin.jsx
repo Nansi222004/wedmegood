@@ -5,7 +5,7 @@ import { vendorApi } from '../vendorApi';
 import { useVendorState } from '../useVendorState';
 import { useToast } from '../../../components/ui/Toast';
 
-import loginImg from '../../../assets/login (2).png';
+import loginImg from '../../../assets/login (2).webp';
 
 const VendorLogin = () => {
   const navigate = useNavigate();
@@ -104,7 +104,7 @@ const VendorLogin = () => {
         <div className="flex flex-col items-center justify-center pt-8 pb-5 select-none flex-shrink-0">
           <div className="pointer-events-auto flex items-center gap-1.5 cursor-pointer group" onClick={() => window.location.href = '/'}>
             <div className="relative">
-              <img src="/assets/vendor/logo_theme.png" alt="Utsavo Logo" className="h-8 sm:h-11 w-auto rounded-lg shadow-sm transition-all duration-300 group-hover:scale-105" />
+              <img src="/assets/vendor/logo_theme.webp" alt="Utsavo Logo" className="h-8 sm:h-11 w-auto rounded-lg shadow-sm transition-all duration-300 group-hover:scale-105" />
             </div>
             <div className="flex flex-col justify-center">
               <h1 className="text-lg sm:text-2xl font-black italic tracking-tighter bg-clip-text text-transparent leading-none" style={{

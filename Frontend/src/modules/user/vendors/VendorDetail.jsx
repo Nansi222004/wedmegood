@@ -487,7 +487,7 @@ const VendorDetail = () => {
         <div className="relative">
           <div className="w-full h-72 sm:h-96 md:h-[400px] overflow-hidden md:rounded-b-3xl shadow-xs bg-stone-900">
             <img
-              src={vendorImages[currentImageIndex] || '/dashboardbackgroundimage.png'}
+              src={vendorImages[currentImageIndex] || '/dashboardbackgroundimage.webp'}
               alt={vendor?.businessName || vendor?.name}
               className="w-full h-full object-cover"
             />

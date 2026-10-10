@@ -205,6 +205,12 @@ const vendorSchema = new mongoose.Schema({
     timestamps: true
 });
 
+// Marketplace listing, featured list and the auto-assignment rotation filter on these
+vendorSchema.index({ status: 1, isActive: 1, createdAt: -1 });
+vendorSchema.index({ isFeatured: 1, status: 1 });
+vendorSchema.index({ status: 1, isActive: 1, 'subscription.status': 1 });
+vendorSchema.index({ 'selectedCategories.categoryId': 1 });
+
 vendorSchema.index({ 'fcmTokens.web': 1 });
 vendorSchema.index({ 'fcmTokens.app': 1 });
 
@@ -221,5 +227,8 @@ vendorSchema.pre('save', async function () {
 vendorSchema.methods.matchPassword = async function (enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password);
 };
+
+// Writes through mongoose drop the cached account used by the auth middleware
+require('../../utils/entityCache').attachInvalidation(vendorSchema);
 
 module.exports = mongoose.models.Vendor || mongoose.model('Vendor', vendorSchema);

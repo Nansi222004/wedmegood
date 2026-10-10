@@ -1,3 +1,5 @@
+import { registerCacheClearer } from './cachedFetch';
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
 
 /**
@@ -17,10 +19,62 @@ export const getAuthToken = () => {
   }
 };
 
+// ---------------------------------------------------------------------------------------------
+// GET response cache. The server is far from most users (every request costs a few hundred ms),
+// and pages are re-mounted whenever you navigate away and back, which used to refetch the same
+// data and flash a spinner each time. Recent GET responses are reused for a short while, identical
+// requests that are already in flight share one network call, and any write (POST/PUT/PATCH/DELETE)
+// or logout drops the whole cache so users never see data older than their own changes.
+// ---------------------------------------------------------------------------------------------
+const GET_CACHE_TTL_MS = 20 * 1000;
+const NEVER_CACHE = /\/(notifications|activities|conversations|messages|fcm-token|astrology|weather)|unread-count|\/family-groups\/[^/]+\/(messages|attachments)/;
+const responseCache = new Map(); // key -> { at, data }
+const inflight = new Map(); // key -> Promise
+
+export const clearApiCache = () => {
+  responseCache.clear();
+  inflight.clear();
+};
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('auth:unauthorized', clearApiCache);
+}
+// Writes made through plain fetch() elsewhere in the app also invalidate this cache
+registerCacheClearer(clearApiCache);
+
+const cloneJson = (data) => (typeof structuredClone === 'function' ? structuredClone(data) : JSON.parse(JSON.stringify(data)));
+
 /**
  * Base fetch wrapper with auth header injection and standardized error handling
  */
 const request = async (endpoint, options = {}) => {
+  const method = String(options.method || 'GET').toUpperCase();
+  if (method !== 'GET') {
+    // A write may change anything the user sees; never serve older GET data after it
+    const result = await requestUncached(endpoint, options);
+    clearApiCache();
+    return result;
+  }
+  if (NEVER_CACHE.test(endpoint) || options.noCache) {
+    return requestUncached(endpoint, options);
+  }
+
+  const key = `${getAuthToken() || 'anon'}|${endpoint}`;
+  const hit = responseCache.get(key);
+  if (hit && Date.now() - hit.at < GET_CACHE_TTL_MS) return cloneJson(hit.data);
+  if (inflight.has(key)) return inflight.get(key).then(cloneJson);
+
+  const promise = requestUncached(endpoint, options)
+    .then((data) => {
+      responseCache.set(key, { at: Date.now(), data });
+      return data;
+    })
+    .finally(() => inflight.delete(key));
+  inflight.set(key, promise);
+  return promise.then(cloneJson);
+};
+
+const requestUncached = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
   const token = getAuthToken();
 

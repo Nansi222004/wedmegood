@@ -724,18 +724,17 @@ exports.updateLeadStatus = async (req, res, next) => {
 // @access  Private
 exports.getBookings = async (req, res, next) => {
     try {
-        const bookings = await Booking.find({ vendorId: req.vendor.id })
-            .populate('userId', 'name fullName email phone profileImage')
-            .populate('leadId', 'name phone email eventDate location guestCount budget message')
-            .populate('quoteId', 'items totalAmount taxAmount discountAmount status notes')
-            .populate('vendorId', 'businessName email phone city category profileImage')
-            .sort('-eventDate')
-            .lean();
-
-        const bookingIds = bookings.map(b => b._id);
-        const payments = await Payment.find({
-            bookingId: { $in: bookingIds }
-        }).sort('-createdAt').lean();
+        // Independent queries (payments carry the vendor id too) run together to save a round trip
+        const [bookings, payments] = await Promise.all([
+            Booking.find({ vendorId: req.vendor.id })
+                .populate('userId', 'name fullName email phone profileImage')
+                .populate('leadId', 'name phone email eventDate location guestCount budget message')
+                .populate('quoteId', 'items totalAmount taxAmount discountAmount status notes')
+                .populate('vendorId', 'businessName email phone city category profileImage')
+                .sort('-eventDate')
+                .lean(),
+            Payment.find({ vendorId: req.vendor.id }).sort('-createdAt').lean()
+        ]);
 
         const enrichedBookings = bookings.map(booking => {
             const financial = reconcileBookingPayments(booking, payments);

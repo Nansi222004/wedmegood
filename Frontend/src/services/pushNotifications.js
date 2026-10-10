@@ -1,5 +1,3 @@
-import { initializeApp, getApps } from 'firebase/app';
-import { getMessaging, getToken, isSupported } from 'firebase/messaging';
 import { getAuthToken as getUserAuthToken } from './userApi';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
@@ -40,6 +38,12 @@ const getMessagingInstance = () => {
     messagingPromise = (async () => {
       if (!firebaseConfig.apiKey || !VAPID_KEY) return null;
       if (!('Notification' in window) || !('serviceWorker' in navigator)) return null;
+      // Firebase is loaded on demand: it is only needed once push is actually set up, so it
+      // stays out of the first page load
+      const [{ initializeApp, getApps }, { getMessaging, isSupported }] = await Promise.all([
+        import('firebase/app'),
+        import('firebase/messaging')
+      ]);
       if (!(await isSupported())) return null;
       const app = getApps()[0] || initializeApp(firebaseConfig);
       return getMessaging(app);
@@ -82,6 +86,7 @@ export const registerPushToken = async ({ role = 'user', prompt = false } = {}) 
     if (permission !== 'granted') return null;
 
     const registration = await navigator.serviceWorker.register(SW_URL, { scope: SW_SCOPE });
+    const { getToken } = await import('firebase/messaging');
     const token = await getToken(messaging, {
       vapidKey: VAPID_KEY,
       serviceWorkerRegistration: registration

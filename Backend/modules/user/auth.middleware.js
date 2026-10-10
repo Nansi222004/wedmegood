@@ -1,10 +1,14 @@
 const jwt = require('jsonwebtoken');
 const User = require('./user.model');
+const { findCachedById } = require('../../utils/entityCache');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // Protect routes - require authentication
+// Several routers are mounted on the same path (profile, transactions, planning...) and each
+// applies protect; the first one authenticates and the rest reuse the result.
 const protect = async (req, res, next) => {
+  if (req.user) return next();
   try {
     let token;
 
@@ -26,7 +30,7 @@ const protect = async (req, res, next) => {
       const decoded = jwt.verify(token, JWT_SECRET);
 
       // Get user from token
-      const user = await User.findById(decoded.id);
+      const user = await findCachedById(User, decoded.id);
 
       if (!user) {
         return res.status(401).json({
@@ -75,7 +79,7 @@ const optionalAuth = async (req, res, next) => {
     if (token) {
       try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        const user = await User.findById(decoded.id);
+        const user = await findCachedById(User, decoded.id);
 
         if (user && user.isActive && !user.isBlocked) {
           req.user = user;

@@ -46,6 +46,8 @@ const vendorSlice = createSlice({
   initialState: {
     data: defaultVendorState,
     loading: !!localStorage.getItem('vendorToken'),
+    // true once the profile has been loaded at least once; later refreshes happen silently
+    loaded: false,
     error: null,
   },
   reducers: {
@@ -62,15 +64,19 @@ const vendorSlice = createSlice({
   extraReducers: (builder) => {
     builder
       .addCase(fetchVendorData.pending, (state) => {
-        state.loading = true;
+        // A background refresh must not blank the page: the guards replace their children with a
+        // spinner while loading is true, which unmounted and re-mounted whatever page you were on
+        if (!state.loaded) state.loading = true;
         state.error = null;
       })
       .addCase(fetchVendorData.fulfilled, (state, action) => {
         state.loading = false;
+        state.loaded = true;
         state.data = action.payload;
       })
       .addCase(fetchVendorData.rejected, (state, action) => {
         state.loading = false;
+        state.loaded = true;
         state.error = action.payload;
       });
   },

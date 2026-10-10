@@ -130,7 +130,7 @@ const VendorPortfolioOnboarding = () => {
           onClick={() => window.location.href = '/'}
         >
           <img
-            src="/assets/vendor/logo_theme.png"
+            src="/assets/vendor/logo_theme.webp"
             alt="Utsavo"
             className="h-7 w-auto rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300"
           />

@@ -183,7 +183,7 @@ const GuestList = () => {
                 <h1 className="text-3xl font-bold text-[#4A2B42]" style={{ fontFamily: '"Playfair Display", serif' }}>
                   Guest List
                 </h1>
-                <img src="/exproler%20section%20bg.png" alt="decor" className="w-8 h-8 object-contain" />
+                <img src="/exproler%20section%20bg.webp" alt="decor" className="w-8 h-8 object-contain" />
               </div>
               <p className="text-[12px] text-[#6B6C80] font-medium mt-0.5">
                 Track invitations, headcounts and RSVPs
@@ -203,7 +203,7 @@ const GuestList = () => {
         {/* Stats Overview */}
         <div className="grid grid-cols-2 gap-4 mb-8">
           <div className="relative bg-white/70 backdrop-blur-md rounded-[20px] p-5 shadow-sm border border-white overflow-hidden">
-            <div className="absolute inset-0 bg-no-repeat opacity-80" style={{ backgroundImage: "url('/cart1.png')", backgroundSize: '100% 100%' }} />
+            <div className="absolute inset-0 bg-no-repeat opacity-80" style={{ backgroundImage: "url('/cart1.webp')", backgroundSize: '100% 100%' }} />
             <div className="relative z-10">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -222,7 +222,7 @@ const GuestList = () => {
           </div>
 
           <div className="relative bg-white/70 backdrop-blur-md rounded-[20px] p-5 shadow-sm border border-white overflow-hidden">
-            <div className="absolute inset-0 bg-no-repeat opacity-80" style={{ backgroundImage: "url('/cart2.png')", backgroundSize: '100% 100%' }} />
+            <div className="absolute inset-0 bg-no-repeat opacity-80" style={{ backgroundImage: "url('/cart2.webp')", backgroundSize: '100% 100%' }} />
             <div className="relative z-10">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -241,7 +241,7 @@ const GuestList = () => {
           </div>
 
           <div className="relative bg-white/70 backdrop-blur-md rounded-[20px] p-5 shadow-sm border border-white overflow-hidden">
-            <div className="absolute inset-0 bg-no-repeat opacity-80" style={{ backgroundImage: "url('/cart3.png')", backgroundSize: '100% 100%' }} />
+            <div className="absolute inset-0 bg-no-repeat opacity-80" style={{ backgroundImage: "url('/cart3.webp')", backgroundSize: '100% 100%' }} />
             <div className="relative z-10">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -260,7 +260,7 @@ const GuestList = () => {
           </div>
 
           <div className="relative bg-white/70 backdrop-blur-md rounded-[20px] p-5 shadow-sm border border-white overflow-hidden">
-            <div className="absolute inset-0 bg-no-repeat opacity-80" style={{ backgroundImage: "url('/cart4.png')", backgroundSize: '100% 100%' }} />
+            <div className="absolute inset-0 bg-no-repeat opacity-80" style={{ backgroundImage: "url('/cart4.webp')", backgroundSize: '100% 100%' }} />
             <div className="relative z-10">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -333,7 +333,7 @@ const GuestList = () => {
           </div>
         ) : guests.length === 0 ? (
           <div className="bg-white/60 backdrop-blur-md rounded-[32px] p-8 text-center border border-white shadow-sm relative overflow-hidden">
-            <div className="absolute inset-0 opacity-40 bg-no-repeat bg-cover bg-center pointer-events-none" style={{ backgroundImage: "url('/invitation%20bg.png')" }} />
+            <div className="absolute inset-0 opacity-40 bg-no-repeat bg-cover bg-center pointer-events-none" style={{ backgroundImage: "url('/invitation%20bg.webp')" }} />
             <div className="relative z-10 flex flex-col items-center">
                <div className="w-24 h-24 bg-white rounded-[24px] rotate-3 flex items-center justify-center mb-6 shadow-sm border border-[#F5EDF3]">
                   <div className="-rotate-3">
