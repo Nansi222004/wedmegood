@@ -8,6 +8,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import userApi from '../../../services/userApi';
 import usePlatformSettings from '../../../hooks/usePlatformSettings';
+import { toast } from '../../../components/ui/Toast';
 
 const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
   const { theme } = useTheme();
@@ -55,10 +56,12 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
     if (!id) return;
 
     // Guard: Prevent unauthenticated users from creating favorites
-    if (!user) {
+    // Guest mode has a placeholder user object but no account, so it counts as not logged in
+    if (!user || user.isGuest) {
       if (onToggleSave) {
         onToggleSave(id, isSaved);
       } else {
+        toast.info('You are not logged in. Please log in to save vendors.');
         navigate('/login', { state: { from: window.location.pathname } });
       }
       return;

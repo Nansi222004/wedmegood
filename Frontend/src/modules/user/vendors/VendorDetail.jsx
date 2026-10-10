@@ -72,8 +72,9 @@ const VendorDetail = () => {
   }, [user, vendor, vendorId]);
 
   const handleToggleFavorite = async () => {
-    if (!user) {
-      toast.info('Please log in first to save vendors to your favorites.');
+    // Guest mode has a placeholder user but no account
+    if (!user || user.isGuest) {
+      toast.info('You are not logged in. Please log in to save vendors.');
       navigate('/login', { state: { from: `/user/vendor/${vendorId}` } });
       return;
     }

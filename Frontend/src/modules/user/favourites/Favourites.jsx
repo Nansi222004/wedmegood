@@ -4,12 +4,16 @@ import { useToast } from '../../../components/ui/Toast';
 import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
 import { userApi } from '../../../services/userApi';
+import { useAuth } from '../../../contexts/AuthContext';
+import LoginRequired from '../../../components/common/LoginRequired';
 import usePlatformSettings from '../../../hooks/usePlatformSettings';
 
 const Favourites = () => {
   const { ratingsEnabled } = usePlatformSettings();
   const navigate = useNavigate();
   const { showToast, ToastComponent } = useToast();
+  const { user } = useAuth();
+  const isGuest = !user || user.isGuest;
 
   const [favouriteVendors, setFavouriteVendors] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -25,6 +29,10 @@ const Favourites = () => {
   ];
 
   const fetchFavourites = async () => {
+    if (isGuest) {
+      setIsLoading(false);
+      return;
+    }
     try {
       setIsLoading(true);
       const res = await userApi.getFavorites(selectedCategory);
@@ -57,6 +65,12 @@ const Favourites = () => {
   const viewVendorDetails = (vendorId) => {
     navigate(`/user/vendor/${vendorId}`);
   };
+
+  if (isGuest) {
+    return (
+      <LoginRequired message="Log in or sign up to save your favourite vendors and see them here." />
+    );
+  }
 
   return (
     <div className="bg-[#EDE8E1] min-h-screen text-slate-800 antialiased font-sans">

@@ -6,11 +6,15 @@ import Icon from '../../../components/ui/Icon';
 import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 import { userApi } from '../../../services/userApi';
+import { useAuth } from '../../../contexts/AuthContext';
+import LoginRequired from '../../../components/common/LoginRequired';
 
 const Shortlist = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const { showToast, ToastComponent } = useToast();
+  const { user } = useAuth();
+  const isGuest = !user || user.isGuest;
 
   const [shortlistedVendors, setShortlistedVendors] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -26,6 +30,10 @@ const Shortlist = () => {
   ];
 
   const fetchShortlist = async () => {
+    if (isGuest) {
+      setIsLoading(false);
+      return;
+    }
     try {
       setIsLoading(true);
       const res = await userApi.getFavorites(selectedCategory);
@@ -58,6 +66,12 @@ const Shortlist = () => {
   const viewVendorDetails = (vendorId) => {
     navigate(`/user/vendor/${vendorId}`);
   };
+
+  if (isGuest) {
+    return (
+      <LoginRequired message="Log in or sign up to shortlist vendors and see them here." />
+    );
+  }
 
   if (isLoading) {
     return (
