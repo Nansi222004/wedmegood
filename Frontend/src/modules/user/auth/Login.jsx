@@ -236,11 +236,11 @@ const Login = () => {
 
         {/* LOGO */}
         <img
-          src="/utsavo_logo_transparent.webp"
+          src={dark ? '/utsavo_logo_transparent_dark.webp' : '/utsavo_logo_transparent.webp'}
           alt="Utsavo - Celebrate Every Moment"
           width="1565"
           height="1005"
-          className={`w-[80%] max-w-[300px] h-auto select-none -mt-4 transition-all ${dark ? 'bg-white/95 rounded-[28px] px-2 py-1 mt-0 shadow-[0_8px_30px_rgba(0,0,0,0.35)]' : ''}`}
+          className="w-[80%] max-w-[300px] h-auto select-none -mt-4"
           draggable="false"
         />
 
