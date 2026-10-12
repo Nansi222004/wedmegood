@@ -10,7 +10,6 @@ const ScrollReset = () => {
 };
 
 import { useAuth } from '../contexts/AuthContext';
-const Welcome = lazy(() => import('../components/welcome/Welcome'));
 import ProtectedRoute from '../components/auth/ProtectedRoute';
 import PageLoader from '../components/common/PageLoader';
 const Signup = lazy(() => import('../modules/user/auth/Signup'));
@@ -155,8 +154,8 @@ const AppRouter = () => {
   return (
     <Suspense fallback={<PageLoader />}>
     <Routes>
-      {/* Root - Home for logged-in users, Welcome otherwise (ProtectedRoute redirects guests here, so this must not redirect back) */}
-      <Route path="/" element={isAuthenticated ? <Navigate to="/user/home" replace /> : <Welcome />} />
+      {/* Root - Home for logged-in users, straight to the login screen otherwise (there is no intermediate welcome page) */}
+      <Route path="/" element={<Navigate to={isAuthenticated ? '/user/home' : '/login'} replace />} />
 
       {/* Public Digital Wedding Invitation Route (No Auth Required) */}
       <Route path="/invite/:slug" element={<PublicInvite />} />
@@ -176,7 +175,8 @@ const AppRouter = () => {
           <Navigate to={new URLSearchParams(location.search).get('redirect') || "/user/home"} replace />
         ) : <Login />
       } />
-      <Route path="/welcome" element={<Welcome />} />
+      {/* The old welcome page was removed; keep its address working for old links and bookmarks */}
+      <Route path="/welcome" element={<Navigate to="/login" replace />} />
       <Route path="/signup" element={
         isAuthenticated ? (
           <Navigate to={new URLSearchParams(location.search).get('redirect') || "/user/wedding-details"} replace />

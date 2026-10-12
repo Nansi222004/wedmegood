@@ -14,9 +14,10 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
-  // If not authenticated, redirect to welcome page
+  // Not signed in: go straight to the login screen, and come back to this page afterwards
   if (!isAuthenticated) {
-    return <Navigate to="/" state={{ from: location }} replace />;
+    const back = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/login?redirect=${back}`} replace />;
   }
 
   // If authenticated, render the protected component
