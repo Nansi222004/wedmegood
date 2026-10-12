@@ -14,6 +14,21 @@ export const useAuth = () => {
   return context;
 };
 
+// "Remember Me" off: the login only lasts for this browser session. The user record stays in
+// localStorage (the API client reads the token there), flagged so it is dropped once the
+// browser/tab session that created it has ended.
+const markSession = (remember) => {
+  try {
+    if (remember === false) {
+      localStorage.setItem('userSessionOnly', '1');
+      sessionStorage.setItem('userSessionActive', '1');
+    } else {
+      localStorage.removeItem('userSessionOnly');
+      sessionStorage.removeItem('userSessionActive');
+    }
+  } catch (_) { /* storage unavailable: behave like a normal login */ }
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -22,6 +37,11 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const checkAuthState = () => {
       try {
+        // A login made without "Remember Me" does not survive closing the browser
+        if (localStorage.getItem('userSessionOnly') === '1' && !sessionStorage.getItem('userSessionActive')) {
+          localStorage.removeItem('user');
+          localStorage.removeItem('userSessionOnly');
+        }
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
           const userData = JSON.parse(storedUser);
@@ -52,7 +72,7 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (email, password, remember = true) => {
     try {
       const response = await fetch(`${API_BASE_URL}/user/auth/login`, {
         method: 'POST',
@@ -72,6 +92,7 @@ export const AuthProvider = ({ children }) => {
         };
         
         localStorage.setItem('user', JSON.stringify(userData));
+        markSession(remember);
         setUser(userData);
         
         return { success: true, user: userData };
@@ -104,6 +125,7 @@ export const AuthProvider = ({ children }) => {
         };
         
         localStorage.setItem('user', JSON.stringify(newUserData));
+        markSession(true);
         setUser(newUserData);
         
         return { success: true, user: newUserData };
@@ -149,7 +171,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loginWithOtp = async (phone, otp) => {
+  const loginWithOtp = async (phone, otp, remember = true) => {
     try {
       const data = await postAuth('login-otp', { phone, otp });
       const userData = {
@@ -158,6 +180,7 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated: true
       };
       localStorage.setItem('user', JSON.stringify(userData));
+      markSession(remember);
       setUser(userData);
       return { success: true, user: userData };
     } catch (error) {
