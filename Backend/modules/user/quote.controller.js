@@ -15,7 +15,7 @@ exports.getUserQuotes = async (req, res, next) => {
         // A user's quotes, bookings and payments are independent queries (all keyed by the user),
         // so they are fetched together instead of one after another
         const [quotes, bookings, payments] = await Promise.all([
-            Quote.find({ userId: req.user._id })
+            Quote.find({ userId: req.user._id, status: { $ne: 'Superseded' } })
                 .populate('vendorId', 'businessName city profileImage phone pricing rating reviewCount')
                 .populate('leadId')
                 .sort('-createdAt')
@@ -253,10 +253,11 @@ exports.acceptQuote = async (req, res, next) => {
             });
         }
 
-        if (lead.vendorId && lead.vendorId.toString() !== quote.vendorId.toString()) {
+        // A lead that was reassigned or released no longer belongs to this quote's vendor
+        if (!lead.vendorId || lead.vendorId.toString() !== quote.vendorId.toString()) {
             return res.status(403).json({
                 success: false,
-                message: 'Unauthorized: Vendor mismatch between quote and lead'
+                message: 'This quotation is no longer valid because the service was assigned to another vendor'
             });
         }
 
@@ -691,7 +692,14 @@ exports.rejectQuote = async (req, res, next) => {
         await quote.save();
 
         if (quote.leadId) {
-            await Lead.findByIdAndUpdate(quote.leadId, { status: 'Rejected' });
+            // A requirement's service stays open: the vendor can send a revised quote, or the
+            // customer can decline the vendor and get another. Direct enquiries end here.
+            const lead = await Lead.findById(quote.leadId).select('enquiryId status').lean();
+            if (lead?.enquiryId) {
+                if (lead.status === 'Quote Sent') await Lead.updateOne({ _id: quote.leadId }, { status: 'Contacted' });
+            } else {
+                await Lead.findByIdAndUpdate(quote.leadId, { status: 'Rejected' });
+            }
         }
 
         await Notification.create({
@@ -759,6 +767,58 @@ exports.getUserQuotePdf = async (req, res, next) => {
             vendor: quote.vendorId,
             customer: req.user,
             writeStream: res
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Ask the vendor to change the quotation without repeating the requirement
+// @route   PUT /api/user/quotes/:id/request-revision   body: { note }
+// @access  Private (User)
+exports.requestRevision = async (req, res, next) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid quote' });
+        const note = String(req.body?.note || '').trim();
+        if (note.length < 5) return res.status(400).json({ success: false, message: 'Tell the vendor what to change' });
+        const quote = await Quote.findOneAndUpdate(
+            { _id: req.params.id, userId: req.user._id, status: { $in: ['Sent', 'Pending'] } },
+            { $set: { status: 'Revision Requested', revisionRequest: { note: note.slice(0, 1000), requestedAt: new Date() } } },
+            { new: true }
+        );
+        if (!quote) return res.status(400).json({ success: false, message: 'This quotation cannot be revised now' });
+        await Notification.create({
+            vendorId: quote.vendorId,
+            message: `Revision requested for quotation ${quote.quotationNumber}: "${note.slice(0, 160)}". Edit it to send version ${quote.version + 1}.`,
+            type: 'Lead'
+        }).catch(() => {});
+        res.status(200).json({ success: true, message: 'Sent to the vendor. You will get the revised quotation here.', data: quote });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Read-only quotation for a shared link (no login). Never includes the customer's contact.
+// @route   GET /api/public/quotes/:token
+// @access  Public
+exports.getSharedQuote = async (req, res, next) => {
+    try {
+        const token = String(req.params.token || '');
+        if (!/^[A-Za-z0-9_-]{16,40}$/.test(token)) return res.status(404).json({ success: false, message: 'Quotation not found' });
+        const quote = await Quote.findOne({ shareToken: token })
+            .populate('vendorId', 'businessName city profileImage')
+            .populate('leadId', 'eventDate eventType category city eventLocation guestCount')
+            .lean();
+        if (!quote || ['Draft', 'Cancelled'].includes(quote.status)) return res.status(404).json({ success: false, message: 'Quotation not found' });
+        const pick = ({ quotationNumber, version, items, subtotal, optionalExtrasTotal, discountAmount, discountPercent, taxRatePercent, taxAmount, totalAmount, advancePaymentAmount, milestonePaymentTerms, status, validUntil, sentAt, notes, terms, cancellationTerms, scopeIncluded, exclusions, customerResponsibilities, setupTime, dismantleTime, overtimeCharges, referencePhotos, supersededBy }) => ({ quotationNumber, version, items, subtotal, optionalExtrasTotal, discountAmount, discountPercent, taxRatePercent, taxAmount, totalAmount, advancePaymentAmount, milestonePaymentTerms, status, validUntil, sentAt, notes, terms, cancellationTerms, scopeIncluded, exclusions, customerResponsibilities, setupTime, dismantleTime, overtimeCharges, referencePhotos, superseded: Boolean(supersededBy) });
+        res.set('Cache-Control', 'no-store');
+        res.status(200).json({
+            success: true,
+            data: {
+                ...pick(quote),
+                vendor: quote.vendorId ? { businessName: quote.vendorId.businessName, city: quote.vendorId.city, profileImage: quote.vendorId.profileImage } : null,
+                event: quote.leadId ? { date: quote.leadId.eventDate, type: quote.leadId.eventType, service: quote.leadId.category, city: quote.leadId.city || quote.leadId.eventLocation, guests: quote.leadId.guestCount } : null
+            }
         });
     } catch (err) {
         next(err);

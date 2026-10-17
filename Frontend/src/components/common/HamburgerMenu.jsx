@@ -150,12 +150,17 @@ const HamburgerMenu = ({ isOpen, onClose }) => {
                 </h5>
                 <div className="space-y-1.5">
                   {[
+                    { title: 'Post a Requirement', path: '/user/requirements/new', icon: 'plus' },
+                    { title: 'My Requirements', path: '/user/enquiries', icon: 'checkList' },
                     { title: 'Vendor Directory', path: '/user/vendors', icon: 'store' },
                     { title: 'Saved Favorites', path: '/user/favourites', icon: 'heart' },
                     { title: 'Planning Roadmap', path: '/user/planning-dashboard', icon: 'calendar' },
                     { title: 'Inspirations Gallery', path: '/user/inspirations', icon: 'sparkles' },
                     { title: 'My Bookings', path: '/user/bookings', icon: 'check' },
                     { title: 'Fake Vendor Alerts', path: '/user/fake-vendors', icon: 'shield' },
+                    { title: 'My Complaints', path: '/user/complaints', icon: 'warning' },
+                    { title: 'Help at Home', path: '/user/work/hire', icon: 'users' },
+                    { title: 'Work on Utsavo', path: '/user/work', icon: 'briefcase' },
                     { title: 'Digital E-Invites', path: '/user/e-invites', icon: 'envelope' },
                     { title: 'AI Concierge', path: '/user/ai-assistant', icon: 'sparkles' }
                   ].map((item, i) => (

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useVendorState } from '../useVendorState';
 import { vendorApi } from '../vendorApi';
 import Icon from '../../../components/ui/Icon';
+import PrivateImage from '../../../components/common/PrivateImage';
 import { useToast } from '../../../components/ui/Toast';
 
 const statusOptions = ['New', 'Contacted', 'Quote Sent', 'Rejected'];
@@ -24,6 +25,34 @@ const VendorLeads = () => {
   const [editModalLead, setEditModalLead] = useState(null);
   const [editForm, setEditForm] = useState({ status: 'New', isImportant: false, notes: '' });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [photoView, setPhotoView] = useState(null); // { lead, index }
+  const [reportLead, setReportLead] = useState(null);
+  const [reportForm, setReportForm] = useState({ reason: '', note: '' });
+  const [reportReasons, setReportReasons] = useState([]);
+  const [isReporting, setIsReporting] = useState(false);
+
+  useEffect(() => {
+    vendorApi.getLeadOfferReasons(localStorage.getItem('vendorToken'))
+      .then(res => setReportReasons(res?.data?.reportReasons || []))
+      .catch(() => {});
+  }, []);
+
+  const submitReport = async () => {
+    if (!reportLead || !reportForm.reason) {
+      showToast('Choose a reason', 'error');
+      return;
+    }
+    setIsReporting(true);
+    try {
+      const res = await vendorApi.reportLead(reportLead._id, reportForm.reason, reportForm.note, localStorage.getItem('vendorToken'));
+      showToast(res.message || (res.success ? 'Reported' : 'Could not report'), res.success ? 'success' : 'error');
+      if (res.success) setReportLead(null);
+    } catch {
+      showToast('Could not reach the server', 'error');
+    } finally {
+      setIsReporting(false);
+    }
+  };
 
   const fetchLeads = async (silent = false) => {
     try {
@@ -74,7 +103,7 @@ const VendorLeads = () => {
     };
   }, []);
 
-  const isAnyModalOpen = Boolean(phoneModalLead || scheduleModalLead || editModalLead);
+  const isAnyModalOpen = Boolean(phoneModalLead || scheduleModalLead || editModalLead || photoView || reportLead);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -82,6 +111,8 @@ const VendorLeads = () => {
         setPhoneModalLead(null);
         setScheduleModalLead(null);
         setEditModalLead(null);
+        setPhotoView(null);
+        setReportLead(null);
       }
     };
 
@@ -99,6 +130,13 @@ const VendorLeads = () => {
     try {
       const token = localStorage.getItem('vendorToken');
       const res = await vendorApi.updateLeadStatus(leadId, payload, token);
+      // A requirement lead given back goes to another vendor and leaves this list
+      if (res.success && res.released) {
+        setLeads(prev => prev.filter(l => l._id !== leadId));
+        showToast(res.message || 'Lead returned', 'info');
+        refreshData();
+        return null;
+      }
       if (res.success && res.data) {
         setLeads(prev => prev.map(l => (l._id === leadId ? { ...l, ...res.data } : l)));
         refreshData();
@@ -169,8 +207,8 @@ const VendorLeads = () => {
 
     setIsSavingEdit(true);
     try {
-      await updateStatus(editModalLead._id, editForm);
-      showToast('Lead updated successfully', 'success');
+      const updated = await updateStatus(editModalLead._id, editForm);
+      if (updated) showToast('Lead updated successfully', 'success');
       setEditModalLead(null);
     } catch {
       // Error handled in updateStatus
@@ -202,7 +240,7 @@ const VendorLeads = () => {
         (statusFilter === 'Quoted' && (l.status === 'Quote Sent' || l.status === 'Quoted')) ||
         (statusFilter === 'Confirmed' && (l.status === 'Booked' || l.status === 'Confirmed')) ||
         (statusFilter === 'Lost' && (l.status === 'Rejected' || l.status === 'Not converted' || l.status === 'Lost')) ||
-        (statusFilter === 'New' && l.status === 'New') ||
+        (statusFilter === 'New' && (l.status === 'New' || l.status === 'Accepted')) ||
         (statusFilter === 'Contacted' && l.status === 'Contacted');
 
       return matchesSearch && matchesStatus;
@@ -211,7 +249,7 @@ const VendorLeads = () => {
 
   const stats = useMemo(() => {
     return {
-      new: leads.filter(l => l.status === 'New').length,
+      new: leads.filter(l => l.status === 'New' || l.status === 'Accepted').length,
       contacted: leads.filter(l => l.status === 'Contacted').length,
       confirmed: leads.filter(l => l.status === 'Booked' || l.status === 'Confirmed').length,
       quotations: leads.filter(l => l.status === 'Quote Sent' || l.status === 'Quoted').length,
@@ -239,13 +277,22 @@ const VendorLeads = () => {
             <h1 className="text-[20px] font-semibold text-[#1e293b] tracking-tight leading-tight">Leads Management</h1>
             <p className="text-[11px] font-medium text-slate-500">Track, quote, and communicate with verified customer enquiries</p>
           </div>
-          <button 
-            onClick={fetchLeads}
-            className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-medium text-slate-600 hover:text-indigo-600 shadow-sm transition-all flex items-center gap-1.5"
-            title="Refresh leads list"
-          >
-            <Icon name="refresh" size="xs" /> Refresh
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => navigate('/vendor/lead-settings')}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-medium text-slate-600 hover:text-indigo-600 shadow-sm transition-all flex items-center gap-1.5"
+              title="Service area, pause offers and your lead record"
+            >
+              <Icon name="location" size="xs" /> Service area
+            </button>
+            <button
+              onClick={() => fetchLeads()}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-medium text-slate-600 hover:text-indigo-600 shadow-sm transition-all flex items-center gap-1.5"
+              title="Refresh leads list"
+            >
+              <Icon name="refresh" size="xs" /> Refresh
+            </button>
+          </div>
         </div>
 
         {/* Search & Filter Bar */}
@@ -341,7 +388,12 @@ const VendorLeads = () => {
           filteredLeads.map((lead) => {
             const customerName = lead.customerName || lead.customerProfile?.name || 'Customer';
             const profileImg = lead.customerImage || lead.customerProfile?.profileImage || null;
-            const isHot = lead.status === 'New';
+            const isHot = lead.status === 'New' || lead.status === 'Accepted';
+            // Requirement leads must be contacted before the deadline or they move to another vendor
+            const deadline = lead.dispatch?.contactDeadline && !lead.dispatch?.firstContactAt && ['Accepted', 'New'].includes(lead.status)
+              ? new Date(lead.dispatch.contactDeadline)
+              : null;
+            const hoursLeft = deadline ? (deadline.getTime() - Date.now()) / 3600000 : null;
             const isBooked = lead.status === 'Booked';
             const leadScore = isBooked ? 100 : (isHot ? 92 : (lead.status === 'Contacted' ? 78 : 45));
 
@@ -478,6 +530,35 @@ const VendorLeads = () => {
                   </div>
                 )}
 
+                {deadline && (
+                  <div className={`mt-2 px-2.5 py-1.5 rounded-lg border text-[10px] font-semibold flex items-center gap-1.5 ${hoursLeft < 2 ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                    <Icon name="clock" size="xs" />
+                    Contact the customer by {deadline.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}
+                    {lead.assignedType === 'System' ? ' or this lead moves to another vendor' : ''}. A chat message or quote counts.
+                  </div>
+                )}
+
+                {/* Customer reference photos: view only, never for download or sharing */}
+                {/* Private photos stream from the API (watermarked by the server); older enquiries may still have public links */}
+                {(() => {
+                  const photos = [...(lead.referencePhotoUrls || []), ...(lead.referencePhotos || [])];
+                  if (photos.length === 0) {
+                    return lead.referencePhotoCount > 0 ? (
+                      <p className="mt-2 text-[10px] font-medium text-slate-400">{lead.referencePhotoCount} reference photo(s): access ended for this lead</p>
+                    ) : null;
+                  }
+                  return (
+                    <div className="mt-2 flex gap-1.5 overflow-x-auto no-scrollbar select-none" onContextMenu={(e) => e.preventDefault()}>
+                      {photos.map((src, i) => (
+                        <button key={src} type="button" onClick={() => setPhotoView({ photos, index: i })} className="relative h-14 w-14 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
+                          <PrivateImage src={src} token={localStorage.getItem('vendorToken')} alt={`Reference ${i + 1}`} className="h-full w-full object-cover pointer-events-none" />
+                          <span className="absolute inset-0 flex items-center justify-center text-[6px] font-black text-white/70 uppercase rotate-[-30deg] pointer-events-none">Utsavo</span>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+
                 {/* Internal Vendor Notes if any */}
                 {lead.notes && (
                   <div className="mt-1.5 px-2.5 py-1 bg-amber-50/70 rounded-lg border border-amber-200/50">
@@ -563,6 +644,19 @@ const VendorLeads = () => {
                       <span>★</span>
                       <span>{lead.isImportant ? 'Starred' : 'Star'}</span>
                     </button>
+
+                    {/* 7. Flag a suspicious lead for the Utsavo team */}
+                    {!isBooked && (
+                      <button
+                        type="button"
+                        onClick={() => { setReportLead(lead); setReportForm({ reason: '', note: '' }); }}
+                        title="Report a fake or suspicious enquiry"
+                        className="h-7 px-2 rounded-lg flex items-center gap-1 text-[10px] font-semibold bg-white text-rose-600 border border-rose-200 hover:bg-rose-50 shadow-sm transition-all active:scale-95"
+                      >
+                        <Icon name="warning" size="xs" />
+                        <span>Report</span>
+                      </button>
+                    )}
                   </div>
 
                   <span className="text-[9px] font-bold text-slate-400">
@@ -574,6 +668,67 @@ const VendorLeads = () => {
           })
         )}
       </div>
+
+      {/* Reference photo viewer (watermarked, no right-click / drag) */}
+      {photoView && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-black/90 flex items-center justify-center p-4 select-none" onClick={() => setPhotoView(null)} onContextMenu={(e) => e.preventDefault()}>
+          <div className="relative max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
+            <PrivateImage
+              src={photoView.photos[photoView.index]}
+              token={localStorage.getItem('vendorToken')}
+              alt="Customer reference"
+              className="w-full max-h-[80vh] min-h-[200px] object-contain rounded-xl pointer-events-none"
+            />
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden rounded-xl">
+              <span className="text-white/25 text-2xl sm:text-4xl font-black uppercase tracking-widest rotate-[-25deg] whitespace-nowrap">
+                Utsavo · {vendorState?.businessName || 'Vendor'} · Private
+              </span>
+            </div>
+            <div className="flex items-center justify-between mt-3 text-white text-xs">
+              <button disabled={photoView.index === 0} onClick={() => setPhotoView(v => ({ ...v, index: v.index - 1 }))} className="px-3 py-1.5 rounded-lg bg-white/10 disabled:opacity-30">Previous</button>
+              <span className="opacity-70">Customer reference {photoView.index + 1}/{photoView.photos.length} · for this quotation only</span>
+              <button disabled={photoView.index >= photoView.photos.length - 1} onClick={() => setPhotoView(v => ({ ...v, index: v.index + 1 }))} className="px-3 py-1.5 rounded-lg bg-white/10 disabled:opacity-30">Next</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Report a suspicious lead */}
+      {reportLead && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setReportLead(null)} />
+          <div className="relative z-10 bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 space-y-3">
+            <div>
+              <h3 className="text-[15px] font-bold text-slate-900">Report this enquiry</h3>
+              <p className="text-[11px] text-slate-500">The Utsavo team reviews every report. A report alone never penalises a customer.</p>
+            </div>
+            <div className="space-y-1.5">
+              {reportReasons.map(r => (
+                <label key={r.value} className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer ${reportForm.reason === r.value ? 'border-rose-300 bg-rose-50' : 'border-slate-200'}`}>
+                  <input type="radio" name="report-reason" checked={reportForm.reason === r.value} onChange={() => setReportForm(f => ({ ...f, reason: r.value }))} />
+                  {r.label}
+                </label>
+              ))}
+            </div>
+            <textarea
+              rows={3}
+              maxLength={1000}
+              value={reportForm.note}
+              onChange={(e) => setReportForm(f => ({ ...f, note: e.target.value }))}
+              placeholder="What happened? (optional)"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-rose-300"
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setReportLead(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600">Cancel</button>
+              <button onClick={submitReport} disabled={isReporting} className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-semibold disabled:opacity-50">
+                {isReporting ? 'Sending...' : 'Send report'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* MODAL 1: Masked Phone Notice */}
       {phoneModalLead && createPortal(
@@ -767,8 +922,10 @@ const VendorLeads = () => {
                 {editModalLead.status === 'Booked' ? (
                   <option value="Booked">Booked (Confirmed via Quote)</option>
                 ) : (
-                  statusOptions.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
+                  [...new Set([editModalLead.status, ...statusOptions])].map(opt => (
+                    <option key={opt} value={opt}>
+                      {opt === 'Rejected' && editModalLead.enquiryId ? 'Not interested (give lead back)' : opt}
+                    </option>
                   ))
                 )}
               </select>

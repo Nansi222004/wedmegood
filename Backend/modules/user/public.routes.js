@@ -41,6 +41,9 @@ router.get('/family-groups/preview/:token', familyController.getPublicGroupPrevi
 
 // Public platform settings the apps need (ratings switch, cancellation policy, fake vendor pricing)
 const { getPublicSettings } = require('../../services/platformSettings.service');
+// A vendor's shared quotation link (read-only, no customer contact)
+router.get('/quotes/:token', require('./quote.controller').getSharedQuote);
+
 router.get('/settings', cacheResponse(15000, 10), async (req, res, next) => {
   try {
     res.status(200).json({ success: true, data: await getPublicSettings() });

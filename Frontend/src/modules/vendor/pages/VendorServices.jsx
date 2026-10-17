@@ -8,6 +8,12 @@ import { useVendorState } from '../useVendorState';
 import { useToast } from '../../../components/ui/Toast';
 import ConfirmModal from '../../../components/ui/ConfirmModal';
 
+// Same list as Backend/utils/serviceSetup.js SETUP_TAGS
+const SETUP_TAGS = [
+    'Indoor', 'Outdoor', 'Rain backup', 'Needs power supply', 'Brings own generator', 'Needs water supply',
+    'Needs stage area', 'Needs parking', 'Quick setup (under 3 hours)', 'Night setup possible'
+];
+
 const VendorServices = () => {
     const { vendorState } = useVendorState();
     const { addBatchUpload, uploads } = useUpload();
@@ -37,7 +43,10 @@ const VendorServices = () => {
         detailedDescription: '',
         originalPrice: '',
         discountedPrice: '',
-        features: []
+        features: [],
+        minGuests: '',
+        maxGuests: '',
+        setupTags: []
     });
     const [featureInput, setFeatureInput] = useState('');
     
@@ -83,7 +92,10 @@ const VendorServices = () => {
                 detailedDescription: service.detailedDescription,
                 originalPrice: service.price?.original || '',
                 discountedPrice: service.price?.discounted || '',
-                features: service.features || []
+                features: service.features || [],
+                minGuests: service.capacity?.minGuests || '',
+                maxGuests: service.capacity?.maxGuests || '',
+                setupTags: service.setupTags || []
             });
             setCoverPreview(service.coverImage ? service.coverImage : '');
             const normGallery = (service.gallery || []).map(item => typeof item === 'string' ? { url: item, type: 'image' } : item);
@@ -93,7 +105,8 @@ const VendorServices = () => {
             setEditingService(null);
             setFormData({
                 name: '', categoryId: '', shortDescription: '', detailedDescription: '',
-                originalPrice: '', discountedPrice: '', features: []
+                originalPrice: '', discountedPrice: '', features: [],
+                minGuests: '', maxGuests: '', setupTags: []
             });
             setCoverPreview('');
             setExistingGallery([]);
@@ -219,6 +232,8 @@ const VendorServices = () => {
             data.append('shortDescription', formData.shortDescription);
             data.append('detailedDescription', formData.detailedDescription);
             data.append('features', JSON.stringify(formData.features));
+            data.append('capacity', JSON.stringify({ minGuests: formData.minGuests || null, maxGuests: formData.maxGuests || null }));
+            data.append('setupTags', JSON.stringify(formData.setupTags));
             data.append('price', JSON.stringify({
                 original: Number(formData.originalPrice),
                 discounted: formData.discountedPrice ? Number(formData.discountedPrice) : undefined
@@ -586,6 +601,34 @@ const VendorServices = () => {
                                                         </button>
                                                     </div>
                                                 ))}
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">Guests you can handle</label>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <input type="number" min="0" value={formData.minGuests} onChange={e => setFormData({...formData, minGuests: e.target.value})} className="w-full h-10 px-4 bg-[#F9F8FF] border border-[#EAE6FF] rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:border-[#4F35C3]/30 transition-all" placeholder="Minimum" />
+                                                <input type="number" min="0" value={formData.maxGuests} onChange={e => setFormData({...formData, maxGuests: e.target.value})} className="w-full h-10 px-4 bg-[#F9F8FF] border border-[#EAE6FF] rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:border-[#4F35C3]/30 transition-all" placeholder="Maximum" />
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 font-medium mt-1">Customers who search "for 300 guests" find services that fit. Leave empty if it does not apply.</p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">Setup and site needs</label>
+                                            <div className="flex flex-wrap gap-2">
+                                                {SETUP_TAGS.map(tag => {
+                                                    const on = formData.setupTags.includes(tag);
+                                                    return (
+                                                        <button
+                                                            key={tag}
+                                                            type="button"
+                                                            onClick={() => setFormData(prev => ({ ...prev, setupTags: on ? prev.setupTags.filter(t => t !== tag) : [...prev.setupTags, tag] }))}
+                                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${on ? 'bg-[#4F35C3] text-white border-[#4F35C3]' : 'bg-[#F9F8FF] text-slate-600 border-[#EAE6FF]'}`}
+                                                        >
+                                                            {tag}
+                                                        </button>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
 

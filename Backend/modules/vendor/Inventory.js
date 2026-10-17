@@ -6,11 +6,21 @@ const inventorySchema = new mongoose.Schema({
         ref: 'Vendor',
         required: true
     },
+    // Required by the catalogue form; stock items bought through purchase requests may have none
     category: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Category',
-        required: [true, 'Please select a category']
+        default: null
     },
+    // Stock master (event operations)
+    itemCode: { type: String, trim: true, default: '' },
+    unit: { type: String, trim: true, default: 'pcs' },
+    // Reusable items (frames, pillars, lights) go out and must come back; consumables (flowers, tape) are used up
+    stockType: { type: String, enum: ['Reusable', 'Consumable'], default: 'Reusable' },
+    storageLocation: { type: String, trim: true, default: '' },
+    condition: { type: String, enum: ['Good', 'Needs repair', 'Damaged'], default: 'Good' },
+    reorderLevel: { type: Number, default: 0, min: 0 },
+    unitCost: { type: Number, default: 0, min: 0 },
     itemName: {
         type: String,
         required: [true, 'Inventory item name is required'],

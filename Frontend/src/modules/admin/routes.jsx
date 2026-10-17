@@ -32,6 +32,8 @@ const AdminLeads = lazy(() => import('./pages/AdminLeads'));
 const AdminQuotes = lazy(() => import('./pages/AdminQuotes'));
 const AdminComplaints = lazy(() => import('./pages/AdminComplaints'));
 const AdminFakeVendors = lazy(() => import('./pages/AdminFakeVendors'));
+const AdminEnquiries = lazy(() => import('./pages/AdminEnquiries'));
+const AdminWorkforce = lazy(() => import('./pages/AdminWorkforce'));
 
 // Simple placeholder page component
 
@@ -64,6 +66,8 @@ const AdminRoutes = () => {
         <Route path="quotes" element={<AdminQuotes />} />
         <Route path="complaints" element={<AdminComplaints />} />
         <Route path="fake-vendors" element={<AdminFakeVendors />} />
+        <Route path="enquiries" element={<AdminEnquiries />} />
+        <Route path="workforce" element={<AdminWorkforce />} />
         <Route path="subscriptions" element={<AdminSubscriptions />} />
         <Route path="bookings" element={<AdminBookings />} />
         <Route path="analytics" element={<AdminAnalytics />} />

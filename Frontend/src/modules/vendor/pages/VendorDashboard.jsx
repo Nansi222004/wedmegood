@@ -12,6 +12,7 @@ import ads1 from '../../../assets/vendor/ads1.webp';
 import ads2 from '../../../assets/vendor/ads2.webp';
 import ads3 from '../../../assets/vendor/ads3.webp';
 import ProfileCompletionTracker from '../components/ProfileCompletionTracker';
+import DailyBrief from '../components/DailyBrief';
 
 const VendorDashboard = () => {
   const navigate = useNavigate();
@@ -110,6 +111,10 @@ const VendorDashboard = () => {
   }
 
   const completion = computeProfileCompletion(vendorState);
+  // The daily brief reads event operations, which need an approved account with a live subscription
+  const sub = vendorState.subscription;
+  const canSeeBrief = vendorState.status === 'Approved' && vendorState.isActive !== false
+    && sub?.status === 'Active' && !(sub?.endDate && new Date(sub.endDate) < new Date());
 
   const statCards = [
     { 
@@ -350,6 +355,8 @@ const VendorDashboard = () => {
         }
       `}</style>
       
+      {canSeeBrief && <DailyBrief />}
+
       {/* Stats Grid */}
       <div className="grid gap-3 sm:gap-5 grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat, i) => (

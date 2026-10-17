@@ -190,7 +190,15 @@ const VendorRegister = () => {
     phoneOtp: '',
     serviceCities: '',
     languages: '',
-    hasDocuments: false
+    hasDocuments: false,
+    // Service area & travel preferences (decides which leads are offered)
+    basePincode: '',
+    servicePincodes: '',
+    radiusKm: '25',
+    maxTravelKm: '75',
+    travelPolicy: 'Depends',
+    minBudget: '',
+    maxBudget: ''
   });
   
   const [activeCategoryForSubSelect, setActiveCategoryForSubSelect] = useState(null); // The category currently having subcategories selected
@@ -954,6 +962,50 @@ const VendorRegister = () => {
 
 
 
+              {/* Service Areas & Travel Preferences */}
+              <div className="mt-4 p-3.5 rounded-2xl border border-slate-200 bg-slate-50/40 space-y-3 animate-in fade-in duration-150">
+                <div>
+                  <p className="text-[11.5px] font-bold uppercase tracking-wider text-slate-600" style={{ fontFamily: "'Poppins', sans-serif" }}>Where you work</p>
+                  <p className="text-[11px] text-slate-500">You are only offered leads you can reach. You can change this any time in Service Area.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <label className="block">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Business PIN code</span>
+                    <input inputMode="numeric" maxLength={6} className="w-full rounded-xl px-3 py-2 text-xs font-semibold border border-slate-200 bg-white outline-none focus:border-[#4F35C3]" value={formState.basePincode} onChange={(e) => handleChange('basePincode', e.target.value.replace(/\D/g, ''))} placeholder="500081" />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Travel charges</span>
+                    <select className="w-full rounded-xl px-3 py-2 text-xs font-semibold border border-slate-200 bg-white outline-none focus:border-[#4F35C3]" value={formState.travelPolicy} onChange={(e) => handleChange('travelPolicy', e.target.value)}>
+                      <option value="Included">Included in my price</option>
+                      <option value="Separate">Charged separately</option>
+                      <option value="Depends">Depends on distance</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Preferred radius (km)</span>
+                    <input type="number" min="0" className="w-full rounded-xl px-3 py-2 text-xs font-semibold border border-slate-200 bg-white outline-none focus:border-[#4F35C3]" value={formState.radiusKm} onChange={(e) => handleChange('radiusKm', e.target.value)} />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Maximum travel (km)</span>
+                    <input type="number" min="0" className="w-full rounded-xl px-3 py-2 text-xs font-semibold border border-slate-200 bg-white outline-none focus:border-[#4F35C3]" value={formState.maxTravelKm} onChange={(e) => handleChange('maxTravelKm', e.target.value)} />
+                  </label>
+                </div>
+                <label className="block">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">PIN codes you serve (optional, comma separated)</span>
+                  <input className="w-full rounded-xl px-3 py-2 text-xs font-semibold border border-slate-200 bg-white outline-none focus:border-[#4F35C3]" value={formState.servicePincodes} onChange={(e) => handleChange('servicePincodes', e.target.value)} placeholder="500081, 500032, 500034" />
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <label className="block">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Smallest budget you take (₹)</span>
+                    <input type="number" min="0" className="w-full rounded-xl px-3 py-2 text-xs font-semibold border border-slate-200 bg-white outline-none focus:border-[#4F35C3]" value={formState.minBudget} onChange={(e) => handleChange('minBudget', e.target.value)} placeholder="e.g. 20000" />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Typical largest (₹)</span>
+                    <input type="number" min="0" className="w-full rounded-xl px-3 py-2 text-xs font-semibold border border-slate-200 bg-white outline-none focus:border-[#4F35C3]" value={formState.maxBudget} onChange={(e) => handleChange('maxBudget', e.target.value)} placeholder="e.g. 300000" />
+                  </label>
+                </div>
+              </div>
+
               {/* Action Buttons for Step 3 */}
               <div className="mt-3 flex flex-col items-center gap-2 select-none">
                 <button
@@ -1020,11 +1072,21 @@ const VendorRegister = () => {
                           }
                         }
 
+                        const { basePincode, servicePincodes, radiusKm, maxTravelKm, travelPolicy, minBudget, maxBudget, ...rest } = formState;
                         const payload = {
-                          ...formState,
+                          ...rest,
                           profileImage: profileImageUrl,
                           portfolio: portfolioUrls,
-                          phoneVerificationToken
+                          phoneVerificationToken,
+                          serviceArea: {
+                            coverage: 'combined',
+                            basePincode,
+                            pincodes: servicePincodes,
+                            radiusKm: Number(radiusKm) || 0,
+                            maxTravelKm: Number(maxTravelKm) || 0,
+                            travelPolicy
+                          },
+                          leadPreferences: { minBudget: Number(minBudget) || 0, maxBudget: Number(maxBudget) || 0 }
                         };
                         
                         // Remove empty or deprecated fields from payload

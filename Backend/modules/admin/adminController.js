@@ -2232,10 +2232,12 @@ exports.getAllComplaints = async (req, res, next) => {
             .limit(limitNum)
             .lean();
 
+        const { overdueFlags } = require('../../services/complaint.service');
         const mappedComplaints = complaints.map(c => ({
             ...c,
             user: c.userId ? { ...c.userId, fullName: c.userId.name } : null,
-            vendor: c.vendorId || null
+            vendor: c.vendorId || null,
+            overdue: overdueFlags(c)
         }));
 
         res.status(200).json({
@@ -2263,8 +2265,7 @@ exports.updateComplaintStatus = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Invalid complaint ID format' });
         }
 
-        const { status, adminNotes } = req.body;
-        // Exact Phase 3 enum: ['Pending', 'In-Review', 'Resolved', 'Dismissed']
+        const { status, adminNotes, outcome } = req.body;
         if (!['Pending', 'In-Review', 'Resolved', 'Dismissed'].includes(status)) {
             return res.status(400).json({
                 success: false,
@@ -2276,15 +2277,37 @@ exports.updateComplaintStatus = async (req, res, next) => {
         if (!complaint) {
             return res.status(404).json({ success: false, message: 'Complaint not found' });
         }
+        if (complaint.status === 'Appealed') {
+            return res.status(400).json({ success: false, message: 'This complaint is under appeal. Decide the appeal instead.' });
+        }
+
+        const deciding = (status === 'Resolved' || status === 'Dismissed') && !['Resolved', 'Dismissed'].includes(complaint.status);
+        const outcomeText = String(outcome ?? complaint.outcome ?? '').trim();
+        // Both parties are told the decision, so it must be written down
+        if (deciding && !outcomeText) {
+            return res.status(400).json({ success: false, message: 'Write the decision that both the customer and the vendor will see' });
+        }
 
         const prevStatus = complaint.status;
         complaint.status = status;
         if (adminNotes !== undefined) complaint.adminNotes = adminNotes;
+        if (outcome !== undefined) complaint.outcome = String(outcome).trim().slice(0, 2000);
+        if (status !== 'Pending' && !complaint.acknowledgedAt) complaint.acknowledgedAt = new Date();
         if (status === 'Resolved' || status === 'Dismissed') {
             complaint.resolvedAt = new Date();
         }
 
         await complaint.save();
+
+        if (deciding) {
+            const { notifyUser, notifyVendor, APPEAL_WINDOW_DAYS } = require('../../services/complaint.service');
+            const tail = `You can appeal within ${APPEAL_WINDOW_DAYS} days.`;
+            await notifyUser(complaint.userId, `Your complaint was ${status.toLowerCase()}`, `${complaint.outcome} ${tail}`);
+            await notifyVendor(complaint.vendorId, `A complaint about you was ${status.toLowerCase()}: ${complaint.outcome} ${tail}`);
+        } else if (status === 'In-Review' && prevStatus === 'Pending') {
+            const { notifyUser } = require('../../services/complaint.service');
+            await notifyUser(complaint.userId, 'Your complaint is being reviewed', 'The Utsavo team has started looking into your complaint and has asked the vendor for their side.');
+        }
 
         await logAdminAction({
             admin: req.user,
@@ -2302,6 +2325,50 @@ exports.updateComplaintStatus = async (req, res, next) => {
             data: complaint,
             message: `Complaint status updated to ${status}`
         });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Decide an appeal: uphold the earlier decision or overturn it
+// @route   POST /api/admin/complaints/:id/appeal-decision   body: { decision: 'Upheld'|'Overturned', note }
+// @access  Private/Admin
+exports.decideComplaintAppeal = async (req, res, next) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid complaint ID format' });
+        }
+        const { decision } = req.body || {};
+        const note = String(req.body?.note || '').trim();
+        if (!['Upheld', 'Overturned'].includes(decision)) return res.status(400).json({ success: false, message: 'Choose to uphold or overturn' });
+        if (!note) return res.status(400).json({ success: false, message: 'Explain the appeal decision' });
+        const complaint = await Complaint.findById(req.params.id);
+        if (!complaint || complaint.status !== 'Appealed') return res.status(404).json({ success: false, message: 'No pending appeal on this complaint' });
+
+        const previous = complaint.appeal.previousStatus || 'Resolved';
+        const finalStatus = decision === 'Upheld' ? previous : (previous === 'Resolved' ? 'Dismissed' : 'Resolved');
+        complaint.appeal.decision = decision;
+        complaint.appeal.decisionNote = note.slice(0, 2000);
+        complaint.appeal.decidedAt = new Date();
+        complaint.status = finalStatus;
+        complaint.outcome = decision === 'Overturned' ? `${note} (decision changed on appeal)` : complaint.outcome;
+        complaint.resolvedAt = new Date();
+        await complaint.save();
+
+        const { notifyUser, notifyVendor } = require('../../services/complaint.service');
+        const text = `Appeal ${decision.toLowerCase()}: ${note}`;
+        await notifyUser(complaint.userId, 'Appeal decided', text);
+        await notifyVendor(complaint.vendorId, `Complaint appeal ${decision.toLowerCase()}: ${note}`);
+
+        await logAdminAction({
+            admin: req.user,
+            action: `Appeal ${decision.toLowerCase()} on complaint (now ${finalStatus})`,
+            entityType: 'Complaint',
+            entityId: complaint._id,
+            reason: note,
+            req
+        });
+        res.status(200).json({ success: true, data: complaint, message: `Appeal ${decision.toLowerCase()}` });
     } catch (err) {
         next(err);
     }
@@ -2326,12 +2393,15 @@ exports.getPlatformSettings = async (req, res, next) => {
             };
         }
 
-        const { PUBLIC_DEFAULTS } = require('../../services/platformSettings.service');
+        const { PUBLIC_DEFAULTS, DISPATCH_DEFAULTS } = require('../../services/platformSettings.service');
+        const { TAT_DEFAULTS } = require('../../services/complaint.service');
 
         res.status(200).json({
             success: true,
             data: {
                 ...PUBLIC_DEFAULTS,
+                ...DISPATCH_DEFAULTS,
+                ...TAT_DEFAULTS,
                 ...Object.fromEntries(Object.entries(settings).filter(([, v]) => v !== undefined && v !== null)),
                 platformCommissionPercent: settings.platformCommissionPercent ?? null,
                 serviceGstPercent: settings.serviceGstPercent ?? null,
@@ -2361,6 +2431,16 @@ exports.updatePlatformSettings = async (req, res, next) => {
             'fakeVendorFreeViews',
             'fakeVendorAccessPrice',
             'fakeVendorAccessDays',
+            'leadOfferWindowSeconds',
+            'leadOfferDeliveryGraceSeconds',
+            'leadContactDeadlineHours',
+            'leadCustomerReassignLimit',
+            'leadDetailsRequestHours',
+            'enquiryDailyLimit',
+            'complaintAckHours',
+            'complaintVendorResponseHours',
+            'complaintResolveDays',
+            'complaintSafetyResolveDays',
             'reason'
         ];
 
@@ -2444,7 +2524,17 @@ exports.updatePlatformSettings = async (req, res, next) => {
             cancellationNoticeDays: { min: 0, label: 'Cancellation notice days' },
             fakeVendorFreeViews: { min: 0, label: 'Free views of the fake vendors page' },
             fakeVendorAccessPrice: { min: 1, label: 'Fake vendors page access price' },
-            fakeVendorAccessDays: { min: 1, label: 'Fake vendors page access duration' }
+            fakeVendorAccessDays: { min: 1, label: 'Fake vendors page access duration' },
+            leadOfferWindowSeconds: { min: 10, label: 'Lead offer response window (seconds)' },
+            leadOfferDeliveryGraceSeconds: { min: 0, label: 'Lead offer delivery wait (seconds)' },
+            leadContactDeadlineHours: { min: 1, label: 'Vendor contact deadline (hours)' },
+            leadCustomerReassignLimit: { min: 0, label: 'Customer reassignment limit' },
+            leadDetailsRequestHours: { min: 1, label: 'Details request window (hours)' },
+            enquiryDailyLimit: { min: 1, label: 'Daily enquiry limit per customer' },
+            complaintAckHours: { min: 1, label: 'Complaint acknowledgement target (hours)' },
+            complaintVendorResponseHours: { min: 1, label: 'Vendor response target (hours)' },
+            complaintResolveDays: { min: 1, label: 'Complaint resolution target (days)' },
+            complaintSafetyResolveDays: { min: 1, label: 'Safety complaint resolution target (days)' }
         };
         for (const [key, rule] of Object.entries(integerSettings)) {
             if (req.body[key] === undefined) continue;
@@ -2470,6 +2560,7 @@ exports.updatePlatformSettings = async (req, res, next) => {
 
         // Invalidate maintenance mode cache immediately on settings change
         invalidateMaintenanceCache();
+        require('../../services/platformSettings.service').invalidateDispatchSettings();
 
         await logAdminAction({
             admin: req.user,

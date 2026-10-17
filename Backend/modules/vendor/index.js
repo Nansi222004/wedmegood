@@ -125,6 +125,25 @@ router.get('/leads', protectVendor, requireSubscription, requireVendorApproval, 
 router.get('/leads/:id', protectVendor, requireSubscription, requireVendorApproval, getLeadById);
 router.put('/leads/:id', protectVendor, requireSubscription, requireVendorApproval, updateLeadStatus);
 
+// Lead offers (the buzzer), insights, service area and suspicious-lead reports
+const leadOffers = require('./leadOffer.controller');
+router.get('/lead-offers/active', protectVendor, requireSubscription, requireVendorApproval, leadOffers.getActiveOffers);
+router.get('/lead-offers/reasons', protectVendor, leadOffers.getDeclineReasons);
+router.post('/lead-offers/:id/ack', protectVendor, requireSubscription, requireVendorApproval, leadOffers.acknowledgeOffer);
+router.post('/lead-offers/:id/accept', protectVendor, requireSubscription, requireVendorApproval, leadOffers.acceptOffer);
+router.post('/lead-offers/:id/decline', protectVendor, requireSubscription, requireVendorApproval, leadOffers.declineOffer);
+router.get('/lead-insights', protectVendor, leadOffers.getLeadInsights);
+router.get('/lead-settings', protectVendor, leadOffers.getLeadSettings);
+router.put('/lead-settings', protectVendor, leadOffers.updateLeadSettings);
+router.post('/leads/:id/report', protectVendor, requireSubscription, requireVendorApproval, leadOffers.reportLead);
+router.get('/leads/:id/photos/:photoId', protectVendor, requireSubscription, requireVendorApproval, leadOffers.getLeadPhoto);
+
+// Complaints about the vendor: their side of the story and appeals (available even without a subscription)
+const vendorComplaints = require('./complaint.controller');
+router.get('/complaints', protectVendor, vendorComplaints.listComplaints);
+router.post('/complaints/:id/respond', protectVendor, vendorComplaints.respond);
+router.post('/complaints/:id/appeal', protectVendor, vendorComplaints.appeal);
+
 // Quotes
 router.get('/quotes', protectVendor, requireSubscription, requireVendorApproval, getQuotes);
 router.post('/quotes', protectVendor, requireSubscription, requireVendorApproval, createQuote);

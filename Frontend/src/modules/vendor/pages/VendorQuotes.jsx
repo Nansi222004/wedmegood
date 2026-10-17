@@ -28,6 +28,27 @@ const ADVANCE_PRESETS = [
   { label: 'Custom Amount', value: 'custom' }
 ];
 
+// Line kinds the server understands; optional extras are priced but not added to the total
+const ITEM_KINDS = ['Included', 'Transport', 'Labour', 'Equipment', 'Material', 'Optional extra'];
+
+const EMPTY_DETAILS = {
+  scopeIncluded: '',
+  exclusions: '',
+  customerResponsibilities: '',
+  setupTime: '',
+  dismantleTime: '',
+  overtimeCharges: ''
+};
+
+const DETAIL_FIELDS = [
+  { key: 'scopeIncluded', label: 'What is included', placeholder: 'e.g. Stage decor, entrance arch, 40 centrepieces', area: true },
+  { key: 'exclusions', label: 'Not included', placeholder: 'e.g. Venue charges, generator, permits', area: true },
+  { key: 'customerResponsibilities', label: 'Customer to arrange', placeholder: 'e.g. Power points near stage, parking for 1 truck', area: true },
+  { key: 'setupTime', label: 'Setup time', placeholder: 'e.g. 6 hours before the event' },
+  { key: 'dismantleTime', label: 'Dismantle time', placeholder: 'e.g. Within 3 hours after the event' },
+  { key: 'overtimeCharges', label: 'Overtime charges', placeholder: 'e.g. ₹2,000 per extra hour' }
+];
+
 const VendorQuotes = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -50,7 +71,7 @@ const VendorQuotes = () => {
   // Form State
   const [selectedLeadId, setSelectedLeadId] = useState('');
   const [items, setItems] = useState([
-    { id: 1, service: '', description: '', quantity: 1, price: '' }
+    { id: 1, service: '', description: '', quantity: 1, price: '', unit: '', kind: 'Included' }
   ]);
   const [taxOption, setTaxOption] = useState('18');
   const [customTaxAmount, setCustomTaxAmount] = useState('0');
@@ -59,10 +80,13 @@ const VendorQuotes = () => {
   const [discountPercent, setDiscountPercent] = useState('0');
   const [advanceOption, setAdvanceOption] = useState('25');
   const [customAdvanceAmount, setCustomAdvanceAmount] = useState('0');
-  const [validityDays, setValidityDays] = useState(14);
+  const [validityDays, setValidityDays] = useState(7);
   const [notes, setNotes] = useState('');
   const [milestoneTerms, setMilestoneTerms] = useState('25% advance to confirm booking, 50% one week prior to event, 25% upon event day.');
   const [cancellationTerms, setCancellationTerms] = useState('Full refund if cancelled 30+ days before event. 50% refund if 15-29 days. Non-refundable within 14 days.');
+  const [details, setDetails] = useState(EMPTY_DETAILS);
+  const [referencePhotos, setReferencePhotos] = useState([]);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -134,7 +158,9 @@ const VendorQuotes = () => {
             service: found.serviceName || found.category || 'Wedding Service Package',
             description: found.message ? `Inquiry scope: ${found.message.slice(0, 100)}` : 'Comprehensive wedding service deliverables',
             quantity: 1,
-            price: ''
+            price: '',
+            unit: '',
+            kind: 'Included'
           }
         ]);
         setShowModal(true);
@@ -153,9 +179,37 @@ const VendorQuotes = () => {
           service: found.serviceName || found.category || 'Wedding Package',
           description: found.message || '',
           quantity: 1,
-          price: ''
+          price: '',
+          unit: '',
+          kind: 'Included'
         }
       ]);
+    }
+  };
+
+  const handlePhotoUpload = async (e) => {
+    const files = Array.from(e.target.files || []).slice(0, 10 - referencePhotos.length);
+    e.target.value = '';
+    if (!files.length) return;
+    setUploadingPhotos(true);
+    try {
+      const res = await vendorApi.uploadMultipleMedia(files, token);
+      if (!res.success) throw new Error(res.message);
+      setReferencePhotos(list => [...list, ...res.files.map(f => f.url)].slice(0, 10));
+    } catch (err) {
+      showToast(err.message || 'Could not upload the photos', 'error');
+    } finally {
+      setUploadingPhotos(false);
+    }
+  };
+
+  const copyShareLink = async (quote) => {
+    const link = `${window.location.origin}/q/${quote.shareToken}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      showToast('Quotation link copied. Anyone with the link can view it.', 'success');
+    } catch {
+      window.prompt('Copy this link', link);
     }
   };
 
@@ -163,7 +217,7 @@ const VendorQuotes = () => {
   const handleAddItem = () => {
     setItems(prev => [
       ...prev,
-      { id: Date.now(), service: '', description: '', quantity: 1, price: '' }
+      { id: Date.now(), service: '', description: '', quantity: 1, price: '', unit: '', kind: 'Included' }
     ]);
   };
 
@@ -187,6 +241,7 @@ const VendorQuotes = () => {
   // Dynamic Live Calculation
   const calculation = useMemo(() => {
     const subtotal = items.reduce((sum, it) => {
+      if (it.kind === 'Optional extra') return sum;
       const q = Math.max(1, Number(it.quantity) || 1);
       const p = Math.max(0, Number(it.price) || 0);
       return sum + (q * p);
@@ -220,8 +275,13 @@ const VendorQuotes = () => {
       calculatedAdvance = Math.round((total * advRate) / 100);
     }
 
+    const optionalExtras = items.reduce((sum, it) => it.kind === 'Optional extra'
+      ? sum + Math.max(1, Number(it.quantity) || 1) * Math.max(0, Number(it.price) || 0)
+      : sum, 0);
+
     return {
       subtotal,
+      optionalExtras,
       discount: calculatedDiscount,
       tax: calculatedTax,
       total,
@@ -258,8 +318,14 @@ const VendorQuotes = () => {
         description: (it.description || '').trim(),
         quantity: Math.max(1, Number(it.quantity) || 1),
         price: Number(it.price),
-        amount: (Math.max(1, Number(it.quantity) || 1)) * Number(it.price)
+        amount: (Math.max(1, Number(it.quantity) || 1)) * Number(it.price),
+        unit: (it.unit || '').trim(),
+        kind: it.kind || 'Included'
       }));
+      if (lineItems.every(it => it.kind === 'Optional extra')) {
+        showToast('Add at least one line that is not an optional extra.', 'warning');
+        return;
+      }
 
       const quoteData = {
         leadId: lead._id,
@@ -273,10 +339,12 @@ const VendorQuotes = () => {
         totalAmount: calculation.total,
         advancePaymentPercent: advanceOption !== 'custom' ? Number(advanceOption) : undefined,
         advancePaymentAmount: calculation.advance,
-        validUntil: new Date(Date.now() + (Number(validityDays) || 14) * 24 * 60 * 60 * 1000),
+        validUntil: new Date(Date.now() + Math.min(7, Number(validityDays) || 7) * 24 * 60 * 60 * 1000),
         milestonePaymentTerms: milestoneTerms.trim(),
         cancellationTerms: cancellationTerms.trim(),
-        notes: notes.trim()
+        notes: notes.trim(),
+        ...Object.fromEntries(Object.entries(details).map(([k, v]) => [k, v.trim()])),
+        referencePhotos
       };
 
       let res;
@@ -313,7 +381,9 @@ const VendorQuotes = () => {
         service: it.service || '',
         description: it.description || '',
         quantity: it.quantity || 1,
-        price: it.price !== undefined ? String(it.price) : ''
+        price: it.price !== undefined ? String(it.price) : '',
+        unit: it.unit || '',
+        kind: it.kind || 'Included'
       })));
     } else {
       setItems([{
@@ -321,7 +391,9 @@ const VendorQuotes = () => {
         service: quote.leadId?.serviceName || 'Wedding Service Package',
         description: quote.notes || '',
         quantity: 1,
-        price: String(quote.totalAmount || '')
+        price: String(quote.totalAmount || ''),
+        unit: '',
+        kind: 'Included'
       }]);
     }
 
@@ -364,6 +436,8 @@ const VendorQuotes = () => {
     setMilestoneTerms(quote.milestonePaymentTerms || quote.terms || '25% advance to confirm booking, 50% one week prior to event, 25% upon event day.');
     setCancellationTerms(quote.cancellationTerms || 'Full refund if cancelled 30+ days before event. 50% refund if 15-29 days. Non-refundable within 14 days.');
     setNotes(quote.notes || '');
+    setDetails(Object.fromEntries(Object.keys(EMPTY_DETAILS).map(k => [k, quote[k] || ''])));
+    setReferencePhotos(quote.referencePhotos || []);
     setShowModal(true);
   };
 
@@ -371,7 +445,7 @@ const VendorQuotes = () => {
     setIsEditing(false);
     setSelectedQuoteId(null);
     setSelectedLeadId('');
-    setItems([{ id: 1, service: '', description: '', quantity: 1, price: '' }]);
+    setItems([{ id: 1, service: '', description: '', quantity: 1, price: '', unit: '', kind: 'Included' }]);
     setTaxOption('18');
     setCustomTaxAmount('0');
     setDiscountType('amount');
@@ -379,8 +453,10 @@ const VendorQuotes = () => {
     setDiscountPercent('0');
     setAdvanceOption('25');
     setCustomAdvanceAmount('0');
-    setValidityDays(14);
+    setValidityDays(7);
     setNotes('');
+    setDetails(EMPTY_DETAILS);
+    setReferencePhotos([]);
     setMilestoneTerms('25% advance to confirm booking, 50% one week prior to event, 25% upon event day.');
     setCancellationTerms('Full refund if cancelled 30+ days before event. 50% refund if 15-29 days. Non-refundable within 14 days.');
   };
@@ -495,7 +571,7 @@ const VendorQuotes = () => {
 
          {/* Status Tabs */}
          <div className="flex bg-[#F8FAFC] p-1 rounded-xl border border-slate-200/60 justify-between items-center w-full">
-            {['All', 'Sent', 'Accepted', 'Rejected'].map(status => (
+            {['All', 'Sent', 'Revision Requested', 'Accepted', 'Rejected', 'Superseded'].map(status => (
                <button
                   key={status}
                   onClick={() => setStatusFilter(status)}
@@ -535,6 +611,8 @@ const VendorQuotes = () => {
             const quoteNum = quote.quotationNumber || `UTS-QT-${quote._id.slice(-6).toUpperCase()}`;
             const isAccepted = quote.status === 'Accepted';
             const isRejected = quote.status === 'Rejected';
+            const isSuperseded = quote.status === 'Superseded';
+            const wantsRevision = quote.status === 'Revision Requested';
 
             return (
               <div 
@@ -571,6 +649,13 @@ const VendorQuotes = () => {
                       </span>
                    </div>
                 </div>
+
+                {wantsRevision && (
+                  <div className="mt-2.5 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-800">
+                    <strong className="font-bold">Customer asked for changes:</strong> {quote.revisionRequest?.note || 'No note added.'}
+                    <span className="block text-[10px] text-amber-600 mt-0.5">Edit and send to issue a new version. The current one is kept for the record.</span>
+                  </div>
+                )}
 
                 {/* Financial Breakdown & Status Row */}
                 <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -645,7 +730,17 @@ const VendorQuotes = () => {
                          PDF
                       </button>
 
-                      {!isAccepted && (
+                      {quote.shareToken && !isSuperseded && (
+                        <button
+                          onClick={() => copyShareLink(quote)}
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Copy a read-only link to this quotation"
+                        >
+                           <Icon name="share" size="xs" /> Link
+                        </button>
+                      )}
+
+                      {!isAccepted && !isSuperseded && (
                         <>
                           <button
                             onClick={() => openEditModal(quote)}
@@ -761,6 +856,25 @@ const VendorQuotes = () => {
                                onChange={(e) => handleItemChange(it.id, 'description', e.target.value)}
                                className="w-full h-8 px-3 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-600 focus:outline-none focus:border-[#7C3AED]"
                              />
+                             <div className="flex gap-1.5">
+                               <select
+                                 value={it.kind || 'Included'}
+                                 onChange={(e) => handleItemChange(it.id, 'kind', e.target.value)}
+                                 className="flex-1 h-8 px-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 focus:outline-none focus:border-[#7C3AED]"
+                               >
+                                 {ITEM_KINDS.map(k => <option key={k} value={k}>{k === 'Included' ? 'Service item' : k}</option>)}
+                               </select>
+                               <input
+                                 type="text"
+                                 placeholder="Unit (pcs, hrs, km)"
+                                 value={it.unit || ''}
+                                 onChange={(e) => handleItemChange(it.id, 'unit', e.target.value)}
+                                 className="w-28 h-8 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-600 focus:outline-none focus:border-[#7C3AED]"
+                               />
+                             </div>
+                             {it.kind === 'Optional extra' && (
+                               <p className="text-[10px] text-amber-600 font-medium">Shown to the customer as an add-on. Not counted in the total.</p>
+                             )}
                            </div>
                            <button
                              type="button"
@@ -912,12 +1026,12 @@ const VendorQuotes = () => {
                         <input 
                           type="number"
                           min="1"
-                          max="90"
+                          max="7"
                           value={validityDays}
-                          onChange={(e) => setValidityDays(e.target.value)}
+                          onChange={(e) => setValidityDays(Math.min(7, Number(e.target.value) || 1))}
                           className="w-20 h-9 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold"
                         />
-                        <span className="text-slate-600 font-medium">Days from issue date</span>
+                        <span className="text-slate-600 font-medium">Days from issue date (max 7: prices change day to day)</span>
                       </div>
                    </div>
                 </div>
@@ -928,6 +1042,12 @@ const VendorQuotes = () => {
                      <span>Subtotal ({items.length} items):</span>
                      <span>₹{calculation.subtotal.toLocaleString('en-IN')}</span>
                    </div>
+                   {calculation.optionalExtras > 0 && (
+                     <div className="flex justify-between text-amber-600 font-medium text-xs">
+                       <span>Optional extras (not in total):</span>
+                       <span>₹{calculation.optionalExtras.toLocaleString('en-IN')}</span>
+                     </div>
+                   )}
                    {calculation.discount > 0 && (
                      <div className="flex justify-between text-emerald-600 font-medium text-xs">
                        <span>Discount:</span>
@@ -971,6 +1091,57 @@ const VendorQuotes = () => {
                        onChange={(e) => setCancellationTerms(e.target.value)}
                        className="w-full h-8 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                      />
+                   </div>
+                </div>
+
+                {/* Scope, exclusions and on-site timings */}
+                <div className="space-y-2">
+                   <h4 className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Scope & on-site details</h4>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                     {DETAIL_FIELDS.map(f => (
+                       <div key={f.key} className={f.area ? 'sm:col-span-2' : ''}>
+                         <span className="text-[9px] font-bold text-slate-400 uppercase">{f.label}</span>
+                         {f.area ? (
+                           <textarea
+                             rows={2}
+                             value={details[f.key]}
+                             placeholder={f.placeholder}
+                             onChange={(e) => setDetails(d => ({ ...d, [f.key]: e.target.value }))}
+                             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs resize-none"
+                           />
+                         ) : (
+                           <input
+                             type="text"
+                             value={details[f.key]}
+                             placeholder={f.placeholder}
+                             onChange={(e) => setDetails(d => ({ ...d, [f.key]: e.target.value }))}
+                             className="w-full h-8 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                           />
+                         )}
+                       </div>
+                     ))}
+                   </div>
+                   <div>
+                     <span className="text-[9px] font-bold text-slate-400 uppercase">Reference photos of your work (up to 10)</span>
+                     <div className="flex flex-wrap gap-2 mt-1">
+                       {referencePhotos.map(url => (
+                         <div key={url} className="relative h-16 w-16 rounded-lg overflow-hidden border border-slate-200">
+                           <img src={url} alt="" className="h-full w-full object-cover" />
+                           <button
+                             type="button"
+                             onClick={() => setReferencePhotos(list => list.filter(u => u !== url))}
+                             className="absolute top-0.5 right-0.5 h-5 w-5 rounded-full bg-black/60 text-white text-[10px] leading-none"
+                             title="Remove photo"
+                           >×</button>
+                         </div>
+                       ))}
+                       {referencePhotos.length < 10 && (
+                         <label className={`h-16 w-16 rounded-lg border border-dashed border-slate-300 flex items-center justify-center text-slate-400 cursor-pointer ${uploadingPhotos ? 'opacity-50 pointer-events-none' : ''}`}>
+                           {uploadingPhotos ? <div className="h-4 w-4 border-2 border-slate-300 border-t-[#7C3AED] rounded-full animate-spin" /> : <Icon name="plus" size="xs" />}
+                           <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoUpload} />
+                         </label>
+                       )}
+                     </div>
                    </div>
                 </div>
 

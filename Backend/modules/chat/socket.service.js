@@ -139,6 +139,10 @@ function initSocketService(io) {
         }
         presenceMap.get(presenceKey).add(socket.id);
 
+        // Personal room for server-pushed events (lead offers, enquiry updates); admins share one room
+        socket.join(`${user.role.toLowerCase()}:${user.id}`);
+        if (user.role === 'Admin') socket.join('admins');
+
         // ----------------------------------------------------
         // EVENT: conversation:join & join:conversation
         // ----------------------------------------------------

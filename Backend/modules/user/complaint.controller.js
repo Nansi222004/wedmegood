@@ -2,6 +2,43 @@ const mongoose = require('mongoose');
 const Complaint = require('./Complaint');
 const Vendor = require('../vendor/Vendor');
 const Booking = require('../vendor/Booking');
+const { targetsFor, canAppeal, notifyVendor } = require('../../services/complaint.service');
+
+/**
+ * What the complainant sees: status, the decision and targets. Internal admin notes and the
+ * vendor's statement stay with the Utsavo team.
+ */
+const customerView = (c) => {
+  const { adminNotes, vendorResponse, ...rest } = c;
+  return {
+    ...rest,
+    // Complaints decided before the outcome field existed show the admin's note as the outcome
+    outcome: c.outcome || (['Resolved', 'Dismissed'].includes(c.status) ? adminNotes || '' : ''),
+    vendorResponded: Boolean(vendorResponse?.respondedAt),
+    canAppeal: canAppeal(c)
+  };
+};
+
+// @desc    Appeal a decision (once, within 7 days)
+// @route   POST /api/user/complaints/:id/appeal   body: { reason }
+// @access  Private (User)
+exports.appealComplaint = async (req, res, next) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid complaint' });
+    const reason = String(req.body?.reason || '').trim();
+    if (reason.length < 10) return res.status(400).json({ success: false, message: 'Explain why the decision should be reviewed again' });
+    const complaint = await Complaint.findOne({ _id: req.params.id, userId: req.user._id });
+    if (!complaint) return res.status(404).json({ success: false, message: 'Complaint not found' });
+    if (!canAppeal(complaint)) return res.status(400).json({ success: false, message: 'This complaint can no longer be appealed' });
+    complaint.appeal = { by: 'User', reason: reason.slice(0, 2000), at: new Date(), decision: '', decisionNote: '', decidedAt: null, previousStatus: complaint.status };
+    complaint.status = 'Appealed';
+    await complaint.save();
+    await notifyVendor(complaint.vendorId, 'The customer appealed the decision on a complaint about you. The Utsavo team will review it again.');
+    res.status(200).json({ success: true, message: 'Appeal submitted. A different reviewer will look at it.' });
+  } catch (err) {
+    next(err);
+  }
+};
 
 // @desc    Submit a complaint / report against a vendor
 // @route   POST /api/user/complaints
@@ -99,8 +136,17 @@ exports.createComplaint = async (req, res) => {
       category,
       description: description.trim(),
       evidence: sanitizedEvidence,
-      status: 'Pending'
+      status: 'Pending',
+      tat: await targetsFor(category)
     });
+
+    // The vendor is told and can give their side. The complaint does not count against them unless upheld.
+    if (complaint.vendorId) {
+      await notifyVendor(complaint.vendorId,
+        `A customer filed a ${category.toLowerCase()} complaint. Give your side in Complaints by ${new Date(complaint.tat.vendorResponseBy).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}. A complaint is not a finding against you; the Utsavo team reviews both sides.`);
+      complaint.vendorNotifiedAt = new Date();
+      await complaint.save();
+    }
 
     res.status(201).json({
       success: true,
@@ -127,12 +173,13 @@ exports.getUserComplaints = async (req, res) => {
     const complaints = await Complaint.find({ userId })
       .populate('vendorId', 'businessName name category serviceType city')
       .populate('bookingId', 'bookingId eventDate status totalPrice')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     res.status(200).json({
       success: true,
       data: {
-        complaints,
+        complaints: complaints.map(customerView),
         totalComplaints: complaints.length
       }
     });
@@ -160,7 +207,8 @@ exports.getComplaintById = async (req, res) => {
 
     const complaint = await Complaint.findOne({ _id: id, userId })
       .populate('vendorId', 'businessName name category serviceType city coverImage')
-      .populate('bookingId', 'bookingId eventDate status totalPrice');
+      .populate('bookingId', 'bookingId eventDate status totalPrice')
+      .lean();
 
     if (!complaint) {
       return res.status(404).json({ success: false, message: 'Complaint not found or unauthorized' });
@@ -168,7 +216,7 @@ exports.getComplaintById = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: { complaint }
+      data: { complaint: customerView(complaint) }
     });
   } catch (error) {
     console.error('getComplaintById error:', error);

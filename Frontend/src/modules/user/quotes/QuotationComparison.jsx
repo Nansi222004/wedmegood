@@ -393,6 +393,18 @@ const QuotationComparison = () => {
           onClose={() => setActiveModalQuote(null)}
           onAccept={handleAcceptQuote}
           onReject={handleRejectQuote}
+          onRequestRevision={async (quote, note) => {
+            try {
+              const res = await userApi.requestQuoteRevision(quote._id, note);
+              if (!res.success) throw new Error(res.message || 'Could not send your request');
+              toast.success('Sent. The vendor will share a revised quotation.');
+              setQuotes(list => list.map(q => q._id === quote._id ? { ...q, status: 'Revision Requested', revisionRequest: { note } } : q));
+              return true;
+            } catch (e) {
+              toast.error(getFriendlyErrorMessage(e, 'Could not send your request'));
+              return false;
+            }
+          }}
         />
       )}
       <ConfirmModal

@@ -61,6 +61,22 @@ const platformSettingsSchema = new mongoose.Schema({
         default: 30,
         min: [1, 'Access duration must be at least 1 day']
     },
+    // Lead dispatch: how long a vendor has to accept an offer once it reaches the device,
+    // how long an undelivered offer waits, and how long an accepting vendor has to contact the customer
+    leadOfferWindowSeconds: { type: Number, default: 30, min: [10, 'Offer window must be at least 10 seconds'] },
+    leadOfferDeliveryGraceSeconds: { type: Number, default: 60, min: [0, 'Delivery grace cannot be negative'] },
+    leadContactDeadlineHours: { type: Number, default: 12, min: [1, 'Contact deadline must be at least 1 hour'] },
+    // Times the customer can ask for another vendor before choosing one themselves
+    leadCustomerReassignLimit: { type: Number, default: 2, min: [0, 'Reassign limit cannot be negative'] },
+    // Hours a customer has to add details a vendor asked for before the lead moves on
+    leadDetailsRequestHours: { type: Number, default: 24, min: [1, 'Details request window must be at least 1 hour'] },
+    // Enquiries one customer can post in 24 hours (spam / fake enquiry control)
+    enquiryDailyLimit: { type: Number, default: 5, min: [1, 'Daily enquiry limit must be at least 1'] },
+    // Complaint turnaround targets
+    complaintAckHours: { type: Number, default: 24, min: [1, 'Must be at least 1 hour'] },
+    complaintVendorResponseHours: { type: Number, default: 48, min: [1, 'Must be at least 1 hour'] },
+    complaintResolveDays: { type: Number, default: 7, min: [1, 'Must be at least 1 day'] },
+    complaintSafetyResolveDays: { type: Number, default: 2, min: [1, 'Must be at least 1 day'] },
     // Audit metadata
     updatedBy: {
         type: mongoose.Schema.Types.ObjectId,

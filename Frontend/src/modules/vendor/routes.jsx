@@ -25,6 +25,9 @@ const VendorSupport = lazy(() => import('./pages/VendorSupport'));
 const VendorSettings = lazy(() => import('./pages/VendorSettings'));
 const VendorInventory = lazy(() => import('./pages/VendorInventory'));
 const VendorNotifications = lazy(() => import('./pages/VendorNotifications'));
+const VendorLeadSettings = lazy(() => import('./pages/VendorLeadSettings'));
+const VendorComplaints = lazy(() => import('./pages/VendorComplaints'));
+const OwnerOps = lazy(() => import('../operations/OpsShell').then(m => ({ default: m.OwnerOps })));
 import VendorOperationalGuard from './components/VendorOperationalGuard';
 import { VendorProvider } from './useVendorState';
 
@@ -53,6 +56,17 @@ const VendorRoutes = () => {
           <Route path="settings" element={<VendorSettings />} />
           <Route path="support" element={<VendorSupport />} />
           <Route path="notifications" element={<VendorNotifications />} />
+          <Route path="lead-settings" element={<VendorLeadSettings />} />
+          <Route path="complaints" element={<VendorComplaints />} />
+          {/* Event operations: control rooms, stock, accounts, team, temporary workers */}
+          <Route
+            path="ops/*"
+            element={
+              <VendorOperationalGuard moduleName="Event Operations">
+                <OwnerOps />
+              </VendorOperationalGuard>
+            }
+          />
 
           {/* Operational Modules (require approval & active subscription) */}
           <Route 

@@ -27,7 +27,7 @@ export const getAuthToken = () => {
 // or logout drops the whole cache so users never see data older than their own changes.
 // ---------------------------------------------------------------------------------------------
 const GET_CACHE_TTL_MS = 20 * 1000;
-const NEVER_CACHE = /\/(notifications|activities|conversations|messages|fcm-token|astrology|weather)|unread-count|\/family-groups\/[^/]+\/(messages|attachments)/;
+const NEVER_CACHE = /\/(notifications|activities|conversations|messages|fcm-token|astrology|weather|enquiries)|unread-count|\/family-groups\/[^/]+\/(messages|attachments)/;
 const responseCache = new Map(); // key -> { at, data }
 const inflight = new Map(); // key -> Promise
 
@@ -161,12 +161,19 @@ export const userApi = {
     if (params.serviceType && params.serviceType !== 'all') query.append('serviceType', params.serviceType);
     if (params.featured) query.append('featured', 'true');
     if (params.date) query.append('date', params.date);
+    if (params.guests) query.append('guests', params.guests);
+    if (params.setup && params.setup.length) query.append('setup', [].concat(params.setup).join(','));
     if (params.availability) query.append('availability', params.availability);
     if (params.page) query.append('page', params.page);
     if (params.limit) query.append('limit', params.limit);
     
     const qs = query.toString();
     return request(`/vendors${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
+  // Plain-language requirement -> search filters (category, city, guests, budget, date, setup)
+  interpretRequirement: async (q) => {
+    return request(`/vendors/interpret?q=${encodeURIComponent(q)}`, { method: 'GET' });
   },
 
   getVendorById: async (vendorId) => {
@@ -229,6 +236,20 @@ export const userApi = {
     return request(`/user/leads/${id}`, { method: 'GET' });
   },
 
+  // Event requirements: one requirement, one lead per service, offered to vendors
+  getEnquiryOptions: async () => request('/user/enquiries/options', { method: 'GET' }),
+  lookupPincode: async (pincode) => request(`/user/pincode/${encodeURIComponent(pincode)}`, { method: 'GET' }),
+  createEnquiry: async (data) => request('/user/enquiries', { method: 'POST', body: data }),
+  getEnquiries: async () => request('/user/enquiries', { method: 'GET' }),
+  getEnquiry: async (id) => request(`/user/enquiries/${id}`, { method: 'GET' }),
+  cancelEnquiry: async (id) => request(`/user/enquiries/${id}/cancel`, { method: 'POST' }),
+  updateEnquiryService: async (id, leadId, data) => request(`/user/enquiries/${id}/services/${leadId}`, { method: 'PUT', body: data }),
+  declineEnquiryVendor: async (id, leadId, data) => request(`/user/enquiries/${id}/services/${leadId}/decline`, { method: 'POST', body: data }),
+  getEnquiryAlternatives: async (id, leadId) => request(`/user/enquiries/${id}/services/${leadId}/alternatives`, { method: 'GET' }),
+  selectEnquiryVendor: async (id, leadId, vendorId) => request(`/user/enquiries/${id}/services/${leadId}/select`, { method: 'POST', body: { vendorId } }),
+  widenEnquirySearch: async (id, leadId) => request(`/user/enquiries/${id}/services/${leadId}/widen`, { method: 'POST' }),
+  cancelEnquiryService: async (id, leadId) => request(`/user/enquiries/${id}/services/${leadId}/cancel`, { method: 'POST' }),
+
   // Vendor the platform assigned to the user for a category
   getAssignedVendor: async (category, city) => {
     const query = new URLSearchParams({ category });
@@ -261,6 +282,13 @@ export const userApi = {
     return request(`/user/quotes/${quoteId}/reject`, {
       method: 'PUT',
       body: JSON.stringify({ reason })
+    });
+  },
+
+  requestQuoteRevision: async (quoteId, note) => {
+    return request(`/user/quotes/${quoteId}/request-revision`, {
+      method: 'PUT',
+      body: JSON.stringify({ note })
     });
   },
 
@@ -410,6 +438,14 @@ export const userApi = {
   },
 
   // Cloudinary File Uploads
+  // Private reference photos for requirements: no public link is ever created
+  uploadReferencePhotos: async (files) => {
+    const formData = new FormData();
+    Array.from(files).forEach((f) => formData.append('photos', f));
+    return request('/user/reference-photos', { method: 'POST', body: formData, isFormData: true });
+  },
+  deleteReferencePhoto: async (id) => request(`/user/reference-photos/${id}`, { method: 'DELETE' }),
+
   uploadImage: async (file) => {
     const formData = new FormData();
     formData.append('image', file);
@@ -755,6 +791,8 @@ export const userApi = {
   getUserComplaints: async () => {
     return request('/user/complaints', { method: 'GET' });
   },
+
+  appealComplaint: async (complaintId, reason) => request(`/user/complaints/${complaintId}/appeal`, { method: 'POST', body: { reason } }),
 
   getComplaintById: async (complaintId) => {
     return request(`/user/complaints/${complaintId}`, { method: 'GET' });

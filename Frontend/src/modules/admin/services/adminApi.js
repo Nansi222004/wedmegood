@@ -1,7 +1,7 @@
 import { createCachedFetch } from '../../../services/cachedFetch';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://wedmegood-u0n7.onrender.com/api';
-const ADMIN_LIVE_ONLY = /\/(financial|payments|withdrawals|logs|audit-logs|tickets|chat-reports|complaints|stats|analytics|dashboard|leads|quotes|bookings)(\/|\?|$)/;
+const ADMIN_LIVE_ONLY = /\/(financial|payments|withdrawals|logs|audit-logs|tickets|chat-reports|complaints|stats|analytics|dashboard|leads|quotes|bookings|enquiries|lead-distribution|lead-reports|workforce)(\/|\?|$)/;
 
 const API_URL = `${API_BASE_URL}/admin`;
 
@@ -555,6 +555,15 @@ export const adminApi = {
         return await res.json();
     },
 
+    decideComplaintAppeal: async (id, data, token) => {
+        const res = await apiFetch(`${API_URL}/complaints/${id}/appeal-decision`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(data)
+        });
+        return await res.json();
+    },
+
     updateComplaintStatus: async (id, data, token) => {
         const res = await apiFetch(`${API_URL}/complaints/${id}/status`, {
             method: 'PUT',
@@ -643,6 +652,123 @@ export const adminApi = {
         const query = new URLSearchParams(params).toString();
         const res = await apiFetch(`${API_URL}/logs${query ? `?${query}` : ''}`, {
             headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    // Requirements and lead dispatch
+    getEnquiries: async (token, params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await apiFetch(`${API_URL}/enquiries${query ? `?${query}` : ''}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    getLeadHistory: async (leadId, token) => {
+        const res = await apiFetch(`${API_URL}/leads/${leadId}/history`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    getLeadCandidates: async (leadId, token) => {
+        const res = await apiFetch(`${API_URL}/leads/${leadId}/candidates`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    redispatchLead: async (leadId, widen, token) => {
+        const res = await apiFetch(`${API_URL}/leads/${leadId}/redispatch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ widen: Boolean(widen) })
+        });
+        return await res.json();
+    },
+
+    assignLead: async (leadId, vendorId, reason, token) => {
+        const res = await apiFetch(`${API_URL}/leads/${leadId}/assign`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ vendorId, reason })
+        });
+        return await res.json();
+    },
+
+    getLeadDistribution: async (token, days = 30) => {
+        const res = await apiFetch(`${API_URL}/lead-distribution?days=${days}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    getLeadReports: async (token, status = '') => {
+        const res = await apiFetch(`${API_URL}/lead-reports${status ? `?status=${status}` : ''}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    // Temporary workforce: ID verification, reviews, disputes
+    getWorkers: async (token, params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await apiFetch(`${API_URL}/workforce/workers${query ? `?${query}` : ''}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        return await res.json();
+    },
+
+    verifyWorker: async (id, body, token) => {
+        const res = await apiFetch(`${API_URL}/workforce/workers/${id}/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(body)
+        });
+        return await res.json();
+    },
+
+    reviewWorker: async (id, body, token) => {
+        const res = await apiFetch(`${API_URL}/workforce/workers/${id}/review`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(body)
+        });
+        return await res.json();
+    },
+
+    getWorkforceOverview: async (token) => {
+        const res = await apiFetch(`${API_URL}/workforce/overview`, { headers: { 'Authorization': `Bearer ${token}` } });
+        return await res.json();
+    },
+
+    resolveWorkDispute: async (id, body, token) => {
+        const res = await apiFetch(`${API_URL}/workforce/disputes/${id}/resolve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(body)
+        });
+        return await res.json();
+    },
+
+    getSafetyReports: async (token, status = '') => {
+        const res = await apiFetch(`${API_URL}/workforce/safety${status ? `?status=${status}` : ''}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        return await res.json();
+    },
+
+    updateSafetyReport: async (id, body, token) => {
+        const res = await apiFetch(`${API_URL}/workforce/safety/${id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(body)
+        });
+        return await res.json();
+    },
+
+    updateLeadReport: async (id, status, adminNotes, token) => {
+        const res = await apiFetch(`${API_URL}/lead-reports/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ status, adminNotes })
         });
         return await res.json();
     }

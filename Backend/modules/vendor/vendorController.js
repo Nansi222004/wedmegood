@@ -238,8 +238,19 @@ exports.register = async (req, res, next) => {
         }
 
 
+        // Where the vendor works and the smallest job they take: validated like the settings page
+        let leadSettings = { set: {} };
+        if (req.body.serviceArea || req.body.leadPreferences) {
+            const { buildLeadSettingsUpdate } = require('./leadOffer.controller');
+            leadSettings = await buildLeadSettingsUpdate({ serviceArea: req.body.serviceArea || {}, leadPreferences: req.body.leadPreferences || {} });
+            if (leadSettings.error) return res.status(400).json({ success: false, message: leadSettings.error });
+        }
+
         // Create vendor
         const vendor = await Vendor.create(vendorData);
+        if (Object.keys(leadSettings.set).length) {
+            await Vendor.updateOne({ _id: vendor._id }, { $set: leadSettings.set });
+        }
 
         // Save dynamic service data if present
         if (req.body.serviceData && Object.keys(req.body.serviceData).length > 0) {
@@ -607,7 +618,38 @@ const sanitizeLeadForVendor = (leadDoc) => {
         if (!lead.eventLocation && userObj.city) {
             lead.eventLocation = userObj.city;
         }
+        // The populated user carries phone and email: only pass on what the masking above allows
+        lead.userId = {
+            _id: userObj._id,
+            name: userObj.name,
+            profileImage: userObj.profileImage || null,
+            city: userObj.city || null,
+            ...(isPermitted ? { email: userObj.email, phone: userObj.phone } : {})
+        };
     }
+
+    // Dispatch internals stay on the server: other vendors' offers and the customer's private
+    // decline reasons are never shown to a vendor
+    if (lead.dispatch) {
+        lead.dispatch = {
+            acceptedAt: lead.dispatch.acceptedAt || null,
+            contactDeadline: lead.dispatch.contactDeadline || null,
+            firstContactAt: lead.dispatch.firstContactAt || null
+        };
+    }
+    delete lead.customerDeclines;
+    delete lead.customerSelectedVendorId;
+    delete lead.statusHistory;
+
+    // Private reference photos: API paths the vendor app loads with its token (never public links).
+    // Access ends when the lead is reassigned, closed or long past the event.
+    const { vendorCanViewPhotos } = require('../../services/referencePhoto.service');
+    const photoIds = lead.referencePhotoIds || [];
+    lead.referencePhotoUrls = photoIds.length && vendorCanViewPhotos(lead, lead.vendorId)
+        ? photoIds.map(id => `/vendor/leads/${lead._id}/photos/${id}`)
+        : [];
+    lead.referencePhotoCount = photoIds.length + (lead.referencePhotos || []).length;
+    delete lead.referencePhotoIds;
 
     return lead;
 };
@@ -697,6 +739,19 @@ exports.updateLeadStatus = async (req, res, next) => {
             });
         }
 
+        const leadDispatch = require('../../services/leadDispatch.service');
+
+        // Giving back a requirement lead: it goes to another vendor (or back to the customer to choose)
+        if (status === 'Rejected' && existingLead.enquiryId) {
+            await leadDispatch.withdrawByVendor(existingLead._id, req.vendor.id);
+            return res.status(200).json({
+                success: true,
+                released: true,
+                message: 'Lead returned. Utsavo will find the customer another vendor.',
+                data: null
+            });
+        }
+
         if (status) {
             existingLead.status = status;
         }
@@ -708,6 +763,10 @@ exports.updateLeadStatus = async (req, res, next) => {
         }
 
         await existingLead.save();
+        // Getting in touch stops the contact deadline of an accepted requirement lead
+        if (status === 'Contacted' || status === 'Quote Sent') {
+            await leadDispatch.markVendorContacted({ leadId: existingLead._id, vendorId: req.vendor.id });
+        }
         await existingLead.populate('userId', 'name email phone city profileImage weddingDate');
 
         res.status(200).json({
@@ -1634,6 +1693,31 @@ exports.getQuotes = async (req, res, next) => {
 };
 
 
+/** Scope, exclusions, responsibilities, timings, overtime and reference photos of a quotation */
+const quoteDetails = (body = {}, current = {}) => {
+    const text = (k, max = 3000) => (body[k] !== undefined ? String(body[k] || '').trim().slice(0, max) : (current[k] || ''));
+    return {
+        scopeIncluded: text('scopeIncluded'),
+        exclusions: text('exclusions'),
+        customerResponsibilities: text('customerResponsibilities'),
+        setupTime: text('setupTime', 120),
+        dismantleTime: text('dismantleTime', 120),
+        overtimeCharges: text('overtimeCharges', 500),
+        referencePhotos: Array.isArray(body.referencePhotos)
+            ? body.referencePhotos.filter(u => /^https?:\/\//.test(u)).slice(0, 10)
+            : (current.referencePhotos || [])
+    };
+};
+
+// Quotations are valid for at most 7 days: prices vary day to day, so after that a new one is shared.
+const QUOTE_MAX_VALID_DAYS = 7;
+const quoteValidUntil = (requested) => {
+    const max = new Date(Date.now() + QUOTE_MAX_VALID_DAYS * 24 * 60 * 60 * 1000);
+    const date = requested ? new Date(requested) : null;
+    if (!date || isNaN(date.getTime()) || date <= new Date() || date > max) return max;
+    return date;
+};
+
 // Tell the customer a quotation has arrived (in-app + push). Best effort, never blocks the vendor.
 const notifyUserQuoteSent = async (quote, vendor) => {
     if (!quote.userId) return;
@@ -1700,8 +1784,53 @@ exports.updateQuote = async (req, res, next) => {
 
         const pricing = calculateQuotePricing(payloadToUse);
 
+        // The customer has already seen this quotation: keep it as it was and send a new version
+        // (the previous one stays on record as Superseded)
+        if (['Sent', 'Revision Requested', 'Rejected'].includes(quote.status) && req.body.status !== 'Draft') {
+            const baseNumber = String(quote.quotationNumber || '').replace(/-R\d+$/, '');
+            const version = (quote.version || 1) + 1;
+            const revised = new Quote({
+                vendorId: quote.vendorId,
+                leadId: quote.leadId,
+                userId: quote.userId,
+                quotationNumber: baseNumber ? `${baseNumber}-R${version}` : undefined,
+                version,
+                items: pricing.items,
+                subtotal: pricing.subtotal,
+                optionalExtrasTotal: pricing.optionalExtrasTotal,
+                discountAmount: pricing.discountAmount,
+                discountPercent: pricing.discountPercent,
+                taxRatePercent: pricing.taxRatePercent,
+                taxAmount: pricing.taxAmount,
+                totalAmount: pricing.totalAmount,
+                advancePaymentAmount: pricing.advancePaymentAmount,
+                advancePaymentPercent: pricing.advancePaymentPercent,
+                milestonePaymentTerms: pricing.milestonePaymentTerms,
+                notes: pricing.notes,
+                terms: pricing.terms,
+                cancellationTerms: pricing.cancellationTerms,
+                ...quoteDetails(req.body, quote),
+                status: 'Sent',
+                sentAt: new Date(),
+                validUntil: quoteValidUntil(req.body.validUntil)
+            });
+            await revised.save();
+            quote.status = 'Superseded';
+            quote.supersededBy = revised._id;
+            await quote.save();
+            await Lead.updateOne(
+                { _id: quote.leadId, status: { $in: ['New', 'Accepted', 'Contacted', 'Rejected', 'Quote Sent'] } },
+                { status: 'Quote Sent' }
+            );
+            await require('../../services/leadDispatch.service').markVendorContacted({ leadId: quote.leadId, vendorId: req.vendor.id });
+            await notifyUserQuoteSent(revised, req.vendor);
+            return res.status(200).json({ success: true, data: revised, message: `Revised quotation v${version} sent. The earlier version is kept on record.` });
+        }
+
         quote.items = pricing.items;
         quote.subtotal = pricing.subtotal;
+        quote.optionalExtrasTotal = pricing.optionalExtrasTotal;
+        Object.assign(quote, quoteDetails(req.body, quote));
         quote.discountAmount = pricing.discountAmount;
         quote.discountPercent = pricing.discountPercent;
         quote.taxRatePercent = pricing.taxRatePercent;
@@ -1713,20 +1842,25 @@ exports.updateQuote = async (req, res, next) => {
         quote.notes = pricing.notes;
         quote.terms = pricing.terms;
         quote.cancellationTerms = pricing.cancellationTerms;
-        if (req.body.validUntil !== undefined) quote.validUntil = req.body.validUntil;
+        if (req.body.validUntil !== undefined) quote.validUntil = quoteValidUntil(req.body.validUntil);
         if (req.body.status && ['Draft', 'Sent'].includes(req.body.status)) quote.status = req.body.status;
 
-        // A draft (or a re-opened rejected quote) going out to the customer
+        // A draft (or a re-opened rejected quote) going out to the customer. Prices change day to
+        // day, so a quote that goes out (again) is valid for at most 7 days from now.
         const justSent = quote.status === 'Sent' && !wasSent;
-        if (justSent) quote.sentAt = new Date();
+        if (justSent) {
+            quote.sentAt = new Date();
+            quote.validUntil = quoteValidUntil(req.body.validUntil);
+        }
 
         await quote.save();
 
         if (justSent) {
             await Lead.updateOne(
-                { _id: quote.leadId, status: { $in: ['New', 'Contacted', 'Rejected'] } },
+                { _id: quote.leadId, status: { $in: ['New', 'Accepted', 'Contacted', 'Rejected'] } },
                 { status: 'Quote Sent' }
             );
+            await require('../../services/leadDispatch.service').markVendorContacted({ leadId: quote.leadId, vendorId: req.vendor.id });
             await notifyUserQuoteSent(quote, req.vendor);
         }
 
@@ -1787,6 +1921,13 @@ exports.createQuote = async (req, res, next) => {
             });
         }
 
+        if (['Cancelled', 'Closed'].includes(lead.status)) {
+            return res.status(400).json({
+                success: false,
+                message: `The customer's requirement is ${lead.status.toLowerCase()}; a quotation cannot be sent`
+            });
+        }
+
         const { calculateQuotePricing } = require('../../utils/quotePricing');
         const pricing = calculateQuotePricing(req.body);
 
@@ -1815,10 +1956,12 @@ exports.createQuote = async (req, res, next) => {
             advancePaymentAmount: pricing.advancePaymentAmount,
             advancePaymentPercent: pricing.advancePaymentPercent,
             milestonePaymentTerms: pricing.milestonePaymentTerms,
-            validUntil: validUntil || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // default 14 days
+            validUntil: quoteValidUntil(validUntil),
             notes: pricing.notes,
             terms: pricing.terms,
             cancellationTerms: pricing.cancellationTerms,
+            optionalExtrasTotal: pricing.optionalExtrasTotal,
+            ...quoteDetails(req.body, {}),
             status: initialStatus,
             sentAt: initialStatus === 'Sent' ? new Date() : null
         });
@@ -1827,6 +1970,7 @@ exports.createQuote = async (req, res, next) => {
         if (initialStatus === 'Sent') {
             lead.status = 'Quote Sent';
             await lead.save();
+            await require('../../services/leadDispatch.service').markVendorContacted({ leadId: lead._id, vendorId });
 
             await notifyUserQuoteSent(quote, req.vendor);
 
@@ -2193,6 +2337,7 @@ exports.createService = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Minimum 5 gallery images/videos are required.' });
         }
 
+        const { parseCapacity, parseSetupTags } = require('../../utils/serviceSetup');
         const service = await Service.create({
             vendor: req.vendor.id,
             category,
@@ -2202,7 +2347,9 @@ exports.createService = async (req, res, next) => {
             features: parsedFeatures,
             price: parsedPrice,
             coverImage,
-            gallery
+            gallery,
+            capacity: parseCapacity(req.body.capacity) || {},
+            setupTags: parseSetupTags(req.body.setupTags) || []
         });
 
         res.status(201).json({ success: true, data: service });
@@ -2236,6 +2383,11 @@ exports.updateService = async (req, res, next) => {
         if (price) {
             try { updateData.price = JSON.parse(price); } catch (e) {}
         }
+        const { parseCapacity, parseSetupTags } = require('../../utils/serviceSetup');
+        const capacity = parseCapacity(req.body.capacity);
+        if (capacity) updateData.capacity = capacity;
+        const setupTags = parseSetupTags(req.body.setupTags);
+        if (setupTags) updateData.setupTags = setupTags;
 
         if (req.body.coverImage) {
             updateData.coverImage = req.body.coverImage;

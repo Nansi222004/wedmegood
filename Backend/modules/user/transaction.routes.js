@@ -42,6 +42,36 @@ router.get('/leads/:id', getUserLeadById);
 // Auto-assigned vendor for a category
 router.get('/vendors/assigned', getAssignedVendor);
 
+// Private reference photos (no public links; streamed to the owner and the assigned vendor only)
+const { referencePhotoUpload } = require('../../utils/cloudinary');
+const referencePhotos = require('./referencePhoto.controller');
+router.post('/reference-photos', (req, res, next) => referencePhotoUpload.array('photos', 10)(req, res, (err) => {
+    if (err) return res.status(400).json({ success: false, message: err.code === 'LIMIT_FILE_SIZE' ? 'Each photo must be under 10 MB' : err.message });
+    next();
+}), referencePhotos.uploadReferencePhotos);
+router.get('/reference-photos/:id', referencePhotos.getReferencePhoto);
+router.delete('/reference-photos/:id', referencePhotos.deleteReferencePhoto);
+
+// The vendor's preparation for a booked event, and change requests to approve
+const eventCustomer = require('../operations/customer.controller');
+router.get('/events/:bookingId', eventCustomer.getMyEvent);
+router.post('/events/:bookingId/change-requests/:crId', eventCustomer.respondChangeRequest);
+
+// Event requirements: one enquiry, one lead per service, dispatched to vendors
+const enquiry = require('./enquiry.controller');
+router.get('/pincode/:pincode', enquiry.lookupPincode);
+router.get('/enquiries/options', enquiry.getEnquiryOptions);
+router.post('/enquiries', enquiry.createEnquiry);
+router.get('/enquiries', enquiry.getMyEnquiries);
+router.get('/enquiries/:id', enquiry.getEnquiry);
+router.post('/enquiries/:id/cancel', enquiry.cancelEnquiry);
+router.put('/enquiries/:id/services/:leadId', enquiry.updateServiceDetails);
+router.post('/enquiries/:id/services/:leadId/decline', enquiry.declineVendor);
+router.get('/enquiries/:id/services/:leadId/alternatives', enquiry.getAlternatives);
+router.post('/enquiries/:id/services/:leadId/select', enquiry.selectVendor);
+router.post('/enquiries/:id/services/:leadId/widen', enquiry.widenSearch);
+router.post('/enquiries/:id/services/:leadId/cancel', enquiry.cancelService);
+
 // Quote routes
 router.get('/quotes', getUserQuotes);
 router.get('/quotes/:id', getUserQuoteById);
@@ -52,6 +82,7 @@ router.get('/quotes/:id/pdf', (req, res) => res.status(403).json({
 }));
 router.put('/quotes/:id/accept', acceptQuote);
 router.put('/quotes/:id/reject', rejectQuote);
+router.put('/quotes/:id/request-revision', require('./quote.controller').requestRevision);
 
 // Booking routes
 router.get('/bookings', getUserBookings);

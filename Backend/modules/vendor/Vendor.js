@@ -159,6 +159,44 @@ const vendorSchema = new mongoose.Schema({
     blockedDates: [{
         type: Date
     }],
+    // Where the vendor works. The registered address and the service area are different things:
+    // leads are matched on this, and the search only widens beyond it when nobody nearby accepts.
+    serviceArea: {
+        coverage: {
+            type: String,
+            enum: ['pincodes', 'radius', 'districts', 'combined'],
+            default: 'combined'
+        },
+        basePincode: { type: String, default: '' },
+        baseDistrict: { type: String, default: '' },
+        baseLocation: {
+            lat: { type: Number, default: null },
+            lng: { type: Number, default: null }
+        },
+        pincodes: [{ type: String }],
+        districts: [{ type: String }],
+        // Preferred radius from the business location, and the furthest they will travel
+        radiusKm: { type: Number, default: 25, min: 0 },
+        maxTravelKm: { type: Number, default: 75, min: 0 },
+        travelPolicy: {
+            type: String,
+            enum: ['Included', 'Separate', 'Depends'],
+            default: 'Depends'
+        }
+    },
+    leadPreferences: {
+        // Pause new lead offers (busy, travelling, on leave)
+        paused: { type: Boolean, default: false },
+        pausedUntil: { type: Date, default: null },
+        // Leads with a service budget below this are not offered
+        minBudget: { type: Number, default: 0, min: 0 },
+        maxBudget: { type: Number, default: 0, min: 0 }
+    },
+    // Event operations preferences
+    opsSettings: {
+        // Hold automatic and team-sent customer updates until the owner approves them
+        reviewCustomerUpdates: { type: Boolean, default: false }
+    },
     subscription: {
         planId: String,
         planName: String,

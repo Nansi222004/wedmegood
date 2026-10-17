@@ -19,6 +19,10 @@ exports.createConversation = async (req, res, next) => {
         if (!vendor) {
             return res.status(404).json({ success: false, message: 'Vendor not found or not available' });
         }
+        const { isReportedFake, FAKE_VENDOR_BLOCKED_MESSAGE } = require('../../utils/fakeVendorCache');
+        if (await isReportedFake(vendorId)) {
+            return res.status(403).json({ success: false, code: 'VENDOR_REPORTED_FAKE', message: FAKE_VENDOR_BLOCKED_MESSAGE });
+        }
         const conversation = await chatService.getOrCreateConversation({
             userId: req.user._id,
             vendorId

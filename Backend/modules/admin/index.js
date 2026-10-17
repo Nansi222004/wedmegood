@@ -153,6 +153,7 @@ router.delete('/reviews/:id', deleteReview);
 // Admin Complaint Management
 router.get('/complaints', getAllComplaints);
 router.put('/complaints/:id/status', updateComplaintStatus);
+router.post('/complaints/:id/appeal-decision', require('./adminController').decideComplaintAppeal);
 
 // Admin Chat Report Moderation
 router.get('/chat-reports', getChatReports);
@@ -205,6 +206,29 @@ router.post('/fake-vendors', fakeVendorController.createFakeVendorListing);
 router.put('/fake-vendors/:id', fakeVendorController.updateFakeVendorListing);
 router.delete('/fake-vendors/:id', fakeVendorController.deleteFakeVendorListing);
 router.post('/complaints/:id/mark-fake', fakeVendorController.markComplaintVendorAsFake);
+
+// Requirements and lead dispatch monitoring
+const enquiryAdmin = require('./enquiry.controller');
+router.get('/enquiries', enquiryAdmin.getEnquiries);
+router.get('/lead-distribution', enquiryAdmin.getLeadDistribution);
+router.get('/lead-reports', enquiryAdmin.getLeadReports);
+router.put('/lead-reports/:id', enquiryAdmin.updateLeadReport);
+router.get('/leads/:id/history', enquiryAdmin.getLeadHistory);
+router.get('/leads/:id/candidates', enquiryAdmin.getLeadCandidates);
+router.post('/leads/:id/redispatch', enquiryAdmin.redispatchLead);
+router.post('/leads/:id/assign', enquiryAdmin.assignLeadManually);
+
+// Temporary workforce: ID verification, reviews, disputes
+const workforceAdmin = require('../workforce/admin.controller');
+router.get('/workforce/workers', workforceAdmin.listWorkers);
+router.get('/workforce/workers/:id/id-photo', workforceAdmin.getIdPhoto);
+router.post('/workforce/workers/:id/verify', workforceAdmin.verifyWorker);
+router.post('/workforce/workers/:id/review', workforceAdmin.reviewWorker);
+router.get('/workforce/overview', workforceAdmin.overview);
+router.post('/workforce/disputes/:aid/resolve', workforceAdmin.resolveDispute);
+const workforceSupport = require('../workforce/support.controller');
+router.get('/workforce/safety', workforceSupport.adminListSafety);
+router.post('/workforce/safety/:id', workforceSupport.adminUpdateSafety);
 
 // Admin Financial Control & Ledger (Phase 5 Reused)
 const financialRoutes = require('./financial.routes');

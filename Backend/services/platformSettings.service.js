@@ -25,7 +25,39 @@ async function getPublicSettings() {
     return result;
 }
 
+// Lead dispatch settings (server only)
+const DISPATCH_DEFAULTS = {
+    leadOfferWindowSeconds: 30,
+    leadOfferDeliveryGraceSeconds: 60,
+    leadContactDeadlineHours: 12,
+    leadCustomerReassignLimit: 2,
+    leadDetailsRequestHours: 24,
+    enquiryDailyLimit: 5
+};
+
+let dispatchCache = { value: null, at: 0 };
+
+/**
+ * Lead dispatch settings with defaults. Cached for a few seconds because the offer sweeper reads them often.
+ * @returns {Promise<typeof DISPATCH_DEFAULTS>}
+ */
+async function getDispatchSettings() {
+    if (dispatchCache.value && Date.now() - dispatchCache.at < 10000) return dispatchCache.value;
+    const settings = await PlatformSettings.findOne().lean();
+    const result = {};
+    for (const [key, fallback] of Object.entries(DISPATCH_DEFAULTS)) {
+        result[key] = pickDefined(settings?.[key], fallback);
+    }
+    dispatchCache = { value: result, at: Date.now() };
+    return result;
+}
+
+const invalidateDispatchSettings = () => { dispatchCache = { value: null, at: 0 }; };
+
 module.exports = {
     PUBLIC_DEFAULTS,
-    getPublicSettings
+    DISPATCH_DEFAULTS,
+    getPublicSettings,
+    getDispatchSettings,
+    invalidateDispatchSettings
 };

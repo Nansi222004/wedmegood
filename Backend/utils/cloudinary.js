@@ -171,6 +171,78 @@ const familyUpload = multer({
     }
 });
 
+// Customer reference photos for requirements: private like family media, images only
+const REFERENCE_PHOTO_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+let referencePhotoStorage;
+if (hasCloudinary) {
+    try {
+        referencePhotoStorage = new CloudinaryStorage({
+            cloudinary: cloudinary,
+            params: async (req) => ({
+                folder: `utsavo/reference-photos/${req.user?._id || 'unknown'}`,
+                resource_type: 'image',
+                type: 'authenticated',
+                allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif']
+            })
+        });
+    } catch (err) {
+        console.error('CLOUDINARY REFERENCE PHOTO STORAGE ERROR:', err.message);
+    }
+}
+if (!referencePhotoStorage) {
+    referencePhotoStorage = multer.diskStorage({
+        destination: (req, file, cb) => {
+            const dir = path.join(__dirname, '../uploads/private/reference-photos', String(req.user?._id || 'unknown'));
+            fs.mkdirSync(dir, { recursive: true });
+            cb(null, dir);
+        },
+        filename: (req, file, cb) => {
+            const ext = path.extname(file.originalname).toLowerCase().replace(/[^.a-z0-9]/g, '') || '.jpg';
+            cb(null, `${Date.now()}-${Math.round(Math.random() * 1E9)}${ext}`);
+        }
+    });
+}
+const REFERENCE_PHOTO_DIR = path.join(__dirname, '../uploads/private/reference-photos');
+
+const referencePhotoUpload = multer({
+    storage: referencePhotoStorage,
+    limits: { fileSize: 10 * 1024 * 1024, files: 10 },
+    fileFilter: (req, file, cb) => {
+        if (!REFERENCE_PHOTO_MIMES.includes(String(file.mimetype || '').toLowerCase())) {
+            return cb(new Error('Only JPG, PNG, WEBP or HEIC photos can be added'), false);
+        }
+        cb(null, true);
+    }
+});
+
+/**
+ * Server-side URL of an authenticated Cloudinary image, optionally resized and watermarked.
+ * Only ever fetched by the server; it is never sent to a browser.
+ * @param {string} publicId
+ * @param {{ width?: number, watermark?: string }} [options]
+ */
+const getPrivateImageFetchUrl = (publicId, { width = null, watermark = '' } = {}) => {
+    if (!publicId || !hasCloudinary) return null;
+    const transformation = [];
+    if (width) transformation.push({ width, crop: 'limit', quality: 'auto:good', fetch_format: 'jpg' });
+    if (watermark) {
+        transformation.push({
+            overlay: { font_family: 'Arial', font_size: 34, font_weight: 'bold', text: watermark },
+            color: '#FFFFFF',
+            opacity: 45,
+            angle: -25,
+            gravity: 'center'
+        });
+    }
+    return cloudinary.url(publicId, {
+        type: 'authenticated',
+        resource_type: 'image',
+        sign_url: true,
+        secure: true,
+        ...(transformation.length ? { transformation } : {})
+    });
+};
+
 /**
  * Generate a short-lived signed URL for an authenticated Cloudinary asset (1-hour validity)
  */
@@ -211,6 +283,10 @@ module.exports = {
     upload,
     chatUpload,
     familyUpload,
+    referencePhotoUpload,
+    REFERENCE_PHOTO_DIR,
+    getPrivateImageFetchUrl,
+    hasCloudinary,
     getSignedAttachmentUrl,
     destroyFile,
     ALLOWED_MIMES,

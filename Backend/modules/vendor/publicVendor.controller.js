@@ -6,6 +6,12 @@ const Lead = require('./Lead');
 const Category = require('../admin/Category');
 const Favorite = require('../user/Favorite');
 const Service = require('./Service');
+const FakeVendorListing = require('../admin/FakeVendorListing');
+
+// Vendors the admin confirmed as fake. They stay findable but are shown in red and cannot be contacted.
+const getFakeVendorIds = async () => new Set(
+    (await FakeVendorListing.distinct('vendorId', { isPublished: true, vendorId: { $ne: null } })).map(String)
+);
 
 // Helper to escape special regex characters to prevent ReDoS
 const escapeRegex = (string) => {
@@ -80,6 +86,8 @@ exports.getPublicVendors = async (req, res, next) => {
             featured,
             date,
             availability,
+            guests,
+            setup,
             page = 1,
             limit = 12
         } = req.query;
@@ -225,7 +233,7 @@ exports.getPublicVendors = async (req, res, next) => {
 
         // Fetch all matching vendors to compute review aggregates, starting prices & sorting
         const rawVendors = await Vendor.find(filter)
-            .select('-password -documents -bank -bankDetails -notifications -role -subscription.orderId -subscription.paymentId -otp -resetPasswordToken -__v')
+            .select('-password -documents -bank -bankDetails -notifications -role -subscription.orderId -subscription.paymentId -otp -resetPasswordToken -leadPreferences -__v')
             .lean();
 
         // Get review stats for matching vendors
@@ -340,6 +348,27 @@ exports.getPublicVendors = async (req, res, next) => {
             enriched = enriched.filter(v => v.experienceYears >= minExp);
         }
 
+        // Capacity and setup needs: vendors whose services state a capacity that cannot take the
+        // guest count are left out; the rest are ranked by how well their stated details fit.
+        const guestCount = Math.round(Number(guests)) || 0;
+        const wantedSetup = String(setup || '').split(',').map(s => s.trim()).filter(Boolean);
+        if (guestCount > 0 || wantedSetup.length) {
+            enriched = enriched.map(v => {
+                const srvs = (v.services || []).filter(s => s && typeof s === 'object');
+                const stated = srvs.filter(s => s.capacity && (s.capacity.minGuests || s.capacity.maxGuests));
+                const fits = stated.filter(s => (!s.capacity.minGuests || guestCount >= s.capacity.minGuests)
+                    && (!s.capacity.maxGuests || guestCount <= s.capacity.maxGuests));
+                const tags = new Set(srvs.flatMap(s => s.setupTags || []));
+                const setupHits = wantedSetup.filter(t => tags.has(t));
+                const fit = {
+                    capacity: guestCount > 0 ? (stated.length === 0 ? 'unknown' : fits.length ? 'fits' : 'no') : null,
+                    setupMatched: setupHits,
+                    score: (guestCount > 0 && fits.length ? 2 : 0) + setupHits.length
+                };
+                return { ...v, requirementFit: fit };
+            }).filter(v => v.requirementFit.capacity !== 'no');
+        }
+
         // Apply Sorting
         if (sort === 'rating') {
             enriched.sort((a, b) => b.rating - a.rating || b.reviewCount - a.reviewCount || b.profileViews - a.profileViews);
@@ -359,8 +388,39 @@ exports.getPublicVendors = async (req, res, next) => {
                 const scoreB = (b.rating * 10) + ((b.reviewCount || 0) * 2) + (b.isVerified ? 5 : 0) + ((b.profileViews || 0) * 0.1);
                 return scoreB - scoreA;
             });
+        } else if (guestCount > 0 || wantedSetup.length) {
+            // Best fit for the stated requirement first
+            enriched.sort((a, b) => b.requirementFit.score - a.requirementFit.score || b.rating - a.rating);
         } else {
             enriched.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        }
+
+        // Reported fake vendors stay in the results, flagged
+        const fakeIds = await getFakeVendorIds();
+        enriched = enriched.map(v => (fakeIds.has(v._id.toString()) ? { ...v, isReportedFake: true, contactBlocked: true } : v));
+
+        // A search also finds fake vendors who are not (or no longer) on the marketplace
+        let reportedFake = [];
+        if (search && search.trim()) {
+            const rx = new RegExp(escapeRegex(search.trim()), 'i');
+            const listings = await FakeVendorListing.find({
+                isPublished: true,
+                $or: [{ name: rx }, { businessName: rx }, { phone: rx }]
+            }).select('vendorId name businessName city category createdAt').sort('-createdAt').limit(10).lean();
+            const shown = new Set(enriched.map(v => v._id.toString()));
+            reportedFake = listings
+                .filter(l => !l.vendorId || !shown.has(l.vendorId.toString()))
+                .map(l => ({
+                    _id: l._id,
+                    vendorId: l.vendorId || null,
+                    name: l.businessName || l.name,
+                    ownerName: l.name,
+                    city: l.city,
+                    category: l.category,
+                    listedAt: l.createdAt,
+                    isReportedFake: true,
+                    contactBlocked: true
+                }));
         }
 
         // Pagination
@@ -391,7 +451,8 @@ exports.getPublicVendors = async (req, res, next) => {
                 hasPreviousPage
             },
             count: paginatedVendors.length,
-            data: paginatedVendors
+            data: paginatedVendors,
+            reportedFake
         });
     } catch (err) {
         next(err);
@@ -417,10 +478,34 @@ exports.getPublicVendorById = async (req, res, next) => {
             status: 'Approved',
             isActive: { $ne: false }
         })
-            .select('-password -documents -bank -bankDetails -notifications -role -subscription.orderId -subscription.paymentId -otp -resetPasswordToken -__v')
+            .select('-password -documents -bank -bankDetails -notifications -role -subscription.orderId -subscription.paymentId -otp -resetPasswordToken -leadPreferences -__v')
             .lean();
 
+        const fakeListing = await FakeVendorListing.findOne({ vendorId: id, isPublished: true })
+            .select('name businessName city category createdAt').lean();
+
         if (!vendor) {
+            // A fake vendor removed from the marketplace still opens, as a warning
+            if (fakeListing) {
+                return res.status(200).json({
+                    success: true,
+                    data: {
+                        _id: id,
+                        businessName: fakeListing.businessName || fakeListing.name,
+                        fullName: fakeListing.name,
+                        city: fakeListing.city,
+                        category: fakeListing.category,
+                        services: [],
+                        portfolio: [],
+                        reviews: [],
+                        rating: 0,
+                        reviewCount: 0,
+                        isReportedFake: true,
+                        contactBlocked: true,
+                        reportedAt: fakeListing.createdAt
+                    }
+                });
+            }
             return res.status(404).json({
                 success: false,
                 message: 'Vendor not found or not eligible for marketplace'
@@ -465,7 +550,8 @@ exports.getPublicVendorById = async (req, res, next) => {
                 reviews,
                 rating: avgRating,
                 reviewCount: reviews.length,
-                startingPrice
+                startingPrice,
+                ...(fakeListing ? { isReportedFake: true, contactBlocked: true, reportedAt: fakeListing.createdAt } : {})
             }
         });
     } catch (err) {
@@ -586,7 +672,7 @@ exports.getFeaturedVendors = async (req, res, next) => {
             isActive: { $ne: false },
             isFeatured: true
         })
-            .select('-password -documents -bank -bankDetails -notifications -role -subscription.orderId -subscription.paymentId -otp -resetPasswordToken -__v')
+            .select('-password -documents -bank -bankDetails -notifications -role -subscription.orderId -subscription.paymentId -otp -resetPasswordToken -leadPreferences -__v')
             .limit(10)
             .lean();
 
@@ -675,7 +761,7 @@ exports.getTrendingVendors = async (req, res, next) => {
             status: 'Approved',
             isActive: { $ne: false }
         })
-            .select('-password -documents -bank -bankDetails -notifications -role -subscription.orderId -subscription.paymentId -otp -resetPasswordToken -__v')
+            .select('-password -documents -bank -bankDetails -notifications -role -subscription.orderId -subscription.paymentId -otp -resetPasswordToken -leadPreferences -__v')
             .lean();
 
         if (approvedVendors.length === 0) {
@@ -822,7 +908,7 @@ exports.getRecommendedVendors = async (req, res, next) => {
         }
 
         const vendors = await Vendor.find(filter)
-            .select('-password -documents -bank -bankDetails -notifications -role -subscription.orderId -subscription.paymentId -otp -resetPasswordToken -__v')
+            .select('-password -documents -bank -bankDetails -notifications -role -subscription.orderId -subscription.paymentId -otp -resetPasswordToken -leadPreferences -__v')
             .lean();
 
         const vendorIds = vendors.map(v => v._id);

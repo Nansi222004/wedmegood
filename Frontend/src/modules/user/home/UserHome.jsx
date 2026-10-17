@@ -2,9 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import userApi from '../../../services/userApi';
 import usePlatformSettings from '../../../hooks/usePlatformSettings';
+import Icon from '../../../components/ui/Icon';
+import { useAuth } from '../../../contexts/AuthContext';
+import { getAuthToken } from '../../../services/userApi';
 
 const UserHome = () => {
   const { ratingsEnabled } = usePlatformSettings();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [activeCategory, setActiveCategory] = useState('wedding');
   const [favorites, setFavorites] = useState(new Set());
@@ -288,6 +292,29 @@ const UserHome = () => {
           </div>
         </section>
         {/* END: Main Hero Carousel Banner */}
+
+        {/* BEGIN: Post a requirement */}
+        <section className="px-4 pt-2 relative z-20" data-purpose="post-requirement">
+          <div className="w-full rounded-[20px] bg-white border border-[#EADBE1] shadow-sm p-3.5 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#FFF5F6] text-[#5B1228] flex items-center justify-center shrink-0">
+              <Icon name="checkList" size="sm" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="font-serif text-[15px] font-semibold text-stone-900 leading-tight">Tell us what you need</h2>
+              <p className="text-[11px] text-stone-600 leading-snug mt-0.5">One requirement, a verified vendor for every service near your venue.</p>
+              <button onClick={() => navigate('/user/enquiries')} className="text-[11px] font-semibold text-[#5B1228] mt-0.5 hover:underline">
+                My requirements
+              </button>
+            </div>
+            <button
+              onClick={() => navigate(user && getAuthToken() ? '/user/requirements/new' : '/login', { state: { from: '/user/requirements/new' } })}
+              className="bg-[#4F1325] text-white text-[11px] font-semibold px-3.5 py-2 rounded-full shadow-sm active:scale-95 transition-transform shrink-0"
+            >
+              Post now
+            </button>
+          </div>
+        </section>
+        {/* END: Post a requirement */}
 
         {/* BEGIN: What Are You Celebrating Grid */}
         <section className="px-4 pt-3 pb-2 relative z-10" data-purpose="celebration-categories">

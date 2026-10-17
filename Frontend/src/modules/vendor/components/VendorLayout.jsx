@@ -10,6 +10,7 @@ import { useVendorState } from '../useVendorState';
 import { UploadProvider } from '../context/UploadContext';
 import UploadProgressWidget from './UploadProgressWidget';
 import { usePushRegistration } from '../../../hooks/usePushRegistration';
+import LeadOfferBuzzer from './LeadOfferBuzzer';
 
 const VendorLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -63,6 +64,12 @@ const VendorLayout = () => {
   }, [sidebarOpen]);
 
   const isApproved = vendorState.status === 'Approved';
+  const sub = vendorState.subscription;
+  // Only approved, subscribed, active vendors receive lead offers
+  const canReceiveOffers = isApproved
+    && vendorState.isActive !== false
+    && sub?.status === 'Active'
+    && !(sub?.endDate && new Date(sub.endDate) < new Date());
 
   if (loading) {
     return (
@@ -153,6 +160,9 @@ const VendorLayout = () => {
       </div>
       
       <UploadProgressWidget token={localStorage.getItem('vendorToken')} />
+
+      {/* Lead offers: a 30-second accept/decline buzzer on every vendor page */}
+      <LeadOfferBuzzer enabled={canReceiveOffers} />
     </div>
     </UploadProvider>
   );

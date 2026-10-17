@@ -3,7 +3,11 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import Icon from '../../../components/ui/Icon';
 import EmptyState from '../../../components/ui/EmptyState';
 import VendorCard from '../vendors/VendorCardFixed';
+import ReportedFakeVendorCard from '../fakeVendors/ReportedFakeVendorCard';
 import userApi from '../../../services/userApi';
+
+// A sentence ("decorator in Jaipur for 300 guests") is read as a requirement; one or two words stay a plain search
+const looksLikeRequirement = (q) => q.split(/\s+/).filter(Boolean).length >= 3 || /\d/.test(q);
 
 const Search = () => {
   const navigate = useNavigate();
@@ -21,6 +25,11 @@ const Search = () => {
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [categories, setCategories] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
+  // Confirmed fake vendors matching the search who are not (or no longer) on the marketplace
+  const [reportedFake, setReportedFake] = useState([]);
+  // What the requirement search understood, and whether the customer chose plain keyword search instead
+  const [understood, setUnderstood] = useState(null);
+  const [plainSearch, setPlainSearch] = useState(false);
 
   // Fetch real categories from database
   useEffect(() => {
@@ -48,6 +57,8 @@ const Search = () => {
     const queryTrimmed = debouncedQuery.trim();
     if (!queryTrimmed && selectedFilter === 'all') {
       setSearchResults([]);
+      setReportedFake([]);
+      setUnderstood(null);
       setIsSearching(false);
       return;
     }
@@ -55,20 +66,55 @@ const Search = () => {
     let isMounted = true;
     setIsSearching(true);
 
-    userApi
-      .getVendors({
-        search: queryTrimmed || undefined,
-        category: selectedFilter !== 'all' ? selectedFilter : undefined,
-        limit: 24
+    const plain = {
+      search: queryTrimmed || undefined,
+      category: selectedFilter !== 'all' ? selectedFilter : undefined,
+      limit: 24
+    };
+    const interpret = queryTrimmed && !plainSearch && looksLikeRequirement(queryTrimmed)
+      ? userApi.interpretRequirement(queryTrimmed).then(r => r.data).catch(() => null)
+      : Promise.resolve(null);
+
+    interpret
+      .then((req) => {
+        const structured = req && req.understood.length > 0;
+        if (isMounted) setUnderstood(structured ? req : null);
+        if (!structured) return userApi.getVendors(plain);
+        return userApi.getVendors({
+          search: req.keywords || undefined,
+          category: selectedFilter !== 'all' ? selectedFilter : (req.category || undefined),
+          city: req.city || undefined,
+          minPrice: req.minBudget || undefined,
+          maxPrice: req.maxBudget || undefined,
+          guests: req.guests || undefined,
+          setup: req.setup,
+          date: req.date || undefined,
+          availability: req.date ? 'available' : undefined,
+          limit: 24
+        }).then(res => (res.data?.length || !req.keywords ? res : userApi.getVendors({
+          // Leftover words found nothing: retry with the filters alone
+          category: selectedFilter !== 'all' ? selectedFilter : (req.category || undefined),
+          city: req.city || undefined,
+          maxPrice: req.maxBudget || undefined,
+          guests: req.guests || undefined,
+          setup: req.setup,
+          date: req.date || undefined,
+          availability: req.date ? 'available' : undefined,
+          limit: 24
+        })));
       })
       .then((res) => {
         if (isMounted) {
           setSearchResults(res.data || []);
+          setReportedFake(res.reportedFake || []);
         }
       })
       .catch((err) => {
         console.error('Server search error:', err);
-        if (isMounted) setSearchResults([]);
+        if (isMounted) {
+          setSearchResults([]);
+          setReportedFake([]);
+        }
       })
       .finally(() => {
         if (isMounted) setIsSearching(false);
@@ -77,7 +123,7 @@ const Search = () => {
     return () => {
       isMounted = false;
     };
-  }, [debouncedQuery, selectedFilter]);
+  }, [debouncedQuery, selectedFilter, plainSearch]);
 
   // Dynamic filters based on DB categories
   const filters = [
@@ -153,9 +199,12 @@ const Search = () => {
             </div>
             <input
               type="text"
-              placeholder="Search by vendor name, service, or city..."
+              placeholder="e.g. decorator in Jaipur for 300 guests under 2 lakh"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPlainSearch(false);
+              }}
               className="w-full py-2 bg-transparent text-sm text-[#4F1325] focus:outline-none placeholder-[#4F1325]/45"
             />
             {searchQuery && !isSearching && (
@@ -226,6 +275,33 @@ const Search = () => {
                 </button>
               )}
             </div>
+
+            {understood && !isSearching && (
+              <div className="mb-4 p-3 rounded-2xl bg-white/90 border border-[#D4AF37]/30 text-xs text-[#4F1325]">
+                <span className="font-bold">Looking for: </span>
+                {understood.understood.map((u) => (
+                  <span key={u} className="inline-block mr-1.5 mb-1 px-2 py-0.5 rounded-full bg-[#FAF6F0] border border-[#D4AF37]/30 font-semibold">{u}</span>
+                ))}
+                {understood.guests > 0 && (
+                  <p className="text-[11px] text-[#651731]/70 mt-1">Vendors who said they cannot take {understood.guests} guests are left out. Those who did not say are shown after the best fits.</p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPlainSearch(true)}
+                  className="mt-1 text-[11px] font-bold text-[#651731] underline"
+                >
+                  Search these words instead
+                </button>
+              </div>
+            )}
+
+            {reportedFake.length > 0 && (
+              <div className="space-y-3 mb-4">
+                {reportedFake.map((v) => (
+                  <ReportedFakeVendorCard key={v._id} vendor={v} />
+                ))}
+              </div>
+            )}
 
             {searchResults.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

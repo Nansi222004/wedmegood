@@ -6,7 +6,7 @@ const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/ap
 // (new leads/bookings/quotes, chat, notifications, earnings) is always fetched live.
 const apiFetch = createCachedFetch({
     ttlMs: 15000,
-    neverCache: /\/(leads|bookings|quotes|notifications|conversations|messages|earnings|transactions|withdrawals|stats|support)(\/|\?|$)/
+    neverCache: /\/(leads|lead-offers|lead-insights|lead-settings|complaints|bookings|quotes|notifications|conversations|messages|earnings|transactions|withdrawals|stats|support)(\/|\?|$)/
 });
 
 export const vendorApi = {
@@ -709,6 +709,115 @@ export const vendorApi = {
         const response = await apiFetch(`${BASE_URL}/calendar/blocked-dates/${encodeURIComponent(date)}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+    },
+
+    // Lead offers (the buzzer), insights, service area and lead reports
+    getActiveLeadOffers: async (token) => {
+        const response = await apiFetch(`${BASE_URL}/lead-offers/active`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+    },
+
+    getLeadOfferReasons: async (token) => {
+        const response = await apiFetch(`${BASE_URL}/lead-offers/reasons`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+    },
+
+    acknowledgeLeadOffer: async (offerId, token) => {
+        const response = await apiFetch(`${BASE_URL}/lead-offers/${offerId}/ack`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+    },
+
+    acceptLeadOffer: async (offerId, token) => {
+        const response = await apiFetch(`${BASE_URL}/lead-offers/${offerId}/accept`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+    },
+
+    declineLeadOffer: async (offerId, reason, note, token) => {
+        const response = await apiFetch(`${BASE_URL}/lead-offers/${offerId}/decline`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ reason, note })
+        });
+        return response.json();
+    },
+
+    getLeadInsights: async (token, days = 90) => {
+        const response = await apiFetch(`${BASE_URL}/lead-insights?days=${days}`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+    },
+
+    getLeadSettings: async (token) => {
+        const response = await apiFetch(`${BASE_URL}/lead-settings`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.json();
+    },
+
+    updateLeadSettings: async (payload, token) => {
+        const response = await apiFetch(`${BASE_URL}/lead-settings`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(payload)
+        });
+        return response.json();
+    },
+
+    // Complaints about the vendor
+    getComplaints: async (token) => {
+        const response = await apiFetch(`${BASE_URL}/complaints`, { method: 'GET', headers: { 'Authorization': `Bearer ${token}` } });
+        return response.json();
+    },
+
+    respondComplaint: async (id, body, token) => {
+        const response = await apiFetch(`${BASE_URL}/complaints/${id}/respond`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(body)
+        });
+        return response.json();
+    },
+
+    appealComplaint: async (id, reason, token) => {
+        const response = await apiFetch(`${BASE_URL}/complaints/${id}/appeal`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ reason })
+        });
+        return response.json();
+    },
+
+    reportLead: async (leadId, reason, note, token) => {
+        const response = await apiFetch(`${BASE_URL}/leads/${leadId}/report`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ reason, note })
         });
         return response.json();
     }

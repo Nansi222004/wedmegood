@@ -9,6 +9,7 @@ const ENTITY_ROUTES = {
   Quote: '/user/dashboard',
   Payment: '/user/account/payments',
   Lead: '/user/dashboard',
+  Enquiry: '/user/enquiries',
   Review: '/user/account/reviews',
   Complaint: '/user/account',
   FamilyGroup: '/user/family/groups',

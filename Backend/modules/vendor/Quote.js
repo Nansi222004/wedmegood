@@ -39,8 +39,27 @@ const quoteSchema = new mongoose.Schema({
         description: { type: String, default: '' },
         price: { type: Number, default: 0 },
         quantity: { type: Number, default: 1 },
+        unit: { type: String, default: '' },
+        // Included services vs transport / labour / equipment / material lines vs optional extras
+        // (optional extras are priced but not part of the total)
+        kind: { type: String, enum: ['Included', 'Transport', 'Labour', 'Equipment', 'Material', 'Optional extra'], default: 'Included' },
         amount: { type: Number, default: 0 }
     }],
+    optionalExtrasTotal: { type: Number, default: 0 },
+    // What the price covers, what it does not, and what the customer must arrange
+    scopeIncluded: { type: String, default: '' },
+    exclusions: { type: String, default: '' },
+    customerResponsibilities: { type: String, default: '' },
+    setupTime: { type: String, default: '' },
+    dismantleTime: { type: String, default: '' },
+    overtimeCharges: { type: String, default: '' },
+    referencePhotos: [{ type: String }],
+    // Read-only link the vendor can share; never exposes the customer's contact
+    shareToken: { type: String, index: true, sparse: true },
+    revisionRequest: {
+        note: { type: String, default: '' },
+        requestedAt: { type: Date, default: null }
+    },
     subtotal: {
         type: Number,
         default: 0
@@ -82,7 +101,7 @@ const quoteSchema = new mongoose.Schema({
     }],
     status: {
         type: String,
-        enum: ['Draft', 'Pending', 'Sent', 'Accepted', 'Rejected', 'Expired', 'Superseded', 'Cancelled'],
+        enum: ['Draft', 'Pending', 'Sent', 'Revision Requested', 'Accepted', 'Rejected', 'Expired', 'Superseded', 'Cancelled'],
         default: 'Sent',
         index: true
     },
@@ -132,6 +151,9 @@ const quoteSchema = new mongoose.Schema({
 
 // Auto-generate unique quotation number before save if not present
 quoteSchema.pre('save', function (next) {
+    if (!this.shareToken) {
+        this.shareToken = require('crypto').randomBytes(18).toString('base64url');
+    }
     if (!this.quotationNumber) {
         const now = new Date();
         const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;

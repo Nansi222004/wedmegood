@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import userApi from '../../../services/userApi';
 import usePlatformSettings from '../../../hooks/usePlatformSettings';
 import { toast } from '../../../components/ui/Toast';
+import ReportedFakeVendorCard from '../fakeVendors/ReportedFakeVendorCard';
 
 const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
   const { theme } = useTheme();
@@ -50,6 +51,11 @@ const VendorCard = ({ vendor, layout = 'vertical', onToggleSave }) => {
       })
       .catch(() => {});
   }, [id, user]);
+
+  // Confirmed fake vendors stay visible in red, with every contact option removed
+  if (vendor?.isReportedFake) {
+    return <ReportedFakeVendorCard vendor={{ ...vendor, vendorId: id }} />;
+  }
 
   // Toggle save vendor
   const toggleSave = async () => {

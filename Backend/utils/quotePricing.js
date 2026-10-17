@@ -3,6 +3,8 @@
  * Enforces strict calculation order, precision rounding, and parameter precedence.
  */
 
+const ITEM_KINDS = ['Included', 'Transport', 'Labour', 'Equipment', 'Material', 'Optional extra'];
+
 function calculateQuotePricing(payload = {}) {
     const rawItems = Array.isArray(payload.items) ? payload.items : [];
     
@@ -16,16 +18,26 @@ function calculateQuotePricing(payload = {}) {
         const price = Math.max(0, Number(item.price) || 0);
         const quantity = Math.max(1, Math.floor(Number(item.quantity) || 1));
         const amount = Math.round(price * quantity * 100) / 100;
+        const unit = String(item.unit || '').trim().slice(0, 20);
+        // Transport, labour, equipment and material charges are shown as their own lines; optional
+        // extras are listed with their price but are not part of the total unless added later
+        const kind = ITEM_KINDS.includes(item.kind) ? item.kind : 'Included';
         return {
             service,
             description,
             price,
             quantity,
+            unit,
+            kind,
             amount
         };
     });
 
-    const subtotal = Math.round(items.reduce((sum, item) => sum + item.amount, 0) * 100) / 100;
+    if (items.every(i => i.kind === 'Optional extra')) {
+        throw Object.assign(new Error('Add at least one line that is part of the quotation, not only optional extras'), { statusCode: 400 });
+    }
+    const subtotal = Math.round(items.filter(i => i.kind !== 'Optional extra').reduce((sum, item) => sum + item.amount, 0) * 100) / 100;
+    const optionalExtrasTotal = Math.round(items.filter(i => i.kind === 'Optional extra').reduce((sum, item) => sum + item.amount, 0) * 100) / 100;
 
     // Discount calculation (precedence: discountPercent if > 0, else discountAmount)
     let discountPercent = Number(payload.discountPercent);
@@ -101,6 +113,7 @@ function calculateQuotePricing(payload = {}) {
     return {
         items,
         subtotal,
+        optionalExtrasTotal,
         discountPercent,
         discountAmount: calculatedDiscount,
         taxableAmount,
@@ -117,5 +130,6 @@ function calculateQuotePricing(payload = {}) {
 }
 
 module.exports = {
+    ITEM_KINDS,
     calculateQuotePricing
 };

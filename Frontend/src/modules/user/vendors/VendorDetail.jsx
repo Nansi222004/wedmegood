@@ -5,7 +5,8 @@ import { useCart } from '../../../contexts/CartContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import Icon from '../../../components/ui/Icon';
 import Button from '../../../components/ui/Button';
-import userApi from '../../../services/userApi';
+import userApi, { getAuthToken } from '../../../services/userApi';
+import PrivateImage from '../../../components/common/PrivateImage';
 import { toast } from '../../../components/ui/Toast';
 import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
 import VendorAvailabilityCalendar from './VendorAvailabilityCalendar';
@@ -431,7 +432,7 @@ const VendorDetail = () => {
         budget: Number(formData.budget) || 0,
         requirements: formData.guestCount ? `Approx ${formData.guestCount} guests` : '',
         message: formData.message || `Inquiry for ${vendor?.businessName || 'wedding services'}`,
-        referencePhotos: referencePhotos
+        referencePhotoIds: referencePhotos.map(p => p._id)
       });
 
       if (res.success) {
@@ -477,6 +478,47 @@ const VendorDetail = () => {
         >
           Return to Marketplace
         </button>
+      </div>
+    );
+  }
+
+  // Confirmed fake vendor: a warning instead of the profile, with no way to contact them
+  if (vendor.isReportedFake) {
+    return (
+      <div className="min-h-screen bg-[#FAF7F2] px-4 pt-6 pb-28">
+        <div className="max-w-md mx-auto space-y-4">
+          <button
+            onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/user/vendors'))}
+            className="w-10 h-10 rounded-full bg-white border border-stone-200 shadow-sm flex items-center justify-center text-[#4F1325] cursor-pointer"
+            aria-label="Back"
+          >
+            <Icon name="chevronLeft" size="sm" />
+          </button>
+          <div className="rounded-3xl border-2 border-red-300 bg-red-50 p-6 text-center" role="alert">
+            <div className="w-16 h-16 rounded-full bg-red-600 text-white flex items-center justify-center mx-auto mb-3">
+              <Icon name="warning" size="md" />
+            </div>
+            <span className="px-2.5 py-1 rounded-full bg-red-600 text-white text-[10px] font-black uppercase tracking-wider">Fake vendor</span>
+            <h1 className="text-2xl font-serif font-bold text-red-800 mt-3">{vendor.businessName}</h1>
+            {vendor.city && <p className="text-xs text-red-700/80 mt-1">{vendor.city}</p>}
+            <p className="text-sm text-red-900 mt-4 leading-relaxed">
+              The Utsavo team confirmed this vendor as fake after investigating customer complaints.
+              Calls, chat and enquiries to this vendor are blocked to protect you.
+            </p>
+            <button
+              onClick={() => navigate('/user/fake-vendors')}
+              className="mt-5 w-full py-3 rounded-xl bg-red-700 hover:bg-red-800 text-white text-sm font-bold cursor-pointer"
+            >
+              See what this vendor did
+            </button>
+            <button
+              onClick={() => navigate('/user/requirements/new')}
+              className="mt-2 w-full py-3 rounded-xl bg-white border border-red-200 text-red-800 text-sm font-bold cursor-pointer"
+            >
+              Find a verified vendor instead
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -1179,12 +1221,15 @@ const VendorDetail = () => {
                         Inspiration / Reference Photos (Optional)
                       </label>
                       <div className="flex items-center gap-2 flex-wrap">
-                        {referencePhotos.map((url, idx) => (
-                          <div key={idx} className="relative w-14 h-14 rounded-xl overflow-hidden border border-stone-200">
-                            <img src={url} alt="Reference" className="w-full h-full object-cover" />
+                        {referencePhotos.map((photo, idx) => (
+                          <div key={photo._id} className="relative w-14 h-14 rounded-xl overflow-hidden border border-stone-200">
+                            <PrivateImage src={photo.url} token={getAuthToken()} alt="Reference" className="w-full h-full object-cover" />
                             <button
                               type="button"
-                              onClick={() => setReferencePhotos(prev => prev.filter((_, i) => i !== idx))}
+                              onClick={() => {
+                                setReferencePhotos(prev => prev.filter((_, i) => i !== idx));
+                                userApi.deleteReferencePhoto(photo._id).catch(() => {});
+                              }}
                               className="absolute top-1 right-1 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center text-[10px] shadow"
                             >
                               ×
@@ -1211,11 +1256,11 @@ const VendorDetail = () => {
                               if (!files || files.length === 0) return;
                               setIsUploadingPhoto(true);
                               try {
-                                for (const file of Array.from(files)) {
-                                  const res = await userApi.uploadImage(file);
-                                  if (res.success && res.data?.url) {
-                                    setReferencePhotos(prev => [...prev, res.data.url]);
-                                  }
+                                // Private upload: only this customer and the vendor handling the enquiry can view them
+                                const room = Math.max(0, 10 - referencePhotos.length);
+                                const res = await userApi.uploadReferencePhotos(Array.from(files).slice(0, room));
+                                if (res.success && Array.isArray(res.data)) {
+                                  setReferencePhotos(prev => [...prev, ...res.data]);
                                 }
                               } catch (err) {
                                 console.error('Photo upload failed:', err);
@@ -1227,7 +1272,7 @@ const VendorDetail = () => {
                           />
                         </label>
                       </div>
-                      <span className="text-[10.5px] text-stone-400">Upload reference outfits, decor themes, or venue style</span>
+                      <span className="text-[10.5px] text-stone-400">Upload reference outfits, decor themes, or venue style. Stored privately: only you and this vendor can see them.</span>
                     </div>
                   </div>
                 </>

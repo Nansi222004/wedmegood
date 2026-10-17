@@ -67,6 +67,7 @@ const EInvites = lazy(() => import('../modules/user/invites/EInvites'));
 const EditInvite = lazy(() => import('../modules/user/invites/EditInvite'));
 const PreviewInvite = lazy(() => import('../modules/user/invites/PreviewInvite'));
 const PublicInvite = lazy(() => import('../modules/user/invites/PublicInvite'));
+const SharedQuote = lazy(() => import('../modules/common/SharedQuote'));
 const Photographers = lazy(() => import('../modules/user/photographers/Photographers'));
 const PhotographerDetail = lazy(() => import('../modules/user/photographers/PhotographerDetail'));
 const PhotographerCollection = lazy(() => import('../modules/user/photographers/PhotographerCollection'));
@@ -90,7 +91,16 @@ const Help = lazy(() => import('../modules/user/help/Help'));
 const Dashboard = lazy(() => import('../modules/user/dashboard/Dashboard'));
 const MyBookings = lazy(() => import('../modules/user/bookings/MyBookings'));
 const FakeVendors = lazy(() => import('../modules/user/fakeVendors/FakeVendors'));
+const PostRequirement = lazy(() => import('../modules/user/enquiries/PostRequirement'));
+const MyRequirements = lazy(() => import('../modules/user/enquiries/MyRequirements'));
+const RequirementDetail = lazy(() => import('../modules/user/enquiries/RequirementDetail'));
+const EventProgress = lazy(() => import('../modules/user/events/EventProgress'));
+const WorkerHub = lazy(() => import('../modules/workforce/WorkerHub'));
+const HomeHelp = lazy(() => import('../modules/workforce/HomeHelp'));
+const MyComplaints = lazy(() => import('../modules/user/complaints/MyComplaints'));
 const VendorRoutes = lazy(() => import('../modules/vendor/routes'));
+// Team members of a vendor (crew, supervisors, warehouse, drivers, sub-vendors): their own login
+const TeamApp = lazy(() => import('../modules/operations/OpsShell').then(m => ({ default: m.TeamApp })));
 const AdminRoutes = lazy(() => import('../modules/admin/routes'));
 
 // Pages a signed-in user is most likely to open next. They are fetched in the background once the
@@ -160,6 +170,9 @@ const AppRouter = () => {
       {/* Public Digital Wedding Invitation Route (No Auth Required) */}
       <Route path="/invite/:slug" element={<PublicInvite />} />
 
+      {/* A vendor's read-only quotation share link */}
+      <Route path="/q/:token" element={<SharedQuote />} />
+
       {/* Public Family Group Invitation Route (No Auth Required for Preview) */}
       <Route path="/family/join/:token" element={<JoinFamilyGroup />} />
       <Route path="/user/family/join/:token" element={<JoinFamilyGroup />} />
@@ -193,6 +206,7 @@ const AppRouter = () => {
       <Route path="/user/reset-password" element={<ResetPassword />} />
 
       <Route path="/vendor/*" element={<VendorRoutes />} />
+      <Route path="/team/*" element={<TeamApp />} />
       <Route path="/admin/*" element={<AdminRoutes />} />
 
       {/* Protected Routes */}
@@ -247,6 +261,13 @@ const AppRouter = () => {
                     <Route path="search" element={<Search />} />
                     <Route path="news" element={<News />} />
                     <Route path="requirements" element={<RequirementsForm />} />
+                    <Route path="requirements/new" element={<PostRequirement />} />
+                    <Route path="enquiries" element={<MyRequirements />} />
+                    <Route path="enquiries/:id" element={<RequirementDetail />} />
+                    <Route path="events/:bookingId" element={<EventProgress />} />
+                    <Route path="work" element={<WorkerHub />} />
+                    <Route path="work/hire" element={<HomeHelp />} />
+                    <Route path="complaints" element={<MyComplaints />} />
                     <Route path="requirements/planning-details" element={<PlanningDetails />} />
                     <Route path="wedding-form" element={<WeddingForm />} />
                     <Route path="planning-dashboard" element={<PlanningDashboard />} />

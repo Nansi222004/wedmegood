@@ -164,5 +164,6 @@ module.exports = {
     resolveCategory,
     getEligibleVendors,
     takeNextVendor,
+    sortKeyOf,
     getOrAssignVendorForUser
 };

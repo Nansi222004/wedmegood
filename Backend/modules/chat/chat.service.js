@@ -260,6 +260,13 @@ async function createMessage({
         throw err;
     }
 
+    const { isReportedFake, FAKE_VENDOR_BLOCKED_MESSAGE } = require('../../utils/fakeVendorCache');
+    if ((senderRole === 'User' || senderRole === 'Vendor') && await isReportedFake(conversation.vendorId)) {
+        const err = new Error(FAKE_VENDOR_BLOCKED_MESSAGE);
+        err.status = 403;
+        throw err;
+    }
+
     // Verify sender belongs to conversation
     if (senderRole === 'User') {
         if (conversation.userId.toString() !== senderId.toString()) {
@@ -399,6 +406,10 @@ async function createMessage({
 
     // Non-blocking async notification dispatch for offline recipients
     if (senderRole === 'Vendor') {
+        // A message to the customer counts as contacting them on an accepted requirement lead
+        require('../../services/leadDispatch.service')
+            .markVendorContacted({ vendorId: conversation.vendorId, userId: conversation.userId })
+            .catch(() => {});
         createNotification({
             userId: conversation.userId,
             title: 'New message from vendor',

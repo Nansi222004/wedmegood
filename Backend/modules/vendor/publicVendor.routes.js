@@ -13,6 +13,17 @@ const { cacheResponse } = require('../../utils/responseCache');
 const router = express.Router();
 
 // Specific marketplace collections must precede :id parameter
+// Turns a plain-language requirement into search filters ("decorator in Jaipur for 300 guests under 2 lakh")
+router.get('/interpret', async (req, res, next) => {
+    try {
+        const { parseRequirement } = require('../../services/requirementParser.service');
+        res.status(200).json({ success: true, data: await parseRequirement(req.query.q) });
+    } catch (err) {
+        next(err);
+    }
+});
+router.get('/setup-options', (req, res) => res.status(200).json({ success: true, data: require('../../utils/serviceSetup').SETUP_TAGS }));
+
 router.get('/featured', cacheResponse(30000, 15), getFeaturedVendors);
 router.get('/trending', cacheResponse(30000, 15), getTrendingVendors);
 router.get('/recommendations', cacheResponse(30000, 15), getRecommendedVendors);

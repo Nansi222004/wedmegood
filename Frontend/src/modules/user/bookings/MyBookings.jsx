@@ -135,6 +135,21 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
     if (quote?._id) setQuoteToReject(quote);
   };
 
+  // Sends the customer's change request; the vendor answers with a new version of the quote
+  const handleRequestRevision = async (quote, note) => {
+    try {
+      const res = await userApi.requestQuoteRevision(quote._id, note);
+      if (!res.success) throw new Error(res.message || 'Could not send your request');
+      toast.success('Sent. The vendor will share a revised quotation.');
+      setSelectedQuoteForDetails(null);
+      await loadData();
+      return true;
+    } catch (e) {
+      toast.error(getFriendlyErrorMessage(e, 'Could not send your request'));
+      return false;
+    }
+  };
+
   const confirmRejectQuote = async () => {
     if (!quoteToReject?._id) return;
     const quoteId = quoteToReject._id;
@@ -416,6 +431,19 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
             >
               Decline Quote
             </button>
+
+            <button
+              onClick={() => setSelectedQuoteForModal(quote)}
+              className="w-full py-2.5 px-6 rounded-xl text-[#401332] hover:bg-[#FAF6F8] text-xs font-bold flex items-center justify-center transition-all cursor-pointer"
+            >
+              View full quotation or request changes
+            </button>
+          </div>
+        ) : quote?.status === 'Revision Requested' ? (
+          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs sm:text-sm">
+            <p className="font-bold">You asked for changes</p>
+            {quote.revisionRequest?.note && <p className="mt-1 text-xs">"{quote.revisionRequest.note}"</p>}
+            <p className="mt-1 text-xs text-amber-700">The vendor will send a revised quotation. It will appear here.</p>
           </div>
         ) : quote?.status === 'Accepted' ? (
           <div className="p-4 rounded-2xl bg-[#DCFCE7] border border-[#86EFAC] text-[#15803D] flex items-center justify-between gap-3">
@@ -823,6 +851,16 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                         <span>View Details & Ledger</span>
                       </button>
 
+                      {/* The vendor's preparation progress and change requests to approve */}
+                      {!isCancelled && (
+                        <button
+                          onClick={() => navigate(`/user/events/${booking._id}`)}
+                          className="px-3.5 py-2 rounded-xl bg-[#551E43] hover:bg-[#401332] text-white text-xs font-bold transition-all cursor-pointer"
+                        >
+                          Event progress
+                        </button>
+                      )}
+
                       {canCancel && (
                         <button
                           onClick={() => handleCancelBooking(booking)}
@@ -1176,6 +1214,7 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
           isVendor={false}
           onAccept={(q) => handleAcceptQuote(q)}
           onReject={(q) => handleRejectQuote(q)}
+          onRequestRevision={handleRequestRevision}
         />
       )}
     </div>

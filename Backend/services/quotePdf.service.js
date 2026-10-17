@@ -120,7 +120,8 @@ function generateQuotePdf(params = {}) {
                 const rowAmount = Number(item.amount) || (price * qty);
 
                 doc.fontSize(8.5).fillColor(darkText).font('Helvetica-Bold').text(String(idx + 1), 48, tableY + 4);
-                doc.fontSize(8.5).fillColor(darkText).font('Helvetica-Bold').text(item.service || 'Service', 75, tableY + 4);
+                const kindLabel = item.kind && item.kind !== 'Included' ? ` (${item.kind === 'Optional extra' ? 'optional, not in total' : item.kind})` : '';
+                doc.fontSize(8.5).fillColor(darkText).font('Helvetica-Bold').text(`${item.service || 'Service'}${kindLabel}`, 75, tableY + 4);
                 
                 let descOffset = 16;
                 if (item.description && item.description.trim().length > 0) {
@@ -204,6 +205,12 @@ function generateQuotePdf(params = {}) {
             if (quote.cancellationTerms) {
                 termsText += `\n\nCancellation Policy: ${quote.cancellationTerms}`;
             }
+            if (quote.scopeIncluded) termsText += `\n\nIncluded: ${quote.scopeIncluded}`;
+            if (quote.exclusions) termsText += `\n\nNot included: ${quote.exclusions}`;
+            if (quote.customerResponsibilities) termsText += `\n\nCustomer arranges: ${quote.customerResponsibilities}`;
+            if (quote.setupTime || quote.dismantleTime) termsText += `\n\nSetup: ${quote.setupTime || 'to be agreed'} · Dismantling: ${quote.dismantleTime || 'to be agreed'}`;
+            if (quote.overtimeCharges) termsText += `\n\nOvertime: ${quote.overtimeCharges}`;
+            if (quote.version > 1) termsText += `\n\nRevision ${quote.version}. Earlier versions are kept on record.`;
             if (quote.notes) {
                 termsText += `\n\nSpecial Notes: ${quote.notes}`;
             }

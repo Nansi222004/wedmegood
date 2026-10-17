@@ -60,6 +60,13 @@ const serviceSchema = new mongoose.Schema({
             default: 0
         }
     },
+    // Guests the service can handle, used by "for 300 guests" searches. Empty means not stated.
+    capacity: {
+        minGuests: { type: Number, default: null, min: 0 },
+        maxGuests: { type: Number, default: null, min: 0 }
+    },
+    // On-site needs and options (see utils/serviceSetup SETUP_TAGS)
+    setupTags: [{ type: String, enum: require('../../utils/serviceSetup').SETUP_TAGS }],
     isActive: {
         type: Boolean,
         default: true

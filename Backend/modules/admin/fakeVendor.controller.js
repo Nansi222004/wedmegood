@@ -4,6 +4,7 @@ const FakeVendorAccess = require('../user/FakeVendorAccess');
 const Complaint = require('../user/Complaint');
 const Vendor = require('../vendor/Vendor');
 const { logAdminAction } = require('../../services/audit.service');
+const { invalidateFakeVendorCache } = require('../../utils/fakeVendorCache');
 
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -68,6 +69,7 @@ exports.createFakeVendorListing = async (req, res, next) => {
         }
         const listing = await FakeVendorListing.create({ ...data, addedBy: req.user._id });
 
+        invalidateFakeVendorCache();
         await logAdminAction({
             admin: req.user,
             action: `Added fake vendor listing: ${listing.name}`,
@@ -100,6 +102,7 @@ exports.updateFakeVendorListing = async (req, res, next) => {
         Object.assign(listing, pickListingFields(req.body));
         await listing.save();
 
+        invalidateFakeVendorCache();
         await logAdminAction({
             admin: req.user,
             action: `Updated fake vendor listing: ${listing.name}`,
@@ -129,6 +132,7 @@ exports.deleteFakeVendorListing = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Listing not found' });
         }
 
+        invalidateFakeVendorCache();
         await logAdminAction({
             admin: req.user,
             action: `Deleted fake vendor listing: ${listing.name}`,
@@ -223,6 +227,7 @@ exports.markComplaintVendorAsFake = async (req, res, next) => {
             await vendor.save({ validateBeforeSave: false });
         }
 
+        invalidateFakeVendorCache();
         await logAdminAction({
             admin: req.user,
             action: `Marked vendor as fake from complaint${suspend ? ' and suspended the account' : ''}: ${listing.name}`,

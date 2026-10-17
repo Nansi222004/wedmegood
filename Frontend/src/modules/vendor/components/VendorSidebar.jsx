@@ -11,6 +11,8 @@ const STOREFRONT_ITEMS = new Set([
   'Pricing',
   'Portfolio',
   'Inventory',
+  'Service Area',
+  'Complaints',
   'Settings',
   'Support'
 ]);
@@ -22,13 +24,20 @@ const navItems = [
   { label: 'Pricing', to: '/vendor/pricing', icon: 'money' },
   { label: 'Portfolio', to: '/vendor/portfolio', icon: 'image' },
   { label: 'Inquiries', to: '/vendor/leads', icon: 'mail', badge: 5 },
+  { label: 'Service Area', to: '/vendor/lead-settings', icon: 'location' },
   { label: 'Quotes', to: '/vendor/quotes', icon: 'book' },
   { label: 'Bookings', to: '/vendor/bookings', icon: 'calendar' },
+  { label: 'Events', to: '/vendor/ops/events', icon: 'checkList' },
+  { label: 'Stock & Gate Passes', to: '/vendor/ops/stock', icon: 'package' },
+  { label: 'Accounts', to: '/vendor/ops/accounts', icon: 'chart' },
+  { label: 'Team', to: '/vendor/ops/team', icon: 'users' },
+  { label: 'Temporary Workers', to: '/vendor/ops/workforce', icon: 'briefcase' },
   { label: 'Calendar', to: '/vendor/calendar', icon: 'clock' },
   { label: 'Chat', to: '/vendor/chat', icon: 'chat', badge: 2 },
   { label: 'Inventory', to: '/vendor/inventory', icon: 'package' },
   { label: 'Earnings', to: '/vendor/earnings', icon: 'trophy' },
   { label: 'Reviews', to: '/vendor/reviews', icon: 'star' },
+  { label: 'Complaints', to: '/vendor/complaints', icon: 'shield' },
   { label: 'Support', to: '/vendor/support', icon: 'help' },
   { label: 'Settings', to: '/vendor/settings', icon: 'edit' }
 ];

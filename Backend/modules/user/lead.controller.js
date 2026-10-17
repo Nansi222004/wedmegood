@@ -73,6 +73,11 @@ exports.createLead = async (req, res, next) => {
                 });
             }
 
+            const { isReportedFake, FAKE_VENDOR_BLOCKED_MESSAGE } = require('../../utils/fakeVendorCache');
+            if (await isReportedFake(vendor._id)) {
+                return res.status(403).json({ success: false, code: 'VENDOR_REPORTED_FAKE', message: FAKE_VENDOR_BLOCKED_MESSAGE });
+            }
+
             assignedVendorId = vendor._id;
             // Inquiries to the vendor the platform assigned to this user count as auto-assigned
             const allocation = await VendorAllocation.findOne({ userId: req.user._id, vendorId: vendor._id }).lean();
@@ -119,6 +124,8 @@ exports.createLead = async (req, res, next) => {
             requirements: requirements || '',
             venueType: venueType || 'Not Specified',
             referencePhotos: Array.isArray(referencePhotos) ? referencePhotos : [],
+            // Private photos uploaded through /user/reference-photos (only the customer's own)
+            referencePhotoIds: await require('../../services/referencePhoto.service').ownedPhotoIds(req.user._id, req.body.referencePhotoIds),
             message: message || 'Inquiry regarding wedding services',
             assignedType,
             status: 'New'

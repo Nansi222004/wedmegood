@@ -12,6 +12,9 @@ const AdminComplaints = () => {
     const [selectedComplaint, setSelectedComplaint] = useState(null);
     const [modalStatus, setModalStatus] = useState('');
     const [modalNotes, setModalNotes] = useState('');
+    // The decision both parties see (internal notes stay internal)
+    const [modalOutcome, setModalOutcome] = useState('');
+    const [appealNote, setAppealNote] = useState('');
     const [updating, setUpdating] = useState(false);
     // Confirming the vendor as fake lists it on the users' Fake Vendors page
     const [fakeReason, setFakeReason] = useState('');
@@ -51,6 +54,8 @@ const AdminComplaints = () => {
         setSelectedComplaint(complaint);
         setModalStatus(complaint.status || 'Pending');
         setModalNotes(complaint.adminNotes || '');
+        setModalOutcome(complaint.outcome || '');
+        setAppealNote('');
         setFakeReason('');
         setSuspendVendor(true);
     };
@@ -81,6 +86,30 @@ const AdminComplaints = () => {
         }
     };
 
+    const handleAppealDecision = async (decision) => {
+        if (!appealNote.trim()) {
+            toast.warning('Explain the appeal decision. Both parties will see it.');
+            return;
+        }
+        try {
+            setUpdating(true);
+            const res = await adminApi.decideComplaintAppeal(selectedComplaint._id, { decision, note: appealNote.trim() }, token);
+            if (res.success) {
+                toast.success(res.message);
+                setSelectedComplaint(null);
+                await fetchComplaints(pagination.page);
+            } else {
+                toast.error(getFriendlyErrorMessage(res, 'Failed to decide the appeal.'));
+            }
+        } catch (err) {
+            toast.error(getFriendlyErrorMessage(err, 'A network or server error occurred.'));
+        } finally {
+            setUpdating(false);
+        }
+    };
+
+    const fmtWhen = (d) => (d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '—');
+
     const vendorLabel = (complaint) => complaint.vendorId?.businessName
         || (complaint.externalVendor?.name ? (complaint.externalVendor.businessName || complaint.externalVendor.name) : 'Platform Service');
 
@@ -92,7 +121,8 @@ const AdminComplaints = () => {
             setUpdating(true);
             const payload = {
                 status: modalStatus,
-                adminNotes: modalNotes
+                adminNotes: modalNotes,
+                outcome: modalOutcome
             };
             const res = await adminApi.updateComplaintStatus(selectedComplaint._id, payload, token);
             if (res.success) {
@@ -129,6 +159,7 @@ const AdminComplaints = () => {
                         <option value="In-Review">In-Review</option>
                         <option value="Resolved">Resolved</option>
                         <option value="Dismissed">Dismissed</option>
+                        <option value="Appealed">Appealed</option>
                     </select>
                 </div>
             </div>
@@ -199,6 +230,12 @@ const AdminComplaints = () => {
                                         }`}>
                                             {complaint.status || 'Pending'}
                                         </span>
+                                        {(complaint.overdue?.acknowledge || complaint.overdue?.resolve) && (
+                                            <span className="block mt-1 text-[8px] font-black uppercase tracking-wider text-rose-600">
+                                                {complaint.overdue.acknowledge ? 'Not acknowledged in time' : 'Past resolution target'}
+                                            </span>
+                                        )}
+                                        {complaint.vendorResponse?.respondedAt && <span className="block mt-1 text-[8px] font-bold text-indigo-600">Vendor responded</span>}
                                     </td>
                                     <td className="px-6 py-3 text-right">
                                         <button
@@ -279,7 +316,61 @@ const AdminComplaints = () => {
                             <div className="p-3 bg-slate-50 rounded-xl space-y-1">
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Grievance Description</span>
                                 <p className="text-slate-800 leading-relaxed">{selectedComplaint.description || 'No detailed description provided.'}</p>
+                                {selectedComplaint.evidence?.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 pt-1">
+                                        {selectedComplaint.evidence.map((e, i) => <a key={i} href={e.url} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-indigo-600 underline">Evidence {i + 1}</a>)}
+                                    </div>
+                                )}
                             </div>
+
+                            {/* Turnaround targets (operational goals) */}
+                            {selectedComplaint.tat?.resolveBy && (
+                                <div className="grid grid-cols-3 gap-2 text-[10px]">
+                                    {[
+                                        ['Acknowledge by', selectedComplaint.tat.acknowledgeBy, selectedComplaint.overdue?.acknowledge, selectedComplaint.acknowledgedAt],
+                                        ['Vendor reply by', selectedComplaint.tat.vendorResponseBy, selectedComplaint.overdue?.vendorResponse, selectedComplaint.vendorResponse?.respondedAt],
+                                        ['Resolve by', selectedComplaint.tat.resolveBy, selectedComplaint.overdue?.resolve, selectedComplaint.resolvedAt]
+                                    ].map(([label, due, late, done]) => (
+                                        <div key={label} className={`p-2 rounded-lg ${done ? 'bg-emerald-50 text-emerald-700' : late ? 'bg-rose-50 text-rose-700' : 'bg-slate-50 text-slate-600'}`}>
+                                            <span className="block font-black uppercase tracking-wider text-[8px]">{label}</span>
+                                            {done ? `Done ${fmtWhen(done)}` : fmtWhen(due)}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* The vendor's side */}
+                            {selectedComplaint.vendorId && (
+                                <div className="p-3 bg-indigo-50/60 rounded-xl space-y-1">
+                                    <span className="text-[9px] font-black text-indigo-500 uppercase tracking-wider block">Vendor's response</span>
+                                    {selectedComplaint.vendorResponse?.respondedAt ? (
+                                        <>
+                                            <p className="text-slate-800 leading-relaxed whitespace-pre-line">{selectedComplaint.vendorResponse.statement}</p>
+                                            <p className="text-[10px] text-slate-500">{fmtWhen(selectedComplaint.vendorResponse.respondedAt)}</p>
+                                            {selectedComplaint.vendorResponse.evidence?.map((e, i) => <a key={i} href={e.url} target="_blank" rel="noreferrer" className="mr-2 text-[10px] font-bold text-indigo-600 underline">Vendor evidence {i + 1}</a>)}
+                                        </>
+                                    ) : <p className="text-slate-500">No response yet. The vendor was notified {selectedComplaint.vendorNotifiedAt ? fmtWhen(selectedComplaint.vendorNotifiedAt) : ''}.</p>}
+                                </div>
+                            )}
+
+                            {/* Appeal */}
+                            {selectedComplaint.appeal?.by && (
+                                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+                                    <span className="text-[9px] font-black text-amber-700 uppercase tracking-wider block">Appeal by the {selectedComplaint.appeal.by === 'User' ? 'customer' : 'vendor'}</span>
+                                    <p className="text-slate-800 whitespace-pre-line">{selectedComplaint.appeal.reason}</p>
+                                    {selectedComplaint.appeal.decision ? (
+                                        <p className="text-[11px] text-slate-600">Decided: {selectedComplaint.appeal.decision} · {selectedComplaint.appeal.decisionNote}</p>
+                                    ) : (
+                                        <>
+                                            <textarea rows="2" value={appealNote} onChange={(e) => setAppealNote(e.target.value)} placeholder="Appeal decision (shown to both parties)" className="w-full p-2.5 bg-white border border-amber-200 rounded-xl text-xs outline-none resize-none" />
+                                            <div className="flex gap-2">
+                                                <button type="button" disabled={updating} onClick={() => handleAppealDecision('Upheld')} className="flex-1 py-2 bg-slate-900 text-white font-black rounded-xl text-[10px] uppercase disabled:opacity-50">Uphold decision</button>
+                                                <button type="button" disabled={updating} onClick={() => handleAppealDecision('Overturned')} className="flex-1 py-2 bg-amber-600 text-white font-black rounded-xl text-[10px] uppercase disabled:opacity-50">Overturn</button>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
 
                             <div>
                                 <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider block mb-1">Update Status</label>
@@ -296,7 +387,21 @@ const AdminComplaints = () => {
                             </div>
 
                             <div>
-                                <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider block mb-1">Administrative Notes & Follow-up</label>
+                                <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider block mb-1">
+                                    Decision {['Resolved', 'Dismissed'].includes(modalStatus) ? '(required)' : ''}
+                                </label>
+                                <textarea
+                                    rows="2"
+                                    value={modalOutcome}
+                                    onChange={(e) => setModalOutcome(e.target.value)}
+                                    placeholder="Shown to the customer and the vendor, e.g. The vendor refunded ₹5,000 for the missing lights."
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:border-[#4F35C3] resize-none"
+                                />
+                                <p className="text-[9px] text-slate-400 mt-1">Either side can appeal once within 7 days. A complaint is not a finding against anyone until you decide it.</p>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider block mb-1">Internal notes (not shown to either party)</label>
                                 <textarea
                                     rows="3"
                                     value={modalNotes}

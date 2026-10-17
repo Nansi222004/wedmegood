@@ -152,7 +152,7 @@ const messageSendLimiter = rateLimit({
 app.use([
   '/api/user/auth/login', '/api/user/auth/login-otp', '/api/user/auth/verify-otp',
   '/api/user/auth/verify-email', '/api/user/auth/verify-phone', '/api/user/auth/reset-password',
-  '/api/vendor/login', '/api/vendor/login-otp', '/api/vendor/verify-otp'
+  '/api/vendor/login', '/api/vendor/login-otp', '/api/vendor/verify-otp', '/api/ops/team/login'
 ], credentialLimiter);
 app.use([
   '/api/user/auth/send-otp', '/api/user/auth/resend-otp', '/api/user/auth/forgot-password',
@@ -214,6 +214,9 @@ app.get('/api/categories', cacheResponse(60000, 30), getAllCategories);
 app.get('/api/banners', cacheResponse(30000, 15), require('./modules/user/banner.controller').getPublicBanners);
 app.use('/api/user', userRoutes);
 app.use('/api/vendor', vendorRoutes);
+// Event operations (owner + team members) and the temporary workforce marketplace
+app.use('/api/ops', require('./modules/operations'));
+app.use('/api/work', require('./modules/workforce'));
 app.use('/api/upload', uploadRoutes);
 
 // Chat & Real-Time Messaging Routes
@@ -289,6 +292,15 @@ const startServer = async () => {
   await connectDB();
   await initializeAdmin();
   require('./services/subscription.service').startSubscriptionExpiryJob();
+  // Lead offers: server-side expiry and reassignment, realtime buzzer through the socket server
+  const leadDispatch = require('./services/leadDispatch.service');
+  leadDispatch.setSocketServer(io);
+  leadDispatch.startLeadDispatchJob();
+  // Task deadline escalations, sub-vendor acceptance deadlines, workforce job offers
+  require('./modules/operations/team.controller').startOpsJob();
+  const workforce = require('./services/workforce.service');
+  workforce.setSocketServer(io);
+  workforce.startWorkforceJob();
 
   httpServer.listen(PORT, () => {
     console.log(`🚀 Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);

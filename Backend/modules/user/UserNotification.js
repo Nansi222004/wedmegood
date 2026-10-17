@@ -21,13 +21,13 @@ const userNotificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['booking', 'quote', 'payment', 'planning', 'family', 'review', 'complaint', 'reminder', 'system'],
+    enum: ['booking', 'quote', 'payment', 'planning', 'family', 'review', 'complaint', 'reminder', 'enquiry', 'system'],
     default: 'system',
     index: true
   },
   entityType: {
     type: String,
-    enum: ['Booking', 'Quote', 'Payment', 'Lead', 'Review', 'Complaint', 'FamilyGroup', 'EInvite', 'ChecklistTask', 'TimelineEvent', 'Budget', 'General'],
+    enum: ['Booking', 'Quote', 'Payment', 'Lead', 'Enquiry', 'Review', 'Complaint', 'FamilyGroup', 'EInvite', 'ChecklistTask', 'TimelineEvent', 'Budget', 'General'],
     default: 'General'
   },
   entityId: {

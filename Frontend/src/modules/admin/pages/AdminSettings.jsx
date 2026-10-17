@@ -2,6 +2,21 @@ import { useState, useEffect } from 'react';
 import Icon from '../../../components/ui/Icon';
 import { adminApi } from '../services/adminApi';
 
+// Lead dispatch rules (the 30-second offer, contact deadline, reassignment and spam limits)
+const DISPATCH_FIELDS = [
+    { key: 'leadOfferWindowSeconds', label: 'Offer response window', hint: 'Time a vendor has to accept once the offer reaches their device', unit: 'sec', min: 10, fallback: 30 },
+    { key: 'leadOfferDeliveryGraceSeconds', label: 'Offer delivery wait', hint: 'Extra time before the offer shows on the vendor device', unit: 'sec', min: 0, fallback: 60 },
+    { key: 'leadContactDeadlineHours', label: 'Vendor contact deadline', hint: 'After accepting, the vendor must contact the customer within this time', unit: 'hrs', min: 1, fallback: 12 },
+    { key: 'leadCustomerReassignLimit', label: 'Automatic reassignments', hint: 'Times a customer can ask for another vendor before choosing one', unit: '', min: 0, fallback: 2 },
+    { key: 'leadDetailsRequestHours', label: 'Details request window', hint: 'Time a customer has to add details a vendor asked for', unit: 'hrs', min: 1, fallback: 24 },
+    { key: 'enquiryDailyLimit', label: 'Requirements per customer per day', hint: 'Limits spam and fake enquiries', unit: '', min: 1, fallback: 5 },
+    // Complaint turnaround targets (operational goals, not legal deadlines)
+    { key: 'complaintAckHours', label: 'Complaint: acknowledge within', hint: 'Move new complaints to In-Review by then', unit: 'hrs', min: 1, fallback: 24 },
+    { key: 'complaintVendorResponseHours', label: 'Complaint: vendor replies within', hint: 'Vendor is notified and asked for their side', unit: 'hrs', min: 1, fallback: 48 },
+    { key: 'complaintResolveDays', label: 'Complaint: resolve within', hint: 'Target for a decision', unit: 'days', min: 1, fallback: 7 },
+    { key: 'complaintSafetyResolveDays', label: 'Safety complaint: resolve within', hint: 'Safety complaints are handled first', unit: 'days', min: 1, fallback: 2 }
+];
+
 // Settings as shown in the form (numbers kept as strings while editing)
 const fromApi = (data) => ({
     platformCommissionPercent: data.platformCommissionPercent !== null && data.platformCommissionPercent !== undefined ? data.platformCommissionPercent : '',
@@ -14,6 +29,7 @@ const fromApi = (data) => ({
     fakeVendorFreeViews: data.fakeVendorFreeViews ?? 1,
     fakeVendorAccessPrice: data.fakeVendorAccessPrice ?? 99,
     fakeVendorAccessDays: data.fakeVendorAccessDays ?? 30,
+    ...Object.fromEntries(DISPATCH_FIELDS.map(f => [f.key, data[f.key] ?? f.fallback])),
     commissionConfig: data.commissionConfig || null,
     updatedAt: data.updatedAt || null,
     updatedBy: data.updatedBy || null
@@ -30,7 +46,8 @@ const AdminSettings = () => {
         cancellationNoticeDays: 15,
         fakeVendorFreeViews: 1,
         fakeVendorAccessPrice: 99,
-        fakeVendorAccessDays: 30
+        fakeVendorAccessDays: 30,
+        ...Object.fromEntries(DISPATCH_FIELDS.map(f => [f.key, f.fallback]))
     });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -92,7 +109,8 @@ const AdminSettings = () => {
             cancellationNoticeDays: { min: 0, label: 'Cancellation notice' },
             fakeVendorFreeViews: { min: 0, label: 'Free views' },
             fakeVendorAccessPrice: { min: 1, label: 'Access price' },
-            fakeVendorAccessDays: { min: 1, label: 'Access duration' }
+            fakeVendorAccessDays: { min: 1, label: 'Access duration' },
+            ...Object.fromEntries(DISPATCH_FIELDS.map(f => [f.key, { min: f.min, label: f.label }]))
         };
         for (const [key, rule] of Object.entries(wholeNumbers)) {
             const num = Number(settings[key]);
@@ -112,7 +130,8 @@ const AdminSettings = () => {
             cancellationNoticeDays: Number(settings.cancellationNoticeDays),
             fakeVendorFreeViews: Number(settings.fakeVendorFreeViews),
             fakeVendorAccessPrice: Number(settings.fakeVendorAccessPrice),
-            fakeVendorAccessDays: Number(settings.fakeVendorAccessDays)
+            fakeVendorAccessDays: Number(settings.fakeVendorAccessDays),
+            ...Object.fromEntries(DISPATCH_FIELDS.map(f => [f.key, Number(settings[f.key])]))
         };
 
         try {
@@ -283,6 +302,40 @@ const AdminSettings = () => {
                                 <div className={`w-4 h-4 rounded-full bg-white transition-transform absolute top-1 ${settings.autoPayouts ? 'right-1' : 'left-1'}`} />
                             </button>
                         </div>
+                    </div>
+                </div>
+
+                {/* Lead dispatch */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5 lg:col-span-2">
+                    <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
+                            <Icon name="leads" size="xs" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Lead Dispatch & Complaint Targets</h3>
+                            <p className="text-[10px] text-slate-400 font-medium">How requirements are offered to vendors, and how fast complaints are handled</p>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-10 gap-y-5 pt-2">
+                        {DISPATCH_FIELDS.map(f => (
+                            <div key={f.key} className="flex items-center justify-between gap-4">
+                                <div>
+                                    <span className="text-xs font-bold text-slate-700 block">{f.label}</span>
+                                    <span className="text-[10px] text-slate-400">{f.hint}</span>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                    <input
+                                        type="number"
+                                        min={f.min}
+                                        step="1"
+                                        value={settings[f.key]}
+                                        onChange={(e) => setSettings({ ...settings, [f.key]: e.target.value })}
+                                        className="w-24 h-9 text-right px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-900 outline-none focus:border-[#4F35C3]"
+                                    />
+                                    {f.unit && <span className="text-xs font-bold text-slate-500 w-6">{f.unit}</span>}
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
 
