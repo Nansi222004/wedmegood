@@ -402,6 +402,7 @@ exports.acceptQuote = async (req, res, next) => {
                 advancePaymentPercent: quote.advancePaymentPercent || 0,
                 milestonePaymentTerms: quote.milestonePaymentTerms,
                 cancellationTerms: quote.cancellationTerms,
+                cancellationAllowed: quote.cancellationAllowed !== false,
                 notes: quote.notes,
                 terms: quote.terms,
                 acceptedAt: new Date()
@@ -467,6 +468,10 @@ exports.acceptQuote = async (req, res, next) => {
                 paymentStatus: 'Pending',
                 quoteSnapshot,
                 advancePaymentRequired: advanceReq,
+                // Advance due within 7 days of the quotation; until the vendor confirms receipt the
+                // booking is pending and lapses after this date
+                advanceDueBy: new Date(new Date(quote.sentAt || quote.createdAt).getTime() + 7 * 24 * 60 * 60 * 1000),
+                cancellationAllowed: quote.cancellationAllowed !== false,
                 // The accept screen asks the user to agree to the terms, including the cancellation policy
                 termsAcceptedAt: req.body?.acceptTerms ? new Date() : undefined
             }], { session });
@@ -798,29 +803,3 @@ exports.requestRevision = async (req, res, next) => {
     }
 };
 
-// @desc    Read-only quotation for a shared link (no login). Never includes the customer's contact.
-// @route   GET /api/public/quotes/:token
-// @access  Public
-exports.getSharedQuote = async (req, res, next) => {
-    try {
-        const token = String(req.params.token || '');
-        if (!/^[A-Za-z0-9_-]{16,40}$/.test(token)) return res.status(404).json({ success: false, message: 'Quotation not found' });
-        const quote = await Quote.findOne({ shareToken: token })
-            .populate('vendorId', 'businessName city profileImage')
-            .populate('leadId', 'eventDate eventType category city eventLocation guestCount')
-            .lean();
-        if (!quote || ['Draft', 'Cancelled'].includes(quote.status)) return res.status(404).json({ success: false, message: 'Quotation not found' });
-        const pick = ({ quotationNumber, version, items, subtotal, optionalExtrasTotal, discountAmount, discountPercent, taxRatePercent, taxAmount, totalAmount, advancePaymentAmount, milestonePaymentTerms, status, validUntil, sentAt, notes, terms, cancellationTerms, scopeIncluded, exclusions, customerResponsibilities, setupTime, dismantleTime, overtimeCharges, referencePhotos, supersededBy }) => ({ quotationNumber, version, items, subtotal, optionalExtrasTotal, discountAmount, discountPercent, taxRatePercent, taxAmount, totalAmount, advancePaymentAmount, milestonePaymentTerms, status, validUntil, sentAt, notes, terms, cancellationTerms, scopeIncluded, exclusions, customerResponsibilities, setupTime, dismantleTime, overtimeCharges, referencePhotos, superseded: Boolean(supersededBy) });
-        res.set('Cache-Control', 'no-store');
-        res.status(200).json({
-            success: true,
-            data: {
-                ...pick(quote),
-                vendor: quote.vendorId ? { businessName: quote.vendorId.businessName, city: quote.vendorId.city, profileImage: quote.vendorId.profileImage } : null,
-                event: quote.leadId ? { date: quote.leadId.eventDate, type: quote.leadId.eventType, service: quote.leadId.category, city: quote.leadId.city || quote.leadId.eventLocation, guests: quote.leadId.guestCount } : null
-            }
-        });
-    } catch (err) {
-        next(err);
-    }
-};

@@ -1,7 +1,7 @@
 import { createCachedFetch } from '../../../services/cachedFetch';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://wedmegood-u0n7.onrender.com/api';
-const ADMIN_LIVE_ONLY = /\/(financial|payments|withdrawals|logs|audit-logs|tickets|chat-reports|complaints|stats|analytics|dashboard|leads|quotes|bookings|enquiries|lead-distribution|lead-reports|workforce)(\/|\?|$)/;
+const ADMIN_LIVE_ONLY = /\/(financial|payments|withdrawals|logs|audit-logs|tickets|chat-reports|complaints|customer-reports|stats|analytics|dashboard|leads|quotes|bookings|enquiries|lead-distribution|lead-reports|workforce)(\/|\?|$)/;
 
 const API_URL = `${API_BASE_URL}/admin`;
 
@@ -551,6 +551,20 @@ export const adminApi = {
         const query = new URLSearchParams(params).toString();
         const res = await apiFetch(`${API_URL}/complaints${query ? `?${query}` : ''}`, {
             headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return await res.json();
+    },
+
+    getCustomerReports: async (token, status = '') => {
+        const res = await apiFetch(`${API_URL}/customer-reports${status ? `?status=${status}` : ''}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        return await res.json();
+    },
+
+    decideCustomerReport: async (id, data, token) => {
+        const res = await apiFetch(`${API_URL}/customer-reports/${id}/decide`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(data)
         });
         return await res.json();
     },

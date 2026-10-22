@@ -663,9 +663,27 @@ exports.getLeads = async (req, res, next) => {
             .populate('userId', 'name email phone city profileImage weddingDate')
             .sort('-createdAt');
 
+        // Confirmed behaviour reports from other vendors, one batch for all customers on the page
+        const CustomerReport = require('./CustomerReport');
+        const userIds = [...new Set(leads.map(l => String(l.userId?._id || l.userId || '')).filter(Boolean))];
+        const conduct = userIds.length ? await CustomerReport.aggregate([
+            { $match: { userId: { $in: userIds.map(id => new mongoose.Types.ObjectId(id)) }, status: 'Confirmed' } },
+            { $group: { _id: '$userId', reports: { $sum: 1 }, vendors: { $addToSet: '$vendorId' }, issues: { $push: '$issues' } } }
+        ]) : [];
+        const conductByUser = new Map(conduct.map(c => {
+            const counts = {};
+            for (const i of c.issues.flat()) counts[i] = (counts[i] || 0) + 1;
+            const topIssue = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+            return [String(c._id), { reports: c.reports, vendors: c.vendors.length, topIssue }];
+        }));
+
         res.status(200).json({
             success: true,
-            data: leads.map(sanitizeLeadForVendor)
+            data: leads.map(l => {
+                const out = sanitizeLeadForVendor(l);
+                const summary = conductByUser.get(String(l.userId?._id || l.userId || ''));
+                return summary ? { ...out, customerConduct: summary } : out;
+            })
         });
     } catch (err) {
         next(err);
@@ -947,6 +965,12 @@ exports.updateBookingStatus = async (req, res, next) => {
                 return res.status(400).json({
                     success: false,
                     message: 'Only a pending booking can be confirmed'
+                });
+            }
+            if (booking.advanceDueBy && new Date(booking.advanceDueBy) < new Date()) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'The 7-day window for the advance has passed. Share a new quotation with the customer.'
                 });
             }
 
@@ -1705,18 +1729,17 @@ const quoteDetails = (body = {}, current = {}) => {
         overtimeCharges: text('overtimeCharges', 500),
         referencePhotos: Array.isArray(body.referencePhotos)
             ? body.referencePhotos.filter(u => /^https?:\/\//.test(u)).slice(0, 10)
-            : (current.referencePhotos || [])
+            : (current.referencePhotos || []),
+        cancellationAllowed: body.cancellationAllowed !== undefined
+            ? Boolean(body.cancellationAllowed)
+            : current.cancellationAllowed !== false
     };
 };
 
-// Quotations are valid for at most 7 days: prices vary day to day, so after that a new one is shared.
-const QUOTE_MAX_VALID_DAYS = 7;
-const quoteValidUntil = (requested) => {
-    const max = new Date(Date.now() + QUOTE_MAX_VALID_DAYS * 24 * 60 * 60 * 1000);
-    const date = requested ? new Date(requested) : null;
-    if (!date || isNaN(date.getTime()) || date <= new Date() || date > max) return max;
-    return date;
-};
+// A quotation is valid for 7 days from when it is sent: the customer accepts it and pays the
+// advance within that time. Prices vary day to day, so after that a new quotation is shared.
+const QUOTE_VALID_DAYS = 7;
+const quoteValidUntil = () => new Date(Date.now() + QUOTE_VALID_DAYS * 24 * 60 * 60 * 1000);
 
 // Tell the customer a quotation has arrived (in-app + push). Best effort, never blocks the vendor.
 const notifyUserQuoteSent = async (quote, vendor) => {
@@ -1961,7 +1984,10 @@ exports.createQuote = async (req, res, next) => {
             terms: pricing.terms,
             cancellationTerms: pricing.cancellationTerms,
             optionalExtrasTotal: pricing.optionalExtrasTotal,
-            ...quoteDetails(req.body, {}),
+            // Fresh read: the cached req.vendor may predate a change to the vendor's default
+            ...quoteDetails(req.body, {
+                cancellationAllowed: (await Vendor.findById(vendorId).select('cancellationPolicyEnabled').lean())?.cancellationPolicyEnabled !== false
+            }),
             status: initialStatus,
             sentAt: initialStatus === 'Sent' ? new Date() : null
         });

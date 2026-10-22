@@ -29,7 +29,7 @@ async function getPublicSettings() {
 const DISPATCH_DEFAULTS = {
     leadOfferWindowSeconds: 30,
     leadOfferDeliveryGraceSeconds: 60,
-    leadContactDeadlineHours: 12,
+    leadContactDeadlineHours: 1,
     leadCustomerReassignLimit: 2,
     leadDetailsRequestHours: 24,
     enquiryDailyLimit: 5

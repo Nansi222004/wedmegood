@@ -154,6 +154,9 @@ router.delete('/reviews/:id', deleteReview);
 router.get('/complaints', getAllComplaints);
 router.put('/complaints/:id/status', updateComplaintStatus);
 router.post('/complaints/:id/appeal-decision', require('./adminController').decideComplaintAppeal);
+const customerReportsAdmin = require('../vendor/customerReport.controller');
+router.get('/customer-reports', customerReportsAdmin.adminList);
+router.post('/customer-reports/:id/decide', customerReportsAdmin.adminDecide);
 
 // Admin Chat Report Moderation
 router.get('/chat-reports', getChatReports);

@@ -197,6 +197,8 @@ const vendorSchema = new mongoose.Schema({
         // Hold automatic and team-sent customer updates until the owner approves them
         reviewCustomerUpdates: { type: Boolean, default: false }
     },
+    // Default for new quotations; the vendor can switch it per quotation (for example on peak days)
+    cancellationPolicyEnabled: { type: Boolean, default: true },
     subscription: {
         planId: String,
         planName: String,

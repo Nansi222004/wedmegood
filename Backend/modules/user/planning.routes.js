@@ -130,6 +130,10 @@ router.post('/complaints', complaintController.createComplaint);
 router.get('/complaints', complaintController.getUserComplaints);
 router.get('/complaints/:id', complaintController.getComplaintById);
 router.post('/complaints/:id/appeal', complaintController.appealComplaint);
+// Vendors' reports about this customer: see them and give your side
+const conductReports = require('../vendor/customerReport.controller');
+router.get('/conduct-reports', conductReports.reportsAboutMe);
+router.post('/conduct-reports/:id/respond', conductReports.respondAsCustomer);
 
 // 10b. Fake vendors list (admin-confirmed): free views, then paid access
 const fakeVendorController = require('./fakeVendor.controller');

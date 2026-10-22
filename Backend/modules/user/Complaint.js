@@ -27,6 +27,12 @@ const complaintSchema = new mongoose.Schema({
     ref: 'Booking',
     default: null
   },
+  // How the vendor behaved, as rated by the customer (Good / Acceptable / Poor / Very poor)
+  conduct: {
+    behaviour: { type: String, default: null },     // respect and behaviour
+    approach: { type: String, default: null },      // way of approach
+    communication: { type: String, default: null }  // way of communication
+  },
   category: {
     type: String,
     required: [true, 'Complaint category is required'],

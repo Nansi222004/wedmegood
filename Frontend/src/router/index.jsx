@@ -67,7 +67,6 @@ const EInvites = lazy(() => import('../modules/user/invites/EInvites'));
 const EditInvite = lazy(() => import('../modules/user/invites/EditInvite'));
 const PreviewInvite = lazy(() => import('../modules/user/invites/PreviewInvite'));
 const PublicInvite = lazy(() => import('../modules/user/invites/PublicInvite'));
-const SharedQuote = lazy(() => import('../modules/common/SharedQuote'));
 const Photographers = lazy(() => import('../modules/user/photographers/Photographers'));
 const PhotographerDetail = lazy(() => import('../modules/user/photographers/PhotographerDetail'));
 const PhotographerCollection = lazy(() => import('../modules/user/photographers/PhotographerCollection'));
@@ -170,8 +169,6 @@ const AppRouter = () => {
       {/* Public Digital Wedding Invitation Route (No Auth Required) */}
       <Route path="/invite/:slug" element={<PublicInvite />} />
 
-      {/* A vendor's read-only quotation share link */}
-      <Route path="/q/:token" element={<SharedQuote />} />
 
       {/* Public Family Group Invitation Route (No Auth Required for Preview) */}
       <Route path="/family/join/:token" element={<JoinFamilyGroup />} />

@@ -367,6 +367,16 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
               <span>Advance Required: ₹{advanceAmount.toLocaleString('en-IN')} (pay directly to the vendor)</span>
             </div>
           )}
+
+          {['Sent', 'Pending'].includes(quote?.status) && (
+            <div className="rounded-xl p-3 text-[11px] leading-relaxed border border-dashed border-[#E91E63]/40 bg-[#FFF5F8] text-[#7A1B3A]">
+              <span className="font-bold">Note: </span>
+              Accept and pay the advance within 7 days of the quotation date
+              {quote?.validUntil ? `, by ${new Date(quote.validUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}.
+              After that a new quotation will be shared; the price may stay the same or change, because market prices are not the same every day.
+              {quote?.cancellationAllowed === false && <span className="block mt-1 font-bold">No cancellation for this booking: if you cancel, the full amount is payable.</span>}
+            </div>
+          )}
         </div>
 
         {/* Package Details Section */}
@@ -836,7 +846,9 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
 
                     {isCancelled && booking.lateCancellation && (
                       <div className="mt-3 p-3 rounded-xl bg-red-50 border border-red-100 text-[11px] text-red-700 font-semibold leading-relaxed">
-                        Cancelled less than {cancellationNoticeDays} days before the event. As per the cancellation policy, the full amount of ₹{totalAmount.toLocaleString('en-IN')} is payable to the vendor.
+                        {booking.cancellationAllowed === false
+                          ? <>This booking had no cancellation option. The full amount of ₹{totalAmount.toLocaleString('en-IN')} is payable to the vendor.</>
+                          : <>Cancelled less than {cancellationNoticeDays} days before the event. As per the cancellation policy, the full amount of ₹{totalAmount.toLocaleString('en-IN')} is payable to the vendor.</>}
                       </div>
                     )}
 
@@ -951,7 +963,12 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
             <div className="rounded-xl border border-[#F2E5EC] bg-[#FFF8F8] p-3.5 mb-4 space-y-2">
               <p className="text-[10px] font-black uppercase tracking-wider text-[#551E43]">Cancellation Policy</p>
               <p className="text-[11px] text-[#5C4A57] leading-relaxed">
-                A booking must be cancelled at least {cancellationNoticeDays} days before the event. If you cancel later than that, the full booking amount is payable to the vendor.
+                {quoteToAccept.cancellationAllowed === false
+                  ? 'No cancellation for this booking: the vendor has switched cancellation off (for example on a peak date). If you cancel at any time, the full booking amount is payable to the vendor.'
+                  : `A booking must be cancelled at least ${cancellationNoticeDays} days before the event. If you cancel later than that, the full booking amount is payable to the vendor.`}
+              </p>
+              <p className="text-[11px] text-[#5C4A57] leading-relaxed">
+                Pay the advance to the vendor within 7 days of the quotation date. If the vendor has not confirmed your advance by then, the booking lapses and a new quotation is shared; the price may change.
               </p>
               <label className="flex items-start gap-2 pt-1 cursor-pointer">
                 <input
@@ -1022,7 +1039,16 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
             {(() => {
               const daysLeft = daysUntilEvent(bookingToCancel.eventDate);
               const total = Number(bookingToCancel.packageTotal ?? bookingToCancel.totalPrice ?? 0);
-              const isLate = daysLeft !== null && daysLeft < cancellationNoticeDays;
+              const noCancellation = bookingToCancel.cancellationAllowed === false;
+              const isLate = noCancellation || (daysLeft !== null && daysLeft < cancellationNoticeDays);
+              if (noCancellation) {
+                return (
+                  <div className="mb-3 p-3 rounded-xl bg-red-50 border border-red-200 text-[11px] text-red-700 leading-relaxed">
+                    <strong className="block mb-0.5">This booking has no cancellation option.</strong>
+                    The vendor switched cancellation off for this booking. If you cancel, the full amount of ₹{total.toLocaleString('en-IN')} is payable to the vendor.
+                  </div>
+                );
+              }
               return isLate ? (
                 <div className="mb-3 p-3 rounded-xl bg-red-50 border border-red-200 text-[11px] text-red-700 leading-relaxed">
                   <strong className="block mb-0.5">Your event is {daysLeft <= 0 ? 'today or has passed' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} away`}.</strong>
@@ -1161,7 +1187,9 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
 
             {selectedBookingDetail.status !== 'Cancelled' && selectedBookingDetail.status !== 'Completed' && (
               <p className="text-[11px] text-[#7A6876] leading-relaxed">
-                Cancellation policy: cancel at least {cancellationNoticeDays} days before the event, otherwise the full booking amount is payable to the vendor.
+                {selectedBookingDetail.cancellationAllowed === false
+                  ? 'No cancellation for this booking: if you cancel, the full booking amount is payable to the vendor.'
+                  : `Cancellation policy: cancel at least ${cancellationNoticeDays} days before the event, otherwise the full booking amount is payable to the vendor.`}
               </p>
             )}
 

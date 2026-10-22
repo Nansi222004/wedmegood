@@ -46,37 +46,23 @@ exports.appealComplaint = async (req, res, next) => {
 exports.createComplaint = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { vendorId, bookingId, category, description, evidence, externalVendor } = req.body;
+    const { vendorId, bookingId, category, description, evidence, conduct } = req.body;
 
-    // Either a vendor registered on the app, or one from the market identified by name and phone
-    let cleanExternalVendor = null;
-    if (vendorId) {
-      if (!mongoose.Types.ObjectId.isValid(vendorId)) {
-        return res.status(400).json({ success: false, message: 'Valid vendorId is required' });
-      }
-      const vendor = await Vendor.findById(vendorId);
-      if (!vendor) {
-        return res.status(404).json({ success: false, message: 'Vendor not found' });
-      }
-    } else {
-      const ext = externalVendor && typeof externalVendor === 'object' ? externalVendor : {};
-      const field = (key, max) => (typeof ext[key] === 'string' ? ext[key].trim().slice(0, max) : '');
-      cleanExternalVendor = {
-        name: field('name', 120),
-        businessName: field('businessName', 120),
-        phone: field('phone', 20),
-        city: field('city', 80),
-        category: field('category', 80)
-      };
-      if (!cleanExternalVendor.name || !/^[0-9+\-\s]{8,20}$/.test(cleanExternalVendor.phone)) {
-        return res.status(400).json({
-          success: false,
-          message: "Please provide the vendor's name and a valid phone number"
-        });
-      }
-      if (bookingId) {
-        return res.status(400).json({ success: false, message: 'A booking can only be linked to a vendor on the app' });
-      }
+    // Only vendors registered on Utsavo can be reported
+    if (!vendorId) {
+      return res.status(400).json({ success: false, message: 'Choose the vendor on Utsavo you want to report' });
+    }
+    const { cleanConduct } = require('../../utils/conduct');
+    const cleanedConduct = conduct === undefined ? null : cleanConduct(conduct, ['behaviour', 'approach', 'communication']);
+    if (conduct !== undefined && !cleanedConduct) {
+      return res.status(400).json({ success: false, message: 'Rate the vendor\'s behaviour, approach and communication' });
+    }
+    if (!mongoose.Types.ObjectId.isValid(vendorId)) {
+      return res.status(400).json({ success: false, message: 'Valid vendorId is required' });
+    }
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
     }
 
     // Security check on bookingId:
@@ -131,11 +117,11 @@ exports.createComplaint = async (req, res) => {
     const complaint = await Complaint.create({
       userId,
       vendorId: vendorId || null,
-      externalVendor: cleanExternalVendor || undefined,
       bookingId: verifiedBookingId,
       category,
       description: description.trim(),
       evidence: sanitizedEvidence,
+      ...(cleanedConduct ? { conduct: cleanedConduct } : {}),
       status: 'Pending',
       tat: await targetsFor(category)
     });

@@ -59,7 +59,24 @@ const DETAIL_SECTIONS = [
   ['overtimeCharges', 'Overtime charges']
 ];
 
-const QuotationDocument = ({ quote, quoteNum }) => {
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Faint diagonal text repeated across the sheet (pointer-events off so nothing underneath is blocked) */
+const Watermark = ({ text, className }) => (
+  <div aria-hidden="true" className={`pointer-events-none absolute inset-0 overflow-hidden select-none ${className}`}>
+    <div className="absolute -inset-1/2 flex flex-wrap content-start gap-x-16 gap-y-20 -rotate-[24deg]">
+      {Array.from({ length: 60 }, (_, i) => (
+        <span key={i} className="whitespace-nowrap">{text}</span>
+      ))}
+    </div>
+  </div>
+);
+
+/**
+ * `viewerMark` (customer view only): the viewer's name and phone, repeated faintly so a screenshot
+ * can be traced back to who took it.
+ */
+const QuotationDocument = ({ quote, quoteNum, viewerMark }) => {
   const vendor = quote.vendorId || {};
   const lead = quote.leadId || {};
   const customer = quote.userId || {};
@@ -75,9 +92,19 @@ const QuotationDocument = ({ quote, quoteNum }) => {
   const totalAmount = Number(quote.totalAmount || 0);
   const advanceAmount = Number(quote.advancePaymentAmount || 0);
   const remainingBalance = Math.max(0, totalAmount - advanceAmount);
+  // Accept and pay the advance within 7 days of the quotation; after that a new quotation is shared
+  const issuedAt = quote.sentAt || quote.createdAt;
+  const payBy = quote.validUntil || (issuedAt ? new Date(new Date(issuedAt).getTime() + 7 * DAY_MS) : null);
+  const payByText = fmtDate(payBy, { day: 'numeric', month: 'short', year: 'numeric' });
+  const noCancellation = quote.cancellationAllowed === false;
 
   return (
-    <>
+    <div className="relative space-y-6">
+      <Watermark
+        className="text-[22px] font-black uppercase text-[#E91E63]/[0.06] print:text-[#E91E63]/10"
+        text={`Note · Accept & pay advance within 7 days${payByText ? ` (by ${payByText})` : ''} · New quotation after that`}
+      />
+      {viewerMark && <Watermark className="text-[11px] font-semibold text-slate-900/[0.07]" text={viewerMark} />}
       {/* Document Header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-slate-200">
         <div>
@@ -99,6 +126,12 @@ const QuotationDocument = ({ quote, quoteNum }) => {
           <p className="text-xs text-slate-500">Date: {fmtDate(quote.createdAt) || 'N/A'}</p>
           <p className="text-xs text-slate-500">Valid Until: {fmtDate(quote.validUntil) || '7 Days'}</p>
         </div>
+      </div>
+
+      <div className="relative p-3 rounded-2xl border border-dashed border-[#E91E63]/40 bg-[#FFF5F8]/80 text-xs text-[#7A1B3A]">
+        <span className="font-bold">Note: </span>
+        Accept this quotation and pay the advance within 7 days of the quotation date{payByText ? <>, that is by <b>{payByText}</b></> : ''}.
+        After that a new quotation will be shared; the price may stay the same or change, because market prices are not the same every day.
       </div>
 
       {/* Client & Event Context */}
@@ -170,12 +203,19 @@ const QuotationDocument = ({ quote, quoteNum }) => {
             <p className="text-slate-700 leading-relaxed">{quote.terms || 'Advance booking deposit required to lock dates. Balance payable upon milestone completion.'}</p>
           </div>
 
-          {quote.cancellationTerms && (
-            <div className="pt-2 border-t border-slate-100">
-              <span className="font-bold uppercase tracking-wider text-slate-400 text-[10px] block mb-1">Cancellation Policy</span>
-              <p className="text-slate-600 text-[11px] leading-relaxed">{quote.cancellationTerms}</p>
-            </div>
-          )}
+          <div className="pt-2 border-t border-slate-100">
+            <span className="font-bold uppercase tracking-wider text-slate-400 text-[10px] block mb-1">Cancellation Policy</span>
+            {noCancellation ? (
+              <p className="text-[11px] leading-relaxed font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                No cancellation for this booking. The vendor has switched cancellation off (for example on a peak date). If you cancel, the full amount is payable.
+              </p>
+            ) : (
+              <p className="text-slate-600 text-[11px] leading-relaxed">
+                <span className="font-semibold text-emerald-700">Cancellation allowed. </span>
+                {quote.cancellationTerms || 'As per the cancellation policy accepted with this quotation.'}
+              </p>
+            )}
+          </div>
 
           {/* Milestone Terms */}
           {Array.isArray(quote.milestonePaymentTerms) && quote.milestonePaymentTerms.length > 0 && (
@@ -268,7 +308,7 @@ const QuotationDocument = ({ quote, quoteNum }) => {
           ) : null}
         </div>
       </div>
-    </>
+    </div>
   );
 };
 

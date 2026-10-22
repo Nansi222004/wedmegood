@@ -54,8 +54,8 @@ const quoteSchema = new mongoose.Schema({
     dismantleTime: { type: String, default: '' },
     overtimeCharges: { type: String, default: '' },
     referencePhotos: [{ type: String }],
-    // Read-only link the vendor can share; never exposes the customer's contact
-    shareToken: { type: String, index: true, sparse: true },
+    // Off on peak days when the vendor offers no cancellation; shown to the customer before accepting
+    cancellationAllowed: { type: Boolean, default: true },
     revisionRequest: {
         note: { type: String, default: '' },
         requestedAt: { type: Date, default: null }
@@ -151,9 +151,6 @@ const quoteSchema = new mongoose.Schema({
 
 // Auto-generate unique quotation number before save if not present
 quoteSchema.pre('save', function (next) {
-    if (!this.shareToken) {
-        this.shareToken = require('crypto').randomBytes(18).toString('base64url');
-    }
     if (!this.quotationNumber) {
         const now = new Date();
         const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;

@@ -171,6 +171,7 @@ const VendorSettings = () => {
                     {[
                         { id: 'account', label: 'Profile', icon: 'account', desc: 'Business & Contact' },
                         { id: 'notifications', label: 'Alerts', icon: 'bell', desc: 'Notification settings' },
+                        { id: 'bookings', label: 'Bookings', icon: 'calendar', desc: 'Cancellation policy' },
                         { id: 'security', label: 'Security', icon: 'lock', desc: 'Password & Auth' }
                     ].map(tab => (
                         <button
@@ -310,6 +311,35 @@ const VendorSettings = () => {
                                         </button>
                                     </div>
                                 ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'bookings' && (
+                        <div className="space-y-4">
+                            <h3 className="text-[12px] font-semibold text-slate-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <div className="h-1.5 w-1.5 rounded-full bg-[#7c3aed]" />
+                                Cancellation Policy
+                            </h3>
+                            <div className="px-3.5 py-3 rounded-xl bg-slate-50 border border-transparent flex items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-[11px] font-semibold text-slate-800">Allow cancellation on new quotations</p>
+                                    <p className="text-[9px] font-medium text-slate-400 mt-0.5">
+                                        Turn off during peak demand when you cannot release a date. You can still change it on each quotation. Customers see whether cancellation is allowed before accepting.
+                                    </p>
+                                </div>
+                                <button
+                                    disabled={isSaving}
+                                    onClick={() => handleUpdate({ cancellationPolicyEnabled: vendorState.cancellationPolicyEnabled === false })}
+                                    className={`w-10 h-5 rounded-full relative transition-all duration-400 flex-shrink-0 ${
+                                        vendorState.cancellationPolicyEnabled !== false ? 'bg-[#7c3aed]' : 'bg-slate-200'
+                                    }`}
+                                    aria-label="Allow cancellation on new quotations"
+                                >
+                                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all duration-400 shadow-sm ${
+                                        vendorState.cancellationPolicyEnabled !== false ? 'left-5.5' : 'left-0.5'
+                                    }`} />
+                                </button>
                             </div>
                         </div>
                     )}

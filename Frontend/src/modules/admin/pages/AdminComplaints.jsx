@@ -316,6 +316,15 @@ const AdminComplaints = () => {
                             <div className="p-3 bg-slate-50 rounded-xl space-y-1">
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Grievance Description</span>
                                 <p className="text-slate-800 leading-relaxed">{selectedComplaint.description || 'No detailed description provided.'}</p>
+                                {selectedComplaint.conduct?.behaviour && (
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                        {[['behaviour', 'Respect & behaviour'], ['approach', 'Approach'], ['communication', 'Communication']].map(([key, label]) => (
+                                            <span key={key} className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${['Poor', 'Very poor'].includes(selectedComplaint.conduct[key]) ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-600'}`}>
+                                                {label}: {selectedComplaint.conduct[key]}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
                                 {selectedComplaint.evidence?.length > 0 && (
                                     <div className="flex flex-wrap gap-1.5 pt-1">
                                         {selectedComplaint.evidence.map((e, i) => <a key={i} href={e.url} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-indigo-600 underline">Evidence {i + 1}</a>)}

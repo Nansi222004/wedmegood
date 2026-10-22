@@ -9,13 +9,16 @@ import { getFriendlyErrorMessage } from '../../../utils/errorHandler';
 
 const COMPLAINT_CATEGORIES = ['Overcharging', 'No-Show', 'Cancellation', 'Quality', 'Behavior', 'Safety', 'Other'];
 
+const CONDUCT_LEVELS = ['Good', 'Acceptable', 'Poor', 'Very poor'];
+const CONDUCT_ASPECTS = [
+  ['behaviour', 'Respect and behaviour'],
+  ['approach', 'Way of approach'],
+  ['communication', 'Way of communication']
+];
+
 const EMPTY_REPORT = {
-  name: '',
-  businessName: '',
-  phone: '',
-  city: '',
-  category: '',
   complaintCategory: 'Other',
+  conduct: { behaviour: '', approach: '', communication: '' },
   description: ''
 };
 
@@ -48,6 +51,21 @@ const FakeVendors = () => {
   const [showReport, setShowReport] = useState(false);
   const [report, setReport] = useState(EMPTY_REPORT);
   const [submittingReport, setSubmittingReport] = useState(false);
+  // Only vendors registered on Utsavo can be reported: pick one by name
+  const [vendorQuery, setVendorQuery] = useState('');
+  const [vendorOptions, setVendorOptions] = useState([]);
+  const [reportVendor, setReportVendor] = useState(null);
+
+  useEffect(() => {
+    const q = vendorQuery.trim();
+    if (!showReport || reportVendor || q.length < 2) return undefined;
+    const timer = setTimeout(() => {
+      userApi.getVendors({ search: q, limit: 8 })
+        .then(res => setVendorOptions(res.data || []))
+        .catch(() => setVendorOptions([]));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [vendorQuery, showReport, reportVendor]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 350);
@@ -135,8 +153,12 @@ const FakeVendors = () => {
 
   const handleSubmitReport = async (e) => {
     e.preventDefault();
-    if (!report.name.trim() || !report.phone.trim()) {
-      toast.warning("Please enter the vendor's name and phone number.");
+    if (!reportVendor) {
+      toast.warning('Choose the vendor on Utsavo you want to report.');
+      return;
+    }
+    if (CONDUCT_ASPECTS.some(([key]) => !report.conduct[key])) {
+      toast.warning("Rate the vendor's behaviour, approach and communication.");
       return;
     }
     if (report.description.trim().length < 10) {
@@ -146,24 +168,26 @@ const FakeVendors = () => {
     setSubmittingReport(true);
     try {
       await userApi.createComplaint({
+        vendorId: reportVendor._id,
         category: report.complaintCategory,
-        description: report.description.trim(),
-        externalVendor: {
-          name: report.name.trim(),
-          businessName: report.businessName.trim(),
-          phone: report.phone.trim(),
-          city: report.city.trim(),
-          category: report.category.trim()
-        }
+        conduct: report.conduct,
+        description: report.description.trim()
       });
       toast.success('Thank you. Our team will review your report.');
-      setShowReport(false);
-      setReport(EMPTY_REPORT);
+      closeReport();
     } catch (err) {
       toast.error(getFriendlyErrorMessage(err, 'Could not submit your report.'));
     } finally {
       setSubmittingReport(false);
     }
+  };
+
+  const closeReport = () => {
+    setShowReport(false);
+    setReport(EMPTY_REPORT);
+    setReportVendor(null);
+    setVendorQuery('');
+    setVendorOptions([]);
   };
 
   const accessNote = access?.hasPaidAccess
@@ -306,7 +330,7 @@ const FakeVendors = () => {
         </>
       )}
 
-      {/* Report a fake vendor (works for vendors not on the app) */}
+      {/* Report a fake vendor (vendors registered on Utsavo only) */}
       {showReport && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <form
@@ -316,11 +340,11 @@ const FakeVendors = () => {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-base font-bold text-[#2E1026]">Report a Fake Vendor</h3>
-                <p className="text-xs text-[#7A6876] mt-0.5">Our team reviews every report before listing a vendor.</p>
+                <p className="text-xs text-[#7A6876] mt-0.5">Only vendors on Utsavo can be reported. Our team reviews every report before listing a vendor.</p>
               </div>
               <button
                 type="button"
-                onClick={() => setShowReport(false)}
+                onClick={closeReport}
                 className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center shrink-0 cursor-pointer"
                 aria-label="Close"
               >
@@ -328,13 +352,52 @@ const FakeVendors = () => {
               </button>
             </div>
 
-            <input className={inputClass} placeholder="Vendor's name *" value={report.name} onChange={(e) => handleReportChange('name', e.target.value)} maxLength={120} />
-            <input className={inputClass} placeholder="Business name" value={report.businessName} onChange={(e) => handleReportChange('businessName', e.target.value)} maxLength={120} />
-            <input className={inputClass} placeholder="Phone number *" type="tel" value={report.phone} onChange={(e) => handleReportChange('phone', e.target.value)} maxLength={20} />
-            <div className="grid grid-cols-2 gap-2">
-              <input className={inputClass} placeholder="City" value={report.city} onChange={(e) => handleReportChange('city', e.target.value)} maxLength={80} />
-              <input className={inputClass} placeholder="Service (e.g. DJ)" value={report.category} onChange={(e) => handleReportChange('category', e.target.value)} maxLength={80} />
+            {reportVendor ? (
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#FAF6F0] border border-[#EDE3D6]">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-[#2E1026] truncate">{reportVendor.businessName || reportVendor.fullName}</p>
+                  <p className="text-[11px] text-[#7A6876] truncate">{[reportVendor.category, reportVendor.city].filter(Boolean).join(' · ')}</p>
+                </div>
+                <button type="button" onClick={() => { setReportVendor(null); setVendorOptions([]); }} className="text-xs font-bold text-[#551E43] underline shrink-0 cursor-pointer">Change</button>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <input className={inputClass} placeholder="Search the vendor on Utsavo by name *" value={vendorQuery} onChange={(e) => setVendorQuery(e.target.value)} maxLength={80} />
+                {vendorQuery.trim().length >= 2 && (
+                  <div className="max-h-44 overflow-y-auto rounded-xl border border-slate-100 divide-y divide-slate-50">
+                    {vendorOptions.length === 0 ? (
+                      <p className="text-[11px] text-[#7A6876] p-2.5">No vendor on Utsavo matches. Only vendors registered on the app can be reported.</p>
+                    ) : vendorOptions.map(v => (
+                      <button key={v._id} type="button" onClick={() => setReportVendor(v)} className="w-full text-left p-2.5 hover:bg-[#FAF6F0] cursor-pointer">
+                        <span className="block text-xs font-bold text-[#2E1026]">{v.businessName || v.fullName}</span>
+                        <span className="block text-[10px] text-[#7A6876]">{[v.category, v.city].filter(Boolean).join(' · ')}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {CONDUCT_ASPECTS.map(([key, label]) => (
+                <div key={key}>
+                  <p className="text-[11px] font-bold text-[#2E1026] mb-1">{label} *</p>
+                  <div className="grid grid-cols-4 gap-1">
+                    {CONDUCT_LEVELS.map(level => (
+                      <button
+                        key={level}
+                        type="button"
+                        onClick={() => setReport(prev => ({ ...prev, conduct: { ...prev.conduct, [key]: level } }))}
+                        className={`py-1.5 rounded-lg text-[10px] font-bold border cursor-pointer ${report.conduct[key] === level ? 'bg-[#551E43] text-white border-[#551E43]' : 'bg-white text-[#5C4A57] border-[#EDE3D6]'}`}
+                      >
+                        {level}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
+
             <select
               className={inputClass}
               value={report.complaintCategory}
@@ -345,16 +408,16 @@ const FakeVendors = () => {
             <textarea
               className={`${inputClass} resize-none`}
               rows={4}
-              placeholder="What happened? *"
+              placeholder="Short description: what happened? *"
               value={report.description}
               onChange={(e) => handleReportChange('description', e.target.value)}
-              maxLength={2000}
+              maxLength={500}
             />
 
             <div className="flex justify-end gap-2.5 pt-1">
               <button
                 type="button"
-                onClick={() => setShowReport(false)}
+                onClick={closeReport}
                 className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 cursor-pointer"
               >
                 Cancel

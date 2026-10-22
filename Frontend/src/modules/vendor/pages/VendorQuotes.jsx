@@ -53,7 +53,7 @@ const VendorQuotes = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const consumedPrefillRef = useRef(null);
-  const { refreshData } = useVendorState();
+  const { vendorState, refreshData } = useVendorState();
   const { showToast, ToastComponent } = useToast();
   
   const [quotes, setQuotes] = useState([]);
@@ -80,7 +80,8 @@ const VendorQuotes = () => {
   const [discountPercent, setDiscountPercent] = useState('0');
   const [advanceOption, setAdvanceOption] = useState('25');
   const [customAdvanceAmount, setCustomAdvanceAmount] = useState('0');
-  const [validityDays, setValidityDays] = useState(7);
+  // On by default from the vendor's setting; switched off for a quotation on peak days
+  const [cancellationAllowed, setCancellationAllowed] = useState(true);
   const [notes, setNotes] = useState('');
   const [milestoneTerms, setMilestoneTerms] = useState('25% advance to confirm booking, 50% one week prior to event, 25% upon event day.');
   const [cancellationTerms, setCancellationTerms] = useState('Full refund if cancelled 30+ days before event. 50% refund if 15-29 days. Non-refundable within 14 days.');
@@ -163,11 +164,12 @@ const VendorQuotes = () => {
             kind: 'Included'
           }
         ]);
+        setCancellationAllowed(vendorState?.cancellationPolicyEnabled !== false);
         setShowModal(true);
       }
       navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location.state, leads, navigate, location.pathname]);
+  }, [location.state, leads, navigate, location.pathname, vendorState?.cancellationPolicyEnabled]);
 
   const handleLeadChange = (leadId) => {
     setSelectedLeadId(leadId);
@@ -200,16 +202,6 @@ const VendorQuotes = () => {
       showToast(err.message || 'Could not upload the photos', 'error');
     } finally {
       setUploadingPhotos(false);
-    }
-  };
-
-  const copyShareLink = async (quote) => {
-    const link = `${window.location.origin}/q/${quote.shareToken}`;
-    try {
-      await navigator.clipboard.writeText(link);
-      showToast('Quotation link copied. Anyone with the link can view it.', 'success');
-    } catch {
-      window.prompt('Copy this link', link);
     }
   };
 
@@ -339,7 +331,7 @@ const VendorQuotes = () => {
         totalAmount: calculation.total,
         advancePaymentPercent: advanceOption !== 'custom' ? Number(advanceOption) : undefined,
         advancePaymentAmount: calculation.advance,
-        validUntil: new Date(Date.now() + Math.min(7, Number(validityDays) || 7) * 24 * 60 * 60 * 1000),
+        cancellationAllowed,
         milestonePaymentTerms: milestoneTerms.trim(),
         cancellationTerms: cancellationTerms.trim(),
         notes: notes.trim(),
@@ -436,6 +428,7 @@ const VendorQuotes = () => {
     setMilestoneTerms(quote.milestonePaymentTerms || quote.terms || '25% advance to confirm booking, 50% one week prior to event, 25% upon event day.');
     setCancellationTerms(quote.cancellationTerms || 'Full refund if cancelled 30+ days before event. 50% refund if 15-29 days. Non-refundable within 14 days.');
     setNotes(quote.notes || '');
+    setCancellationAllowed(quote.cancellationAllowed !== false);
     setDetails(Object.fromEntries(Object.keys(EMPTY_DETAILS).map(k => [k, quote[k] || ''])));
     setReferencePhotos(quote.referencePhotos || []);
     setShowModal(true);
@@ -453,7 +446,7 @@ const VendorQuotes = () => {
     setDiscountPercent('0');
     setAdvanceOption('25');
     setCustomAdvanceAmount('0');
-    setValidityDays(7);
+    setCancellationAllowed(vendorState?.cancellationPolicyEnabled !== false);
     setNotes('');
     setDetails(EMPTY_DETAILS);
     setReferencePhotos([]);
@@ -729,16 +722,6 @@ const VendorQuotes = () => {
                          )}
                          PDF
                       </button>
-
-                      {quote.shareToken && !isSuperseded && (
-                        <button
-                          onClick={() => copyShareLink(quote)}
-                          className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer"
-                          title="Copy a read-only link to this quotation"
-                        >
-                           <Icon name="share" size="xs" /> Link
-                        </button>
-                      )}
 
                       {!isAccepted && !isSuperseded && (
                         <>
@@ -1020,19 +1003,10 @@ const VendorQuotes = () => {
                       )}
                    </div>
 
-                   <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50/50 space-y-2">
+                   <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50/50 space-y-1">
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 block">Quotation Validity</span>
-                      <div className="flex items-center gap-2">
-                        <input 
-                          type="number"
-                          min="1"
-                          max="7"
-                          value={validityDays}
-                          onChange={(e) => setValidityDays(Math.min(7, Number(e.target.value) || 1))}
-                          className="w-20 h-9 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold"
-                        />
-                        <span className="text-slate-600 font-medium">Days from issue date (max 7: prices change day to day)</span>
-                      </div>
+                      <p className="text-xs text-slate-600 font-medium">7 days from sending. The customer must accept and pay the advance within these 7 days; after that a new quotation is needed, because prices change day to day.</p>
+                      <p className="text-[10px] text-slate-500">Confirm the booking once the advance reaches you. A booking not confirmed within the 7 days lapses.</p>
                    </div>
                 </div>
 
@@ -1083,14 +1057,24 @@ const VendorQuotes = () => {
                        className="w-full h-8 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                      />
                    </div>
-                   <div>
-                     <span className="text-[9px] font-bold text-slate-400 uppercase">Cancellation & Refund Policy</span>
-                     <input 
-                       type="text"
-                       value={cancellationTerms}
-                       onChange={(e) => setCancellationTerms(e.target.value)}
-                       className="w-full h-8 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                     />
+                   <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                     <label className="flex items-center justify-between gap-2 cursor-pointer">
+                       <span className="text-[11px] font-bold text-slate-700">Cancellation allowed for this booking</span>
+                       <input type="checkbox" checked={cancellationAllowed} onChange={(e) => setCancellationAllowed(e.target.checked)} className="h-4 w-4 accent-[#7C3AED]" />
+                     </label>
+                     {cancellationAllowed ? (
+                       <div>
+                         <span className="text-[9px] font-bold text-slate-400 uppercase">Cancellation & Refund Policy</span>
+                         <input
+                           type="text"
+                           value={cancellationTerms}
+                           onChange={(e) => setCancellationTerms(e.target.value)}
+                           className="w-full h-8 px-3 bg-white border border-slate-200 rounded-lg text-xs"
+                         />
+                       </div>
+                     ) : (
+                       <p className="text-[10px] text-amber-700 font-medium">No cancellation (for example on peak days). The customer sees this before accepting; if they cancel, the full amount is payable.</p>
+                     )}
                    </div>
                 </div>
 

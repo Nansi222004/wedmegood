@@ -7,6 +7,44 @@ import { vendorApi } from '../vendor/vendorApi';
 import { toast } from '../../components/ui/Toast';
 import { useDragToScroll } from '../../hooks/useDragToScroll';
 import QuotationDocument from './QuotationDocument';
+import { useAuth } from '../../contexts/AuthContext';
+
+/**
+ * Customers may not keep copies of a quotation. A web page cannot block screenshots (the mobile app
+ * can), so the sheet is hidden while the window is not in focus or Print Screen is pressed, and the
+ * viewer's own name and phone are watermarked across it.
+ */
+function useHideWhenNotFocused(active) {
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    if (!active) return undefined;
+    let timer;
+    const hide = () => setHidden(true);
+    const show = () => setHidden(false);
+    const onVisibility = () => (document.hidden ? hide() : show());
+    const onKey = (e) => {
+      if (e.key === 'PrintScreen') {
+        hide();
+        clearTimeout(timer);
+        timer = setTimeout(show, 2500);
+      }
+    };
+    window.addEventListener('blur', hide);
+    window.addEventListener('focus', show);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('keyup', onKey);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('blur', hide);
+      window.removeEventListener('focus', show);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('keyup', onKey);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [active]);
+  return hidden;
+}
 
 const QuotationModal = ({
   quote,
@@ -22,6 +60,12 @@ const QuotationModal = ({
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const [revisionNote, setRevisionNote] = useState(null);
   const scrollRef = useDragToScroll(isOpen);
+  const { user } = useAuth();
+  const protectedView = isOpen && !isVendor;
+  const hidden = useHideWhenNotFocused(protectedView);
+  const viewerMark = protectedView && user
+    ? `${user.name || 'Utsavo user'} · ${user.phone || user.email || ''} · Utsavo · Do not share`
+    : null;
 
   // Lock background scroll, pause Lenis, and listen for Escape key
   useEffect(() => {
@@ -146,7 +190,18 @@ const QuotationModal = ({
           onContextMenu={isVendor ? undefined : (e) => e.preventDefault()}
           onCopy={isVendor ? undefined : (e) => e.preventDefault()}
         >
-          <QuotationDocument quote={quote} quoteNum={quoteNum} />
+          <div className="relative">
+            <div className={hidden ? 'blur-xl transition-[filter]' : 'transition-[filter]'}>
+              <QuotationDocument quote={quote} quoteNum={quoteNum} viewerMark={viewerMark} />
+            </div>
+            {hidden && (
+              <div className="absolute inset-0 flex items-start justify-center pt-24">
+                <p className="px-4 py-2 rounded-xl bg-white/95 border border-slate-200 shadow-sm text-xs font-semibold text-slate-700 text-center max-w-xs">
+                  The quotation is hidden while this window is not in focus. Quotations cannot be downloaded, shared or captured.
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Action Buttons for Customer (Accept / Decline) */}
           {!isVendor && onRequestRevision && ['Sent', 'Pending'].includes(quote.status) && revisionNote !== null && (

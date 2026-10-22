@@ -21,6 +21,9 @@ const VendorComplaints = () => {
 
   const load = useCallback(() => vendorApi.getComplaints(token).then(r => setList(r.success ? r.data : [])).catch(() => setList([])), [token]);
   useEffect(() => { load(); }, [load]);
+  // Reports this vendor made about customers' behaviour
+  const [myReports, setMyReports] = useState([]);
+  useEffect(() => { vendorApi.getCustomerReports(token).then(r => setMyReports(r.success ? r.data : [])).catch(() => {}); }, [token]);
 
   const upload = async (files) => {
     const file = files?.[0];
@@ -91,6 +94,22 @@ const VendorComplaints = () => {
           {c.canAppeal && <button onClick={() => appeal(c)} className="px-3 py-2 rounded-lg border border-slate-200 text-slate-700 text-[12px] font-semibold cursor-pointer">Appeal the decision</button>}
         </div>
       ))}
+
+      <div className="pt-2 space-y-2">
+        <h2 className="text-[13px] font-semibold text-slate-800">Your reports about customers</h2>
+        <p className="text-[11px] text-slate-500">Report a customer from the lead or booking (Customer behaviour). Confirmed reports are shown to other vendors without your name.</p>
+        {myReports.length === 0 ? <p className="text-[11px] text-slate-400">No reports yet.</p> : myReports.map(r => (
+          <div key={r._id} className="p-3 rounded-xl border border-slate-100 bg-white text-[12px]">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold text-slate-800">{r.customerName}</span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-700' : r.status === 'Rejected' ? 'bg-slate-100 text-slate-500' : 'bg-amber-50 text-amber-700'}`}>{r.status}</span>
+            </div>
+            {r.issues?.length > 0 && <p className="text-[11px] text-slate-600 mt-0.5">{r.issues.join(' · ')}</p>}
+            <p className="text-[11px] text-slate-500 mt-0.5">{r.description}</p>
+            {r.adminNote && <p className="text-[11px] text-slate-700 mt-1"><b>Utsavo team:</b> {r.adminNote}</p>}
+          </div>
+        ))}
+      </div>
 
       {replying && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 p-4" onClick={() => setReplying(null)}>

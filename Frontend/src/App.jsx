@@ -10,10 +10,15 @@ import UserSplashScreen from './components/common/UserSplashScreen';
 import PushNotificationManager from './components/common/PushNotificationManager';
 import './App.css';
 
+// Below Tailwind's md breakpoint
+const MOBILE_QUERY = '(max-width: 767px)';
+
 function App() {
   const [showSplash, setShowSplash] = useState(() => {
     // Check if we've already shown the splash in this session
     if (typeof window !== 'undefined') {
+      // The splash is not shown in mobile view (user and vendor apps share it); desktop is unchanged
+      if (window.matchMedia(MOBILE_QUERY).matches) return false;
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.has('splash')) return true;
       const hasSeen = sessionStorage.getItem('hasSeenSplash');

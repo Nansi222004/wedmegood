@@ -123,7 +123,18 @@ const bookingSchema = new mongoose.Schema({
     },
     cancelledBy: {
         type: String,
-        enum: ['User', 'Vendor', 'Admin']
+        enum: ['User', 'Vendor', 'Admin', 'System']
+    },
+    // The customer accepts and pays the advance within 7 days of the quotation. A booking the
+    // vendor has not confirmed (advance received) by then lapses and a new quotation is needed.
+    advanceDueBy: {
+        type: Date,
+        default: null
+    },
+    // Copied from the quotation: false = no cancellation for this booking (full amount payable)
+    cancellationAllowed: {
+        type: Boolean,
+        default: true
     },
     cancelledAt: {
         type: Date

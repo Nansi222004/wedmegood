@@ -137,10 +137,17 @@ async function cancelAndRefundBooking({ bookingId, cancelledBy, actorId, reason 
         ? Math.floor((new Date(booking.eventDate).getTime() - booking.cancelledAt.getTime()) / (24 * 60 * 60 * 1000))
         : null;
     booking.daysNoticeAtCancellation = daysNotice;
-    booking.lateCancellation = cancelledBy === 'User' && daysNotice !== null && daysNotice < cancellationNoticeDays;
-    const policyNote = booking.lateCancellation
-        ? ` Cancelled less than ${cancellationNoticeDays} days before the event: as per the cancellation policy, the full amount of ₹${(Number(booking.totalPrice) || 0).toLocaleString('en-IN')} is payable to the vendor.`
-        : '';
+    // The vendor may have switched cancellation off for this booking (peak days): any customer
+    // cancellation then keeps the full amount payable
+    const noCancellation = booking.cancellationAllowed === false;
+    booking.lateCancellation = cancelledBy === 'User'
+        && (noCancellation || (daysNotice !== null && daysNotice < cancellationNoticeDays));
+    const fullAmount = `₹${(Number(booking.totalPrice) || 0).toLocaleString('en-IN')}`;
+    const policyNote = !booking.lateCancellation
+        ? ''
+        : noCancellation
+            ? ` This booking was taken without a cancellation option: the full amount of ${fullAmount} is payable to the vendor.`
+            : ` Cancelled less than ${cancellationNoticeDays} days before the event: as per the cancellation policy, the full amount of ${fullAmount} is payable to the vendor.`;
 
     // Financial reversal if booking had verified payments
     const Payment = require('../modules/user/Payment');
@@ -244,6 +251,13 @@ async function cancelAndRefundBooking({ bookingId, cancelledBy, actorId, reason 
             type: 'Booking',
             isRead: false
         }).catch(() => {});
+    } else if (cancelledBy === 'System') {
+        await Notification.create({
+            vendorId: booking.vendorId,
+            message: `Booking for ${booking.customerName} on ${booking.eventDate?.toISOString()?.split('T')[0]} lapsed: ${booking.cancellationReason}`,
+            type: 'Booking',
+            isRead: false
+        }).catch(() => {});
     }
 
     if (booking.userId) {
@@ -252,7 +266,9 @@ async function cancelAndRefundBooking({ bookingId, cancelledBy, actorId, reason 
             await notifyAndLogActivity({
                 userId: booking.userId,
                 notificationTitle: 'Booking Cancelled',
-                notificationMessage: `Your booking scheduled for ${booking.eventDate ? new Date(booking.eventDate).toLocaleDateString() : 'event'} has been cancelled by ${cancelledBy.toLowerCase()}.${policyNote}`,
+                notificationMessage: cancelledBy === 'System'
+                    ? `Your booking for ${booking.eventDate ? new Date(booking.eventDate).toLocaleDateString() : 'the event'} lapsed: ${booking.cancellationReason}`
+                    : `Your booking scheduled for ${booking.eventDate ? new Date(booking.eventDate).toLocaleDateString() : 'event'} has been cancelled by ${cancelledBy.toLowerCase()}.${policyNote}`,
                 notificationType: 'booking',
                 activityType: 'booking_cancelled',
                 activityTitle: 'Cancelled Booking',

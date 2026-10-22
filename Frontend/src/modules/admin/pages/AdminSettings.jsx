@@ -6,7 +6,7 @@ import { adminApi } from '../services/adminApi';
 const DISPATCH_FIELDS = [
     { key: 'leadOfferWindowSeconds', label: 'Offer response window', hint: 'Time a vendor has to accept once the offer reaches their device', unit: 'sec', min: 10, fallback: 30 },
     { key: 'leadOfferDeliveryGraceSeconds', label: 'Offer delivery wait', hint: 'Extra time before the offer shows on the vendor device', unit: 'sec', min: 0, fallback: 60 },
-    { key: 'leadContactDeadlineHours', label: 'Vendor contact deadline', hint: 'After accepting, the vendor must contact the customer within this time', unit: 'hrs', min: 1, fallback: 12 },
+    { key: 'leadContactDeadlineHours', label: 'Vendor contact deadline', hint: 'After accepting, the vendor must contact the customer within this time', unit: 'hrs', min: 1, fallback: 1 },
     { key: 'leadCustomerReassignLimit', label: 'Automatic reassignments', hint: 'Times a customer can ask for another vendor before choosing one', unit: '', min: 0, fallback: 2 },
     { key: 'leadDetailsRequestHours', label: 'Details request window', hint: 'Time a customer has to add details a vendor asked for', unit: 'hrs', min: 1, fallback: 24 },
     { key: 'enquiryDailyLimit', label: 'Requirements per customer per day', hint: 'Limits spam and fake enquiries', unit: '', min: 1, fallback: 5 },

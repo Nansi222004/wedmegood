@@ -22,8 +22,24 @@ const MyComplaints = () => {
   const [list, setList] = useState(null);
   const load = useCallback(() => userApi.getUserComplaints().then(r => setList(r.data?.complaints || [])).catch(() => setList([])), []);
   useEffect(() => { if (getAuthToken()) load(); }, [load]);
+  // Vendors' concerns about this customer, so they can give their side before the team decides
+  const [aboutMe, setAboutMe] = useState([]);
+  const loadAboutMe = useCallback(() => userApi.getConductReports().then(r => setAboutMe(r.data || [])).catch(() => setAboutMe([])), []);
+  useEffect(() => { if (getAuthToken()) loadAboutMe(); }, [loadAboutMe]);
 
   if (!getAuthToken()) return <LoginRequired message="Log in to see your complaints." />;
+
+  const respond = async (r) => {
+    const statement = window.prompt('Your side of what happened (at least 10 characters). The Utsavo team reads it before deciding.');
+    if (!statement) return;
+    try {
+      const res = await userApi.respondConductReport(r._id, statement);
+      toast.success(res.message);
+      loadAboutMe();
+    } catch (err) {
+      toast.error(getFriendlyErrorMessage(err, 'Could not send your response.'));
+    }
+  };
 
   const appeal = async (c) => {
     const reason = window.prompt('Why should the decision be reviewed again? You can appeal once.');
@@ -70,6 +86,26 @@ const MyComplaints = () => {
           </div>
         );
       })}
+
+      {aboutMe.length > 0 && (
+        <div className="space-y-2 pt-2">
+          <h2 className="text-lg font-bold text-[#401332]" style={HEADING}>Concerns raised by vendors</h2>
+          <p className="text-xs text-[#7A6876]">A vendor shared how a booking went with you. Nothing is shown to other vendors unless the Utsavo team confirms it after reading your side.</p>
+          {aboutMe.map(r => (
+            <div key={r._id} className="p-4 rounded-2xl bg-white border border-[#F2E5EC] shadow-sm space-y-1.5">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm font-bold text-[#2E1026]">{r.vendorName}</p>
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${r.status === 'Confirmed' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-800'}`}>{r.status === 'Confirmed' ? 'Confirmed' : 'Being reviewed'}</span>
+              </div>
+              {r.issues?.length > 0 && <p className="text-xs text-[#5C4A57]">{r.issues.join(' · ')}</p>}
+              <p className="text-xs text-[#5C4A57]">{r.description}</p>
+              {r.customerResponse?.statement
+                ? <p className="text-[11px] text-[#7A6876]"><span className="font-bold">Your side:</span> {r.customerResponse.statement}</p>
+                : r.status === 'Pending' && <button onClick={() => respond(r)} className="px-4 py-2 rounded-xl border border-[#E5D5DC] text-[#401332] text-xs font-bold cursor-pointer">Give your side</button>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import Icon from '../../../components/ui/Icon';
 import { useVendorState } from '../useVendorState';
 import { vendorApi } from '../vendorApi';
+import { CustomerReportForm } from '../components/CustomerConduct';
 
 const VendorBookings = () => {
   const { refreshData } = useVendorState();
@@ -12,6 +13,7 @@ const VendorBookings = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [behaviourBooking, setBehaviourBooking] = useState(null);
   const [toast, setToast] = useState(null);
   // Payments are made outside the app; the vendor records them on the booking
   const [paymentForm, setPaymentForm] = useState({ amount: '', mode: 'Cash', paidOn: new Date().toISOString().split('T')[0], note: '' });
@@ -650,7 +652,12 @@ const VendorBookings = () => {
           {booking.status !== 'Cancelled' && booking.status !== 'Completed' && (
             <div className="luxury-card p-4 font-luxury-sans flex flex-wrap items-center gap-2">
               <span className="text-[11px] font-semibold text-slate-600 mr-auto">
-                {booking.status === 'Pending' ? 'Confirm the booking once the date is locked with the customer.' : 'Update the booking as the event progresses.'}
+                {booking.status === 'Pending'
+                  ? `Confirm the booking once the customer's advance reaches you.${booking.advanceDueBy ? ` If it is not confirmed by ${new Date(booking.advanceDueBy).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}, the booking lapses and you share a new quotation.` : ''}`
+                  : 'Update the booking as the event progresses.'}
+                {booking.cancellationAllowed === false && (
+                  <span className="block mt-0.5 text-amber-700">No cancellation for this booking: if the customer cancels, the full amount stays payable.</span>
+                )}
               </span>
               {booking.status === 'Pending' && (
                 <button
@@ -682,6 +689,26 @@ const VendorBookings = () => {
               >
                 Cancel
               </button>
+            </div>
+          )}
+
+          {booking.userId && (
+            <div className="luxury-card p-4 font-luxury-sans flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-semibold text-slate-600 mr-auto">
+                Problems with this customer (support during the work, respect, payment)? Tell the Utsavo team. The customer can give their side.
+              </span>
+              <button
+                onClick={() => setBehaviourBooking(booking)}
+                className="px-3.5 py-2 rounded-xl border border-amber-200 text-amber-700 hover:bg-amber-50 text-[11px] font-semibold active:scale-95 transition-all"
+              >
+                Report customer behaviour
+              </button>
+              {behaviourBooking && (
+                <CustomerReportForm
+                  target={{ bookingId: behaviourBooking._id, customerName: behaviourBooking.customerName }}
+                  onClose={() => setBehaviourBooking(null)}
+                />
+              )}
             </div>
           )}
 

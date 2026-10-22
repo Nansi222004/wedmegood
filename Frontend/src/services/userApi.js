@@ -794,6 +794,10 @@ export const userApi = {
 
   appealComplaint: async (complaintId, reason) => request(`/user/complaints/${complaintId}/appeal`, { method: 'POST', body: { reason } }),
 
+  // Concerns vendors raised about this customer's behaviour, and the customer's side
+  getConductReports: async () => request('/user/conduct-reports', { method: 'GET' }),
+  respondConductReport: async (reportId, statement) => request(`/user/conduct-reports/${reportId}/respond`, { method: 'POST', body: { statement } }),
+
   getComplaintById: async (complaintId) => {
     return request(`/user/complaints/${complaintId}`, { method: 'GET' });
   },

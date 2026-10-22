@@ -6,7 +6,7 @@ const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/ap
 // (new leads/bookings/quotes, chat, notifications, earnings) is always fetched live.
 const apiFetch = createCachedFetch({
     ttlMs: 15000,
-    neverCache: /\/(leads|lead-offers|lead-insights|lead-settings|complaints|bookings|quotes|notifications|conversations|messages|earnings|transactions|withdrawals|stats|support)(\/|\?|$)/
+    neverCache: /\/(leads|lead-offers|lead-insights|lead-settings|complaints|customer-reports|bookings|quotes|notifications|conversations|messages|earnings|transactions|withdrawals|stats|support)(\/|\?|$)/
 });
 
 export const vendorApi = {
@@ -789,6 +789,26 @@ export const vendorApi = {
     // Complaints about the vendor
     getComplaints: async (token) => {
         const response = await apiFetch(`${BASE_URL}/complaints`, { method: 'GET', headers: { 'Authorization': `Bearer ${token}` } });
+        return response.json();
+    },
+
+    // Customer behaviour reports: confirmed reports are shown to every vendor (without the reporter)
+    getCustomerReports: async (token) => {
+        const response = await apiFetch(`${BASE_URL}/customer-reports`, { method: 'GET', headers: { 'Authorization': `Bearer ${token}` } });
+        return response.json();
+    },
+
+    createCustomerReport: async (body, token) => {
+        const response = await apiFetch(`${BASE_URL}/customer-reports`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(body)
+        });
+        return response.json();
+    },
+
+    getLeadCustomerConduct: async (leadId, token) => {
+        const response = await apiFetch(`${BASE_URL}/leads/${leadId}/customer-conduct`, { method: 'GET', headers: { 'Authorization': `Bearer ${token}` } });
         return response.json();
     },
 

@@ -5,6 +5,7 @@ import { useVendorState } from '../useVendorState';
 import { vendorApi } from '../vendorApi';
 import Icon from '../../../components/ui/Icon';
 import PrivateImage from '../../../components/common/PrivateImage';
+import { CustomerReportForm } from '../components/CustomerConduct';
 import { useToast } from '../../../components/ui/Toast';
 
 const statusOptions = ['New', 'Contacted', 'Quote Sent', 'Rejected'];
@@ -27,6 +28,7 @@ const VendorLeads = () => {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [photoView, setPhotoView] = useState(null); // { lead, index }
   const [reportLead, setReportLead] = useState(null);
+  const [behaviourLead, setBehaviourLead] = useState(null);
   const [reportForm, setReportForm] = useState({ reason: '', note: '' });
   const [reportReasons, setReportReasons] = useState([]);
   const [isReporting, setIsReporting] = useState(false);
@@ -491,6 +493,12 @@ const VendorLeads = () => {
                           {lead.category || 'Wedding'}
                         </span>
                       </div>
+                      {lead.customerConduct?.reports > 0 && (
+                        <p className="mt-1 text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-1.5 py-0.5 inline-block">
+                          Customer behaviour: {lead.customerConduct.reports} confirmed report{lead.customerConduct.reports === 1 ? '' : 's'} from {lead.customerConduct.vendors} vendor{lead.customerConduct.vendors === 1 ? '' : 's'}
+                          {lead.customerConduct.topIssue ? ` · ${lead.customerConduct.topIssue}` : ''}
+                        </p>
+                      )}
                     </div>
                   </div>
                   
@@ -657,6 +665,17 @@ const VendorLeads = () => {
                         <span>Report</span>
                       </button>
                     )}
+
+                    {/* 8. Report how the customer behaved (support, respect, payment...) */}
+                    <button
+                      type="button"
+                      onClick={() => setBehaviourLead(lead)}
+                      title="Report the customer's behaviour to the Utsavo team"
+                      className="h-7 px-2 rounded-lg flex items-center gap-1 text-[10px] font-semibold bg-white text-amber-700 border border-amber-200 hover:bg-amber-50 shadow-sm transition-all active:scale-95"
+                    >
+                      <Icon name="users" size="xs" />
+                      <span>Customer behaviour</span>
+                    </button>
                   </div>
 
                   <span className="text-[9px] font-bold text-slate-400">
@@ -695,6 +714,13 @@ const VendorLeads = () => {
       )}
 
       {/* Report a suspicious lead */}
+      {behaviourLead && (
+        <CustomerReportForm
+          target={{ leadId: behaviourLead._id, customerName: behaviourLead.customerName || behaviourLead.customerProfile?.name }}
+          onClose={() => setBehaviourLead(null)}
+        />
+      )}
+
       {reportLead && createPortal(
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setReportLead(null)} />

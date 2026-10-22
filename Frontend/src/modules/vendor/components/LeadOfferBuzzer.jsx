@@ -4,6 +4,7 @@ import Icon from '../../../components/ui/Icon';
 import { vendorApi } from '../vendorApi';
 import socketService from '../../../services/socket';
 import { toast } from '../../../components/ui/Toast';
+import { CustomerConductSummary } from './CustomerConduct';
 
 const POLL_MS = 10000;
 const MUTE_KEY = 'utsavo_vendor_buzzer_muted';
@@ -291,6 +292,7 @@ const LeadOfferBuzzer = ({ enabled }) => {
             </div>
           </div>
 
+          <CustomerConductSummary key={current.leadId} leadId={current.leadId} compact />
           {current.requirements && (
             <p className="text-xs text-slate-600 leading-relaxed bg-violet-50/60 border border-violet-100 rounded-2xl p-3">{current.requirements}</p>
           )}

@@ -65,7 +65,7 @@ const platformSettingsSchema = new mongoose.Schema({
     // how long an undelivered offer waits, and how long an accepting vendor has to contact the customer
     leadOfferWindowSeconds: { type: Number, default: 30, min: [10, 'Offer window must be at least 10 seconds'] },
     leadOfferDeliveryGraceSeconds: { type: Number, default: 60, min: [0, 'Delivery grace cannot be negative'] },
-    leadContactDeadlineHours: { type: Number, default: 12, min: [1, 'Contact deadline must be at least 1 hour'] },
+    leadContactDeadlineHours: { type: Number, default: 1, min: [1, 'Contact deadline must be at least 1 hour'] },
     // Times the customer can ask for another vendor before choosing one themselves
     leadCustomerReassignLimit: { type: Number, default: 2, min: [0, 'Reassign limit cannot be negative'] },
     // Hours a customer has to add details a vendor asked for before the lead moves on

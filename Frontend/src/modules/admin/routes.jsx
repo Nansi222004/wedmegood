@@ -31,6 +31,7 @@ const AdminVendorInventory = lazy(() => import('./pages/AdminVendorInventory'));
 const AdminLeads = lazy(() => import('./pages/AdminLeads'));
 const AdminQuotes = lazy(() => import('./pages/AdminQuotes'));
 const AdminComplaints = lazy(() => import('./pages/AdminComplaints'));
+const AdminCustomerReports = lazy(() => import('./pages/AdminCustomerReports'));
 const AdminFakeVendors = lazy(() => import('./pages/AdminFakeVendors'));
 const AdminEnquiries = lazy(() => import('./pages/AdminEnquiries'));
 const AdminWorkforce = lazy(() => import('./pages/AdminWorkforce'));
@@ -65,6 +66,7 @@ const AdminRoutes = () => {
         <Route path="leads" element={<AdminLeads />} />
         <Route path="quotes" element={<AdminQuotes />} />
         <Route path="complaints" element={<AdminComplaints />} />
+        <Route path="customer-reports" element={<AdminCustomerReports />} />
         <Route path="fake-vendors" element={<AdminFakeVendors />} />
         <Route path="enquiries" element={<AdminEnquiries />} />
         <Route path="workforce" element={<AdminWorkforce />} />

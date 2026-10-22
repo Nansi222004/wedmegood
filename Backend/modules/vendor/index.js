@@ -143,6 +143,11 @@ const vendorComplaints = require('./complaint.controller');
 router.get('/complaints', protectVendor, vendorComplaints.listComplaints);
 router.post('/complaints/:id/respond', protectVendor, vendorComplaints.respond);
 router.post('/complaints/:id/appeal', protectVendor, vendorComplaints.appeal);
+// Vendors report customer behaviour; confirmed reports are shown to other vendors
+const customerReports = require('./customerReport.controller');
+router.get('/customer-reports', protectVendor, customerReports.myReports);
+router.post('/customer-reports', protectVendor, customerReports.createReport);
+router.get('/leads/:id/customer-conduct', protectVendor, customerReports.leadCustomerConduct);
 
 // Quotes
 router.get('/quotes', protectVendor, requireSubscription, requireVendorApproval, getQuotes);

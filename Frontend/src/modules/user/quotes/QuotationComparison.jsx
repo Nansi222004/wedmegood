@@ -410,7 +410,7 @@ const QuotationComparison = () => {
       <ConfirmModal
         isOpen={!!quoteToAccept}
         title="Accept Quotation"
-        message={`No payment is taken in the app: pay the vendor directly. By accepting, you agree to the Terms & Conditions, including the cancellation policy: a booking must be cancelled at least ${cancellationNoticeDays} days before the event, otherwise the full booking amount is payable to the vendor.`}
+        message={`No payment is taken in the app: pay the vendor directly, including the advance within 7 days of the quotation date (otherwise the booking lapses and a new quotation is shared). By accepting, you agree to the Terms & Conditions, including the cancellation policy: ${quoteToAccept?.cancellationAllowed === false ? 'this booking has no cancellation option, so the full amount is payable if you cancel' : `a booking must be cancelled at least ${cancellationNoticeDays} days before the event, otherwise the full booking amount is payable to the vendor`}.`}
         confirmText="I Agree & Accept"
         cancelText="Go Back"
         onConfirm={confirmAcceptQuote}

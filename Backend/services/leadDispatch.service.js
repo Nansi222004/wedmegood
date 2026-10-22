@@ -894,6 +894,30 @@ async function expireOverdueQuotes() {
     );
 }
 
+/**
+ * The customer accepts a quotation and pays the advance within 7 days of the quotation. Payments
+ * happen outside the app, so the vendor's confirmation is the record that the advance arrived.
+ * A booking still pending after its advance date lapses; the service goes back to the vendor so
+ * a new quotation can be shared (prices may have changed).
+ */
+async function lapseUnconfirmedBookings() {
+    const Booking = require('../modules/vendor/Booking');
+    const Quote = require('../modules/vendor/Quote');
+    const { cancelAndRefundBooking } = require('./settlement.service');
+    const due = await Booking.find({ status: 'Pending', advanceDueBy: { $ne: null, $lt: new Date() } })
+        .select('_id leadId quoteId').limit(50).lean();
+    for (const b of due) {
+        const result = await cancelAndRefundBooking({
+            bookingId: b._id,
+            cancelledBy: 'System',
+            reason: 'the advance was not confirmed within 7 days of the quotation. The vendor can share a new quotation; prices may have changed.'
+        }).catch(err => ({ success: false, message: err.message }));
+        if (!result?.success) continue;
+        if (b.quoteId) await Quote.updateOne({ _id: b.quoteId, status: 'Accepted' }, { $set: { status: 'Expired' } });
+        if (b.leadId) await Lead.updateOne({ _id: b.leadId, status: 'Booked' }, { $set: { status: 'Contacted' } });
+    }
+}
+
 let sweeping = false;
 let slowSweepAt = 0;
 
@@ -909,6 +933,7 @@ async function sweep() {
             await closePastLeads();
             await repairStuckLeads();
             await expireOverdueQuotes();
+            await lapseUnconfirmedBookings();
         }
     } catch (err) {
         console.error('leadDispatch sweep failed:', err.message);
@@ -923,6 +948,7 @@ function startLeadDispatchJob() {
 }
 
 module.exports = {
+    lapseUnconfirmedBookings,
     TERMINAL_STATUSES,
     CUSTOMER_DECLINE_REASONS,
     DispatchError,
