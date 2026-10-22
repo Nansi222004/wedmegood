@@ -245,6 +245,11 @@ const VendorLogin = () => {
               Don't have a vendor account?
               <Link to="/vendor/register" className="ml-1.5 text-[#4F35C3] hover:text-[#3f2aa6] font-extrabold hover:underline">Register Now</Link>
             </p>
+            <p className="mt-2 text-[10px] sm:text-[11px] font-semibold text-slate-400">
+              <Link to="/vendor/terms" className="hover:text-[#4F35C3] hover:underline">Terms of Service</Link>
+              <span className="mx-1.5">•</span>
+              <Link to="/vendor/privacy" className="hover:text-[#4F35C3] hover:underline">Privacy Policy</Link>
+            </p>
           </div>
 
           {/* Trust badges below */}

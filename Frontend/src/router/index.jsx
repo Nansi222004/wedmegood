@@ -33,7 +33,8 @@ const Profile = lazy(() => import('../modules/user/account/Profile'));
 const Contact = lazy(() => import('../modules/user/account/Contact'));
 const Reviews = lazy(() => import('../modules/user/account/Reviews'));
 const Payments = lazy(() => import('../modules/user/account/Payments'));
-const Privacy = lazy(() => import('../modules/user/settings/Privacy'));
+// Public privacy and terms pages (no login): /user/privacy, /user/terms, /vendor/privacy, /vendor/terms
+const LegalPage = lazy(() => import('../modules/common/legal/LegalPage'));
 const Language = lazy(() => import('../modules/user/settings/Language'));
 const Notifications = lazy(() => import('../modules/user/settings/Notifications'));
 const ChatsList = lazy(() => import('../modules/user/chats/ChatsList'));
@@ -206,6 +207,11 @@ const AppRouter = () => {
       <Route path="/team/*" element={<TeamApp />} />
       <Route path="/admin/*" element={<AdminRoutes />} />
 
+      {/* Public privacy and terms for customers: open without logging in. They sit before the protected
+          /user/* routes, so these two exact paths win. */}
+      <Route path="/user/privacy" element={<LegalPage audience="user" doc="privacy" />} />
+      <Route path="/user/terms" element={<LegalPage audience="user" doc="terms" />} />
+
       {/* Protected Routes */}
       <Route path="/user/*" element={
         <ProtectedRoute>
@@ -293,7 +299,6 @@ const AppRouter = () => {
                     <Route path="account/payments" element={<Payments />} />
 
                     {/* Settings Routes */}
-                    <Route path="privacy" element={<Privacy />} />
                     <Route path="language" element={<Language />} />
                     <Route path="notifications" element={<Notifications />} />
 
@@ -400,7 +405,6 @@ const AppRouter = () => {
 
                     <Route path="language" element={<Language />} />
                     <Route path="notifications" element={<Notifications />} />
-                    <Route path="privacy" element={<Privacy />} />
 
                     {/* Redirect unknown user routes to home */}
                     <Route path="*" element={<Navigate to="/user/home" replace />} />
