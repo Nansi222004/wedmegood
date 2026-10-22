@@ -235,7 +235,7 @@ const Signup = () => {
               className="w-4 h-4 accent-[#5D3E3E] rounded border-none shadow-sm cursor-pointer"
             />
             <label htmlFor="terms" className="text-[10px] text-[#5D3E3E]/70 font-semibold cursor-pointer select-none" style={{ fontFamily: '"Outfit", sans-serif' }}>
-              I agree to the <span className="text-[#5D3E3E] border-b border-[#5D3E3E]/40">Terms of Service</span> and <span className="text-[#5D3E3E] border-b border-[#5D3E3E]/40">Privacy Policy</span>
+              I agree to the <a href="/user/terms" target="_blank" rel="noopener noreferrer" className="text-[#5D3E3E] border-b border-[#5D3E3E]/40">Terms of Service</a> and <a href="/user/privacy" target="_blank" rel="noopener noreferrer" className="text-[#5D3E3E] border-b border-[#5D3E3E]/40">Privacy Policy</a>
             </label>
           </div>
 

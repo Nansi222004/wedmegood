@@ -4,6 +4,7 @@ import './vendorTheme.css';
 import VendorLayout from './components/VendorLayout';
 import PageLoader from '../../components/common/PageLoader';
 import VendorPublicLayout from './components/VendorPublicLayout';
+const LegalPage = lazy(() => import('../common/legal/LegalPage'));
 const VendorRegister = lazy(() => import('./pages/VendorRegister'));
 const VendorLogin = lazy(() => import('./pages/VendorLogin'));
 const VendorSubscriptionOnboarding = lazy(() => import('./pages/VendorSubscriptionOnboarding'));
@@ -36,6 +37,9 @@ const VendorRoutes = () => {
     <VendorProvider>
       <Suspense fallback={<PageLoader />}>
       <Routes>
+        {/* Public privacy and terms for vendors: open without logging in */}
+        <Route path="privacy" element={<LegalPage audience="vendor" doc="privacy" />} />
+        <Route path="terms" element={<LegalPage audience="vendor" doc="terms" />} />
         <Route element={<VendorPublicLayout />}>
           <Route path="register" element={<Navigate to="/vendor/register/category" replace />} />
           <Route path="register/:stepId" element={<VendorRegister />} />

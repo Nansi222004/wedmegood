@@ -978,7 +978,7 @@ const MyBookings = ({ initialTab = 'quotes' }) => {
                   className="mt-0.5 accent-[#551E43]"
                 />
                 <span className="text-[11px] font-semibold text-[#2E1026] leading-snug">
-                  I agree to the <a href="/user/privacy?tab=terms" target="_blank" rel="noopener noreferrer" className="underline text-[#551E43]">Terms &amp; Conditions</a>, including the cancellation policy.
+                  I agree to the <a href="/user/terms" target="_blank" rel="noopener noreferrer" className="underline text-[#551E43]">Terms &amp; Conditions</a>, including the cancellation policy.
                 </span>
               </label>
             </div>

@@ -1136,6 +1136,13 @@ const VendorRegister = () => {
                 >
                   Already have an account? Sign In
                 </button>
+
+                <p className="text-[9.5px] sm:text-[11px] font-semibold text-slate-400 leading-snug text-center">
+                  By continuing you agree to our{' '}
+                  <a href="/vendor/terms" target="_blank" rel="noopener noreferrer" className="text-[#4F35C3] underline">Terms of Service</a>
+                  {' '}and{' '}
+                  <a href="/vendor/privacy" target="_blank" rel="noopener noreferrer" className="text-[#4F35C3] underline">Privacy Policy</a>.
+                </p>
               </div>
 
             </div>

@@ -5,6 +5,14 @@ import { toast } from '../../../components/ui/Toast';
 
 const THEME_KEY = 'utsavo-login-theme';
 
+const CATEGORY_CHIPS = [
+  { label: 'Venues', light: 'bg-[#FDE7EF] text-[#C2185B]', dark: 'bg-[#C2185B]/25 text-[#FFB3D1]' },
+  { label: 'Catering', light: 'bg-[#EDE7FB] text-[#6D3FC4]', dark: 'bg-[#6D3FC4]/30 text-[#D2C2FF]' },
+  { label: 'Decor', light: 'bg-[#DDF5EA] text-[#1F8A63]', dark: 'bg-[#1F8A63]/30 text-[#9BE8C8]' },
+  { label: 'Music', light: 'bg-[#FEEBD6] text-[#B86A12]', dark: 'bg-[#B86A12]/30 text-[#FFD29B]' },
+  { label: 'Photography', light: 'bg-[#DDEBFC] text-[#1D4FBF]', dark: 'bg-[#1D4FBF]/30 text-[#A9C8FF]' }
+];
+
 // Soft pastel leaves and waves behind the form (pure SVG, so nothing extra to download)
 const LoginBackdrop = ({ dark }) => (
   <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
@@ -213,12 +221,12 @@ const Login = () => {
   const submitLabel = loginMode === 'otp' && !isOtpSent ? 'Send OTP' : 'Login';
 
   const fieldClass =
-    `relative flex items-center rounded-2xl border transition-all ${dark
+    `relative flex items-center rounded-[14px] border transition-all ${dark
       ? 'bg-[#1B1A38] border-[#34325C] shadow-none focus-within:border-[#9B6BFF]'
-      : 'bg-white border-[#E6E3EC] shadow-[0_2px_10px_rgba(60,40,90,0.05)] focus-within:border-[#7B3FE4]/60 focus-within:shadow-[0_0_0_3px_rgba(123,63,228,0.12)]'}`;
+      : 'bg-white border-[#ECE9F3] shadow-[0_2px_8px_rgba(60,40,90,0.05)] focus-within:border-[#7B3FE4]/60 focus-within:shadow-[0_0_0_3px_rgba(123,63,228,0.12)]'}`;
   const inputClass =
-    `w-full bg-transparent h-[54px] text-[16px] focus:outline-none ${dark ? 'text-white placeholder-[#8D8EAE]' : 'text-[#1B1B33] placeholder-[#8C8FA3]'}`;
-  const iconClass = dark ? 'text-[#C9CAE6]' : 'text-[#2B2B4A]';
+    `w-full bg-transparent h-[46px] text-[13px] focus:outline-none ${dark ? 'text-white placeholder-[#8D8EAE]' : 'text-[#1B1B33] placeholder-[#7E8094]'}`;
+  const iconClass = dark ? 'text-[#B9A4FF]' : 'text-[#6D3FD0]';
   const socialClass =
     `w-[84px] h-[68px] rounded-[22px] flex items-center justify-center active:scale-95 transition-transform ${dark
       ? 'bg-[#1B1A38] border border-[#34325C]'
@@ -244,16 +252,26 @@ const Login = () => {
           draggable="false"
         />
 
+        <div className="relative w-full font-['Poppins',sans-serif]">
+        {/* two small accent dots beside the chips */}
+        <span aria-hidden="true" className="absolute left-[3px] top-[58px] w-[6px] h-[6px] rounded-full bg-[#6B3FD6]" />
+        <span aria-hidden="true" className="absolute right-[1px] top-[98px] w-[5px] h-[5px] rounded-full bg-[#F0338A]" />
+
         {/* HEADINGS */}
-        <div className="text-center mt-1 mb-4">
-          <h1 className={`text-[34px] leading-tight font-extrabold tracking-tight ${dark ? 'text-white' : 'text-[#0E0E36]'}`}>
-            Welcome Back
+        <div className="text-center mt-1">
+          <h1 className={`text-[25px] leading-tight font-bold tracking-tight ${dark ? 'text-white' : 'text-[#0E0E36]'}`}>
+            Welcome back
           </h1>
-          <p className={`text-[18px] mt-0.5 ${dark ? 'text-[#B7B8D6]' : 'text-[#3D3E58]'}`}>Sign in to continue</p>
+          <p className={`text-[12px] mt-1 ${dark ? 'text-[#B7B8D6]' : 'text-[#4A4A62]'}`}>Sign in to plan, book and celebrate every event.</p>
+          <div className="mt-3 mx-auto max-w-[290px] flex flex-wrap justify-center gap-x-2 gap-y-1.5">
+            {CATEGORY_CHIPS.map(chip => (
+              <span key={chip.label} className={`px-[11px] h-[26px] inline-flex items-center rounded-full text-[11px] font-medium ${dark ? chip.dark : chip.light}`}>{chip.label}</span>
+            ))}
+          </div>
         </div>
 
         {/* FORM */}
-        <form onSubmit={handleSubmit} className="w-full flex flex-col gap-3.5">
+        <form onSubmit={handleSubmit} className="w-full flex flex-col gap-3.5 mt-5">
           {error && (
             <div role="alert" className="w-full bg-red-50 border border-red-200 text-red-600 rounded-2xl py-3 px-4 text-sm font-medium text-center">
               {error}
@@ -263,10 +281,10 @@ const Login = () => {
           {loginMode === 'otp' ? (
             <>
               <div className={fieldClass}>
-                <div className={`pl-5 pr-3 ${iconClass}`}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5" /><line x1="11" y1="18" x2="13" y2="18" /></svg>
+                <div className={`pl-4 pr-3 ${iconClass}`}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5" /><line x1="11" y1="18" x2="13" y2="18" /></svg>
                 </div>
-                <span className="pr-2 text-[16px] font-semibold">+91</span>
+                <span className="pr-2 text-[13px] font-semibold">+91</span>
                 <input
                   type="tel"
                   inputMode="numeric"
@@ -285,7 +303,7 @@ const Login = () => {
                   type="button"
                   onClick={handleSendOtp}
                   disabled={isSendingOtp || phone.length !== 10}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white text-xs font-semibold rounded-full px-4 py-2 disabled:opacity-40 transition-opacity"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-white text-[11px] font-semibold rounded-full px-3.5 py-1.5 disabled:opacity-40 transition-opacity"
                   style={{ background: 'linear-gradient(90deg,#FF2E93,#7B3FE4)' }}
                 >
                   {isSendingOtp ? 'Sending...' : (isOtpSent ? 'Resend' : 'Send OTP')}
@@ -294,8 +312,8 @@ const Login = () => {
 
               {isOtpSent && (
                 <div className={fieldClass}>
-                  <div className={`pl-5 pr-3 ${iconClass}`}>
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="11" width="16" height="10" rx="2.5" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /><circle cx="12" cy="16" r="1" fill="currentColor" /></svg>
+                  <div className={`pl-4 pr-3 ${iconClass}`}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="11" width="16" height="10" rx="2.5" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /><circle cx="12" cy="16" r="1" fill="currentColor" /></svg>
                   </div>
                   <input
                     type="text"
@@ -313,8 +331,8 @@ const Login = () => {
           ) : (
             <>
               <div className={fieldClass}>
-                <div className={`pl-5 pr-3 ${iconClass}`}>
-                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" /></svg>
+                <div className={`pl-4 pr-3 ${iconClass}`}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" /></svg>
                 </div>
                 <input
                   type="text"
@@ -322,21 +340,21 @@ const Login = () => {
                   value={formData.username}
                   onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                   className={`${inputClass} pr-5`}
-                  placeholder="Mobile Number or Email"
+                  placeholder="Username or Email"
                   required
                 />
               </div>
 
               <div className={fieldClass}>
-                <div className={`pl-5 pr-3 ${iconClass}`}>
-                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="11" width="16" height="10" rx="2.5" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /><circle cx="12" cy="16" r="1" fill="currentColor" /></svg>
+                <div className={`pl-4 pr-3 ${iconClass}`}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="11" width="16" height="10" rx="2.5" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /><circle cx="12" cy="16" r="1" fill="currentColor" /></svg>
                 </div>
                 <input
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className={`${inputClass} pr-14`}
+                  className={`${inputClass} pr-12`}
                   placeholder="Password"
                   required
                 />
@@ -344,33 +362,33 @@ const Login = () => {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className={`absolute right-5 top-1/2 -translate-y-1/2 transition-colors ${dark ? 'text-[#A9AACB] hover:text-white' : 'text-[#6B6D85] hover:text-[#1B1B33]'}`}
+                  className={`absolute right-[15px] top-1/2 -translate-y-1/2 transition-colors ${dark ? 'text-[#A9AACB] hover:text-white' : 'text-[#6B6D85] hover:text-[#1B1B33]'}`}
                 >
                   {showPassword ? (
-                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
                   ) : (
-                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
                   )}
                 </button>
               </div>
 
-              <div className="flex items-center justify-between px-1 -mt-0.5">
-                <label className="flex items-center gap-3 cursor-pointer select-none">
+              <div className="flex items-center justify-between -mt-0.5">
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="sr-only peer"
                   />
-                  <span className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-colors peer-checked:border-transparent peer-checked:bg-gradient-to-br peer-checked:from-[#E63B9A] peer-checked:to-[#9B2FD0] peer-checked:shadow-[0_4px_10px_rgba(155,47,208,0.4)] peer-focus-visible:ring-2 peer-focus-visible:ring-[#7B3FE4]/40 [&>svg]:opacity-0 peer-checked:[&>svg]:opacity-100 ${dark ? 'border-[#4A4880] bg-[#1B1A38]' : 'border-[#D4C9E6] bg-white'}`}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 12 10 18 20 6" /></svg>
+                  <span className={`w-[17px] h-[17px] rounded-[4px] border flex items-center justify-center transition-colors peer-checked:border-transparent peer-checked:bg-gradient-to-br peer-checked:from-[#E63B9A] peer-checked:to-[#9B2FD0] peer-focus-visible:ring-2 peer-focus-visible:ring-[#7B3FE4]/40 [&>svg]:opacity-0 peer-checked:[&>svg]:opacity-100 ${dark ? 'border-[#4A4880] bg-[#1B1A38]' : 'border-[#D4C9E6] bg-white'}`}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 12 10 18 20 6" /></svg>
                   </span>
-                  <span className="text-[16px]">Remember Me</span>
+                  <span className="text-[12px]">Remember Me</span>
                 </label>
                 <button
                   type="button"
                   onClick={() => navigate('/forgot-password')}
-                  className={`text-[16px] font-medium hover:underline ${dark ? 'text-[#7FA8FF]' : 'text-[#1D5FE0]'}`}
+                  className={`text-[12px] font-medium hover:underline ${dark ? 'text-[#7FA8FF]' : 'text-[#2D4FD6]'}`}
                 >
                   Forgot Password?
                 </button>
@@ -382,18 +400,19 @@ const Login = () => {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="relative w-full h-[60px] rounded-full text-white text-[22px] font-semibold flex items-center justify-center overflow-hidden active:scale-[0.98] transition-transform disabled:opacity-70 mt-1"
+            className="relative w-full h-[56px] rounded-full text-white text-[15px] font-semibold flex items-center justify-center overflow-hidden active:scale-[0.98] transition-transform disabled:opacity-70"
             style={{
-              background: 'linear-gradient(90deg,#FF2E93 0%,#B226C9 38%,#5B2BF0 68%,#2E7BFF 88%,#FF9A3C 100%)',
-              boxShadow: '0 14px 30px -10px rgba(123,63,228,0.6)'
+              background: 'linear-gradient(90deg,#DB2288 0%,#9A2BC0 38%,#5B33DE 68%,#2F5FEA 100%)',
+              boxShadow: '0 10px 22px -10px rgba(91,51,222,0.55)'
             }}
           >
             <span>{isSubmitting ? 'Please wait...' : submitLabel}</span>
-            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/30 flex items-center justify-center">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M13 6l6 6-6 6" /></svg>
+            <span className="absolute right-[7px] top-1/2 -translate-y-1/2 w-[38px] h-[38px] rounded-full bg-white/25 flex items-center justify-center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M13 6l6 6-6 6" /></svg>
             </span>
           </button>
         </form>
+        </div>
 
         {/* OR CONTINUE WITH */}
         <div className="w-full flex items-center gap-4 mt-5 mb-4">
