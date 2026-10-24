@@ -6,7 +6,7 @@ const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/ap
 // (new leads/bookings/quotes, chat, notifications, earnings) is always fetched live.
 const apiFetch = createCachedFetch({
     ttlMs: 15000,
-    neverCache: /\/(leads|lead-offers|lead-insights|lead-settings|complaints|customer-reports|bookings|quotes|notifications|conversations|messages|earnings|transactions|withdrawals|stats|support)(\/|\?|$)/
+    neverCache: /\/(leads|lead-offers|lead-insights|lead-settings|complaints|customer-reports|todos|bookings|quotes|notifications|conversations|messages|earnings|transactions|withdrawals|stats|support)(\/|\?|$)/
 });
 
 export const vendorApi = {
@@ -789,6 +789,35 @@ export const vendorApi = {
     // Complaints about the vendor
     getComplaints: async (token) => {
         const response = await apiFetch(`${BASE_URL}/complaints`, { method: 'GET', headers: { 'Authorization': `Bearer ${token}` } });
+        return response.json();
+    },
+
+    // The vendor's own to-do list
+    getTodos: async (token) => {
+        const response = await apiFetch(`${BASE_URL}/todos`, { method: 'GET', headers: { 'Authorization': `Bearer ${token}` } });
+        return response.json();
+    },
+
+    addTodo: async (text, token) => {
+        const response = await apiFetch(`${BASE_URL}/todos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ text })
+        });
+        return response.json();
+    },
+
+    updateTodo: async (id, body, token) => {
+        const response = await apiFetch(`${BASE_URL}/todos/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(body)
+        });
+        return response.json();
+    },
+
+    deleteTodo: async (id, token) => {
+        const response = await apiFetch(`${BASE_URL}/todos/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
         return response.json();
     },
 

@@ -143,6 +143,13 @@ const vendorComplaints = require('./complaint.controller');
 router.get('/complaints', protectVendor, vendorComplaints.listComplaints);
 router.post('/complaints/:id/respond', protectVendor, vendorComplaints.respond);
 router.post('/complaints/:id/appeal', protectVendor, vendorComplaints.appeal);
+// The vendor's own to-do list (dashboard Tasks)
+const todos = require('./todo.controller');
+router.get('/todos', protectVendor, todos.listTodos);
+router.post('/todos', protectVendor, todos.createTodo);
+router.put('/todos/:id', protectVendor, todos.updateTodo);
+router.delete('/todos/:id', protectVendor, todos.deleteTodo);
+
 // Vendors report customer behaviour; confirmed reports are shown to other vendors
 const customerReports = require('./customerReport.controller');
 router.get('/customer-reports', protectVendor, customerReports.myReports);

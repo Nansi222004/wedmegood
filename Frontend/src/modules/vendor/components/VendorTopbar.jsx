@@ -91,11 +91,16 @@ const VendorTopbar = ({ onMenuClick }) => {
           </div>
 
           <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-1">
-              <span className="text-[12px] xs:text-[13px] sm:text-[15px] font-sans font-medium text-slate-900 leading-tight truncate max-w-[140px] xs:max-w-[180px] sm:max-w-[220px] lg:max-w-none">{businessName}</span>
+            <img
+              src="/utsavo_header_logo.webp"
+              alt="Utsavo"
+              className="h-5 sm:h-6 w-auto self-start select-none"
+              draggable="false"
+            />
+            <div className="flex items-center gap-1 mt-0.5 min-w-0">
+              <span className="text-[8px] sm:text-[10px] font-medium text-slate-400 uppercase tracking-wider leading-none truncate max-w-[130px] xs:max-w-[170px] sm:max-w-[220px] lg:max-w-none">{businessName}</span>
               <Icon name="verified" size="xs" className="text-violet-500 flex-shrink-0" />
             </div>
-            <span className="text-[8px] sm:text-[10px] font-medium text-slate-400 uppercase tracking-wider leading-none mt-0.5 truncate">Vendor Portal</span>
           </div>
         </div>
       </div>
