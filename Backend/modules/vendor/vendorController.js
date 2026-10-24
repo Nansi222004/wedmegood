@@ -567,10 +567,17 @@ exports.getStats = async (req, res, next) => {
 // @access  Private
 exports.getDashboardBanners = async (req, res, next) => {
     try {
+        // Same rules as the customer app: switched on, inside its start and end dates
+        const now = new Date();
         const banners = await Banner.find({
             status: 'Active',
+            isActive: { $ne: false },
             target: { $in: ['All', 'Vendor'] },
-            category: { $in: ['All', req.vendor.category] }
+            category: { $in: ['All', req.vendor.category] },
+            $and: [
+                { $or: [{ startDate: { $exists: false } }, { startDate: null }, { startDate: { $lte: now } }] },
+                { $or: [{ endDate: { $exists: false } }, { endDate: null }, { endDate: { $gte: now } }] }
+            ]
         }).sort('-createdAt');
 
         res.status(200).json({
