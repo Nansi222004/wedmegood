@@ -81,15 +81,6 @@ const VendorTopbar = ({ onMenuClick }) => {
         </button>
 
         <div className="flex items-center gap-1.5 sm:gap-3 cursor-pointer group min-w-0" onClick={() => navigate('/vendor/dashboard')}>
-          <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full overflow-hidden bg-slate-100 border-2 border-white shadow-sm transition-transform group-hover:scale-105 flex-shrink-0">
-            <img 
-              src={vendorState?.logo || '/assets/vendor/logo_theme.webp'} 
-              alt="Logo" 
-              className="h-full w-full object-cover"
-              onError={(e) => e.target.src = 'https://ui-avatars.com/api/?name=' + businessName}
-            />
-          </div>
-
           <div className="flex flex-col min-w-0">
             <img
               src="/utsavo_header_logo.webp"

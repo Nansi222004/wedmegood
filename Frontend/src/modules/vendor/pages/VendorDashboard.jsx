@@ -8,9 +8,6 @@ import { computeProfileCompletion } from '../vendorStore';
 import VendorPendingApproval from '../components/VendorPendingApproval';
 
 // Advertisement Banner Images
-import ads1 from '../../../assets/vendor/ads1.webp';
-import ads2 from '../../../assets/vendor/ads2.webp';
-import ads3 from '../../../assets/vendor/ads3.webp';
 import ProfileCompletionTracker from '../components/ProfileCompletionTracker';
 import DailyBrief from '../components/DailyBrief';
 
@@ -29,18 +26,18 @@ const VendorDashboard = () => {
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
   const scrollRef = useRef(null);
 
-  // Fallback banners in case backend is empty
-  const sampleBanners = [
-    { _id: 's1', imageUrl: ads1, title: 'Grow Business', description: 'Reach more couples' },
-    { _id: 's2', imageUrl: ads2, title: 'Premium Leads', description: 'Verified inquiries' },
-    { _id: 's3', imageUrl: ads3, title: 'Top Visibility', description: 'Featured listing' },
-  ];
+  // Advertisements uploaded by the admin (Admin > Banners, shown to vendors or everyone)
+  const activeBanners = banners.filter(b => b.imageUrl);
 
-  const activeBanners = banners.length > 0 ? banners : sampleBanners;
+  const openBanner = (ad) => {
+    if (!ad.linkUrl) return;
+    if (/^https?:\/\//i.test(ad.linkUrl)) window.open(ad.linkUrl, '_blank', 'noopener,noreferrer');
+    else navigate(ad.linkUrl);
+  };
 
   // Autoscroll Logic
   useEffect(() => {
-    if (activeBanners.length === 0) return;
+    if (activeBanners.length < 2) return;
     const interval = setInterval(() => {
       setCurrentAdIndex((prev) => (prev + 1) % activeBanners.length);
     }, 4000);
@@ -357,6 +354,47 @@ const VendorDashboard = () => {
       
       {canSeeBrief && <DailyBrief />}
 
+      {/* Advertisement carousel (admin uploads) */}
+      {activeBanners.length > 0 && (
+        <div className="rounded-xl overflow-hidden relative shadow-md w-full max-w-full bg-slate-100" aria-label="Advertisements">
+          <div
+            ref={scrollRef}
+            className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory scroll-smooth"
+          >
+            {activeBanners.map((ad) => (
+              <div
+                key={ad._id}
+                className={`min-w-full h-40 sm:h-52 relative snap-center overflow-hidden ${ad.linkUrl ? 'cursor-pointer' : ''}`}
+                onClick={() => openBanner(ad)}
+              >
+                <img src={ad.imageUrl} alt={ad.title || 'Advertisement'} className="absolute inset-0 h-full w-full object-cover" />
+                {(ad.title || ad.description) && (
+                  <div className={`absolute inset-0 bg-gradient-to-t from-slate-900/85 via-slate-900/30 to-transparent p-4 sm:p-6 flex flex-col justify-end ${activeBanners.length > 1 ? 'pb-8' : ''}`}>
+                    {ad.title && <h4 className="text-white text-lg sm:text-2xl font-black tracking-tight leading-tight">{ad.title}</h4>}
+                    {ad.description && <p className="text-white/85 text-[11px] sm:text-xs font-semibold mt-1 line-clamp-2">{ad.description}</p>}
+                  </div>
+                )}
+                <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/40 backdrop-blur-sm text-[9px] font-bold text-white uppercase tracking-wider">Ad</span>
+              </div>
+            ))}
+          </div>
+
+          {activeBanners.length > 1 && (
+            <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {activeBanners.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  aria-label={`Show advertisement ${i + 1}`}
+                  onClick={() => setCurrentAdIndex(i)}
+                  className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${i === currentAdIndex ? 'w-5 bg-white shadow-sm' : 'w-1.5 bg-white/50'}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Stats Grid */}
       <div className="grid gap-3 sm:gap-5 grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat, i) => (
@@ -434,38 +472,6 @@ const VendorDashboard = () => {
           ))}
         </div>
       </div>
-
-      {/* Autoscrolling Banners */}
-      {activeBanners.length > 0 && (
-        <div 
-          className="reveal-on-scroll rounded-xl overflow-hidden relative group shadow-lg w-full max-w-full"
-        >
-          <div
-            ref={scrollRef}
-            className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory scroll-smooth"
-          >
-            {activeBanners.map((ad) => (
-              <div key={ad._id} className="min-w-full h-40 sm:h-56 relative snap-center overflow-hidden cursor-pointer" onClick={() => ad.linkUrl && navigate(ad.linkUrl)}>
-                <img src={ad.imageUrl} alt={ad.title} className="absolute inset-0 h-full w-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/40 to-transparent p-8 flex flex-col justify-end">
-                  <h4 className="text-white text-xl sm:text-3xl font-black tracking-tight leading-none uppercase italic">{ad.title}</h4>
-                  <p className="text-white/80 text-[11px] font-bold uppercase tracking-widest mt-2">{ad.description}</p>
-                </div>
-                <div className="absolute top-6 right-6">
-                  <div className="px-4 py-1.5 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-[9px] font-black text-white uppercase tracking-widest shadow-sm">Utsavo Special</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Dot Indicators */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-            {activeBanners.map((_, i) => (
-              <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === currentAdIndex ? 'w-6 bg-white shadow-sm' : 'w-1.5 bg-white/40'}`}></div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Profile Completion */}
       <div 

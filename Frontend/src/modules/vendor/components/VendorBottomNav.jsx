@@ -70,7 +70,7 @@ const VendorBottomNav = ({ isApproved }) => {
   };
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[100] px-4 pointer-events-none" style={{ bottom: 0, paddingBottom: `calc(env(safe-area-inset-bottom) + 0.5rem)` }}>
+    <div className="fixed inset-x-0 bottom-0 z-[100]">
       <style>{`
         @keyframes fade-in {
           from { opacity: 0; }
@@ -95,7 +95,7 @@ const VendorBottomNav = ({ isApproved }) => {
             className="fixed inset-0 bg-slate-955/15 backdrop-blur-xs z-[90] pointer-events-auto animate-fade-in"
             onClick={() => setShowQuickActions(false)}
           />
-          <div className="fixed bottom-20 left-0 right-0 mx-auto max-w-[280px] bg-white/95 backdrop-blur-xl border border-slate-100/80 rounded-[1.75rem] p-3 shadow-[0_15px_40px_rgba(124,58,237,0.16)] z-[100] pointer-events-auto animate-slide-up">
+          <div className="fixed bottom-[88px] left-0 right-0 mx-auto max-w-[280px] bg-white/95 backdrop-blur-xl border border-slate-100/80 rounded-[1.75rem] p-3 shadow-[0_15px_40px_rgba(124,58,237,0.16)] z-[100] pointer-events-auto animate-slide-up">
             {/* Native Sheet Drag Handle Indicator */}
             <div className="w-8 h-1 rounded-full bg-slate-200/80 mx-auto mb-2" />
             
@@ -146,7 +146,10 @@ const VendorBottomNav = ({ isApproved }) => {
       )}
 
       {/* Main Bottom Nav Track */}
-      <nav className="mx-auto max-w-md bg-white/95 backdrop-blur-xl shadow-[0_12px_45px_-12px_rgba(15,23,42,0.18)] rounded-[2.3rem] border border-slate-100/80 px-2 py-1 flex items-center justify-between pointer-events-auto relative">
+      <nav
+        className="w-full bg-white border-t border-slate-200 shadow-[0_-2px_12px_rgba(15,23,42,0.06)] px-1 pt-1 flex items-center justify-between relative"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.25rem)' }}
+      >
         {/* Left Navigation Tabs (Dashboard, Leads) */}
         <div className="flex flex-1 items-center justify-around">
           {leftItems.map((item) => {
