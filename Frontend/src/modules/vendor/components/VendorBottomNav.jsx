@@ -4,9 +4,9 @@ import { useVendorState } from '../useVendorState';
 
 // --- Custom High-Fidelity SVG Icon Components ---
 
-const HomeIcon = ({ isActive, className }) => (
+const ChatsIcon = ({ isActive, className }) => (
   <svg className={className} fill={isActive ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.9" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 9.75h6.75M8.625 13.5h3.75M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
   </svg>
 );
 
@@ -35,8 +35,8 @@ const ProfileIcon = ({ className }) => (
 
 const renderIcon = (name, isActive, className) => {
   switch (name) {
-    case 'home':
-      return <HomeIcon isActive={isActive} className={className} />;
+    case 'chat':
+      return <ChatsIcon isActive={isActive} className={className} />;
     case 'image':
       return <LeadsIcon className={className} />;
     case 'clipboard':
@@ -53,10 +53,12 @@ const VendorBottomNav = ({ isApproved }) => {
   const navigate = useNavigate();
   const { vendorState } = useVendorState();
 
-  const leadsCount = vendorState?.leads?.length || 2; // Matches screenshot badge or active count
+  // Enquiries still waiting for the vendor (same count as "New Enquiries" on the Leads page)
+  const leadsCount = (vendorState?.leads || []).filter(l => l.status === 'New' || l.status === 'Accepted').length;
 
+  // The dashboard is the home page; the header's Home button opens it from any other page
   const leftItems = [
-    { label: 'Dashboard', to: '/vendor/dashboard', icon: 'home' },
+    { label: 'Chats', to: '/vendor/chat', icon: 'chat' },
     { label: 'Leads', to: '/vendor/leads', icon: 'image', badge: leadsCount },
   ];
 
@@ -140,7 +142,7 @@ const VendorBottomNav = ({ isApproved }) => {
         className="w-full bg-white border-t border-slate-200 shadow-[0_-2px_12px_rgba(15,23,42,0.06)] px-1 pt-1 flex items-center justify-between relative"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.25rem)' }}
       >
-        {/* Left Navigation Tabs (Dashboard, Leads) */}
+        {/* Left Navigation Tabs (Chats, Leads) */}
         <div className="flex flex-1 items-center justify-around">
           {leftItems.map((item) => {
             return (

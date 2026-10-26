@@ -117,6 +117,7 @@ router.post('/dynamic-services', protectVendor, upload.fields([
 router.get('/stats', protectVendor, requireSubscription, requireVendorApproval, getStats);
 
 // Financials, Wallet, Earnings & Withdrawals
+router.get('/earnings/chart', protectVendor, require('./earningsChart.controller').getEarningsChart);
 const withdrawalRoutes = require('./withdrawal.routes');
 router.use('/', withdrawalRoutes);
 
