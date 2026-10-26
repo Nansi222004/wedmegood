@@ -103,42 +103,32 @@ const VendorBottomNav = ({ isApproved }) => {
               <h4 className="text-[9px] font-black uppercase tracking-widest text-[#7c3aed]/90">Quick Actions</h4>
             </div>
             
-            <div className="grid grid-cols-3 gap-2">
-              <button 
-                onClick={() => { setShowQuickActions(false); navigate('/vendor/services'); }}
-                className="flex flex-col items-center justify-center p-2 rounded-xl bg-violet-50/50 hover:bg-violet-100/50 border border-violet-100/30 transition-all hover:scale-105 active:scale-95"
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => { setShowQuickActions(false); navigate('/vendor/expenditures'); }}
+                className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-amber-50/60 hover:bg-amber-100/60 border border-amber-100/40 transition-all hover:scale-105 active:scale-95"
               >
-                <div className="h-8 w-8 rounded-lg bg-white flex items-center justify-center text-violet-600 mb-1 shadow-[0_2px_6px_rgba(124,58,237,0.08)]">
-                  <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                <div className="h-9 w-9 rounded-lg bg-white flex items-center justify-center text-amber-600 mb-1 shadow-[0_2px_6px_rgba(217,119,6,0.10)]">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M6 3h12M6 8h12M6 3c4.5 0 7 1.8 7 5s-2.5 5-7 5l7 8" />
                   </svg>
                 </div>
-                <span className="text-[8px] font-black text-slate-700 uppercase tracking-tight text-center leading-tight">Add Service</span>
+                <span className="text-[9px] font-black text-slate-700 uppercase tracking-tight text-center leading-tight">Expenditures</span>
+                <span className="text-[8px] font-semibold text-slate-400 text-center leading-tight mt-0.5">Spending &amp; to-do</span>
               </button>
-              
-              <button 
-                onClick={() => { setShowQuickActions(false); navigate('/vendor/calendar'); }}
-                className="flex flex-col items-center justify-center p-2 rounded-xl bg-indigo-50/50 hover:bg-indigo-100/50 border border-indigo-100/30 transition-all hover:scale-105 active:scale-95"
+
+              <button
+                onClick={() => { setShowQuickActions(false); navigate('/vendor/payments'); }}
+                className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-emerald-50/60 hover:bg-emerald-100/60 border border-emerald-100/40 transition-all hover:scale-105 active:scale-95"
               >
-                <div className="h-8 w-8 rounded-lg bg-white flex items-center justify-center text-indigo-600 mb-1 shadow-[0_2px_6px_rgba(79,70,229,0.08)]">
-                  <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                    <rect x="3" y="4" width="18" height="16" rx="2" />
-                    <path d="M16 2v4M8 2v4M3 10h18" />
+                <div className="h-9 w-9 rounded-lg bg-white flex items-center justify-center text-emerald-600 mb-1 shadow-[0_2px_6px_rgba(5,150,105,0.10)]">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M7 17 17 7M9 7h8v8" />
+                    <path d="M17 21H7" />
                   </svg>
                 </div>
-                <span className="text-[8px] font-black text-slate-700 uppercase tracking-tight text-center leading-tight">Update Cal</span>
-              </button>
-              
-              <button 
-                onClick={() => { setShowQuickActions(false); navigate('/vendor/portfolio'); }}
-                className="flex flex-col items-center justify-center p-2 rounded-xl bg-rose-50/50 hover:bg-rose-100/50 border border-rose-100/30 transition-all hover:scale-105 active:scale-95"
-              >
-                <div className="h-8 w-8 rounded-lg bg-white flex items-center justify-center text-rose-600 mb-1 shadow-[0_2px_6px_rgba(225,29,72,0.08)]">
-                  <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
-                  </svg>
-                </div>
-                <span className="text-[8px] font-black text-slate-700 uppercase tracking-tight text-center leading-tight">Portfolio</span>
+                <span className="text-[9px] font-black text-slate-700 uppercase tracking-tight text-center leading-tight">Payments</span>
+                <span className="text-[8px] font-semibold text-slate-400 text-center leading-tight mt-0.5">Paid &amp; received</span>
               </button>
             </div>
           </div>

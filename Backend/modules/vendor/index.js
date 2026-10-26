@@ -143,6 +143,13 @@ const vendorComplaints = require('./complaint.controller');
 router.get('/complaints', protectVendor, vendorComplaints.listComplaints);
 router.post('/complaints/:id/respond', protectVendor, vendorComplaints.respond);
 router.post('/complaints/:id/appeal', protectVendor, vendorComplaints.appeal);
+// The vendor's money notebook (+ button): expenditures and payments
+const money = require('./money.controller');
+router.get('/money', protectVendor, money.listEntries);
+router.post('/money', protectVendor, money.createEntry);
+router.put('/money/:id', protectVendor, money.updateEntry);
+router.delete('/money/:id', protectVendor, money.deleteEntry);
+
 // The vendor's own to-do list (dashboard Tasks)
 const todos = require('./todo.controller');
 router.get('/todos', protectVendor, todos.listTodos);
