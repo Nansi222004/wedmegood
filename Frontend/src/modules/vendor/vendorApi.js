@@ -792,6 +792,12 @@ export const vendorApi = {
         return response.json();
     },
 
+    // Dashboard earnings chart: range 'week' | 'month' | 'year'
+    getEarningsChart: async (range, token) => {
+        const response = await apiFetch(`${BASE_URL}/earnings/chart?range=${range}`, { method: 'GET', headers: { 'Authorization': `Bearer ${token}` } });
+        return response.json();
+    },
+
     // The vendor's money notebook: type 'Expense' or 'Payment', month 'YYYY-MM'
     getMoneyEntries: async (type, month, token) => {
         const response = await apiFetch(`${BASE_URL}/money?type=${type}${month ? `&month=${month}` : ''}`, { method: 'GET', headers: { 'Authorization': `Bearer ${token}` } });

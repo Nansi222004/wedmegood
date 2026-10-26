@@ -15,7 +15,8 @@ const VendorDashboard = () => {
   const navigate = useNavigate();
   const { vendorState, refreshData, loading } = useVendorState();
   const banners = vendorState.banners || [];
-  const [selectedTimeRange, setSelectedTimeRange] = useState('This Month');
+  const [selectedTimeRange, setSelectedTimeRange] = useState('month');
+  const [earnings, setEarnings] = useState(null);
   const stats = vendorState.analytics || {
     profileViews: 0,
     inquiries: 0,
@@ -53,6 +54,17 @@ const VendorDashboard = () => {
       });
     }
   }, [currentAdIndex]);
+
+  // Earnings chart: payments recorded on bookings, from the server
+  const bookingsCount = (vendorState.bookings || []).length;
+  useEffect(() => {
+    if (loading) return;
+    let alive = true;
+    vendorApi.getEarningsChart(selectedTimeRange, localStorage.getItem('vendorToken'))
+      .then(r => { if (alive) setEarnings(r?.success ? r.data : { failed: true }); })
+      .catch(() => { if (alive) setEarnings({ failed: true }); });
+    return () => { alive = false; };
+  }, [selectedTimeRange, loading, bookingsCount]);
 
   // Scroll Reveal Logic
   useEffect(() => {
@@ -210,89 +222,212 @@ const VendorDashboard = () => {
     return d;
   };
 
-  const getChartData = () => {
-    const bookings = vendorState?.bookings || [];
-    const now = new Date();
-    
-    let labels = [];
-    const pointsCount = 16; // 16 points to match high-frequency premium curve exactly
+  const RANGE_OPTIONS = [['week', 'Last 7 Days'], ['month', 'This Month'], ['year', 'This Year']];
+  const RANGE_HEADLINE = { week: 'Received in the last 7 days', month: 'Received this month', year: 'Received this year' };
+  const RANGE_EMPTY = { week: 'in the last 7 days', month: 'this month', year: 'this year' };
 
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+  // Earnings Overview: a running total of the payments recorded on bookings, up to today
+  const renderEarningsChart = () => {
+    const data = earnings && !earnings.failed && earnings.range === selectedTimeRange ? earnings : null;
+    const t = data?.totals;
+    const buckets = data?.buckets || [];
 
-    if (selectedTimeRange === 'This Month') {
-      const monthName = now.toLocaleString('default', { month: 'short' });
-      labels = [`1 ${monthName}`, `8 ${monthName}`, `15 ${monthName}`, `22 ${monthName}`, `${new Date(currentYear, currentMonth + 1, 0).getDate()} ${monthName}`];
-    } else if (selectedTimeRange === 'This Week') {
-      const daysOfWeek = [];
-      for (let i = 4; i >= 0; i--) {
-        const date = new Date(now.getTime() - i * 1.5 * 24 * 60 * 60 * 1000);
-        daysOfWeek.push(date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }));
-      }
-      labels = daysOfWeek;
-    } else {
-      // This Year
-      labels = ['Jan', 'Mar', 'Jun', 'Sep', 'Dec'];
-    }
+    let running = 0;
+    const cumulative = buckets.map(b => (b.future ? null : (running += b.received)));
 
-    // Dynamic calculations from bookings
-    const received = bookings
-      .filter(b => b.status === 'Completed')
-      .reduce((sum, b) => sum + (b.totalPrice || 0), 0);
+    const svgWidth = 500;
+    const svgHeight = 100;
+    const paddingLeft = 45;
+    const paddingRight = 10;
+    const paddingTop = 10;
+    const paddingBottom = 6;
+    const chartWidth = svgWidth - paddingLeft - paddingRight;
+    const chartHeight = svgHeight - paddingTop - paddingBottom;
+    const niceMax = getNiceMaxVal(Math.max(running, 1000));
 
-    const pending = bookings
-      .filter(b => b.status === 'Confirmed')
-      .reduce((sum, b) => sum + (b.totalPrice || 0), 0);
+    const xAt = (idx) => paddingLeft + (buckets.length > 1 ? idx / (buckets.length - 1) : 0) * chartWidth;
+    const yAt = (val) => paddingTop + chartHeight - (val / niceMax) * chartHeight;
+    const svgPoints = cumulative
+      .map((val, idx) => (val === null ? null : { x: xAt(idx), y: yAt(val), idx }))
+      .filter(Boolean);
+    const linePath = getSvgPath(svgPoints);
+    const fillPath = svgPoints.length > 1
+      ? `${linePath} L ${svgPoints[svgPoints.length - 1].x} ${paddingTop + chartHeight} L ${svgPoints[0].x} ${paddingTop + chartHeight} Z`
+      : '';
+    // Dots on the days (or months) money came in, and on today
+    const dots = svgPoints.filter((p, i) => buckets[p.idx].received > 0 || i === svgPoints.length - 1);
+    // Month: a label every week; year: every quarter; week: every day
+    const labelIdx = selectedTimeRange === 'week'
+      ? buckets.map((_, i) => i)
+      : (selectedTimeRange === 'month' ? [0, 7, 14, 21, buckets.length - 1] : [0, 3, 6, 9, 11]).filter(i => i < buckets.length);
+    const pctX = (x) => `${(x / svgWidth) * 100}%`;
+    const pctY = (y) => `${(y / svgHeight) * 100}%`;
+    const up = (t?.changePercent ?? 0) >= 0;
 
-    const totalBookings = bookings
-      .filter(b => b.status !== 'Cancelled')
-      .reduce((sum, b) => sum + (b.totalPrice || 0), 0);
+    return (
+      <div className="reveal-on-scroll rounded-2xl p-3 sm:p-4 bg-white border border-slate-100/80 shadow-xs font-sans w-full max-w-full overflow-hidden">
+        <div className="flex justify-between items-center">
+          <h3 className="text-xs sm:text-sm font-sans font-bold text-slate-800 tracking-tight">Earnings Overview</h3>
 
-    const hasData = bookings.length > 0;
-    
-    // Scale factor based on selected time range
-    const rangeScale = selectedTimeRange === 'This Year' ? 12 : (selectedTimeRange === 'This Week' ? 0.25 : 1);
-    
-    // Beautiful, realistic wavy trend baseline (16 points, peaking at 0.88)
-    const baseWave = [0.55, 0.65, 0.75, 0.68, 0.60, 0.72, 0.70, 0.62, 0.71, 0.68, 0.78, 0.74, 0.85, 0.70, 0.66, 0.78];
+          {/* Custom Time Range Selector */}
+          <div className="relative">
+            <select
+              value={selectedTimeRange}
+              onChange={(e) => setSelectedTimeRange(e.target.value)}
+              aria-label="Period"
+              className="appearance-none bg-slate-50 hover:bg-slate-100 text-slate-600 font-extrabold text-[10px] sm:text-xs py-1 px-2.5 pr-7 rounded-full border border-slate-200 outline-none cursor-pointer transition-colors"
+            >
+              {RANGE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400">
+              <Icon name="chevronDown" size="xs" />
+            </div>
+          </div>
+        </div>
 
-    if (hasData) {
-      // If completed earnings are 0, use active pending earnings, otherwise total completed earnings
-      const totalEarnings = received > 0 ? received : (pending > 0 ? pending : totalBookings);
-      const scaledEarnings = totalEarnings * rangeScale;
-      const scaleFactor = scaledEarnings > 0 ? (scaledEarnings / 0.85) : 0;
-      
-      const points = baseWave.map(w => Math.max(0, Math.round(w * scaleFactor)));
+        {/* Value and Percentage Row */}
+        <div className="flex justify-between items-end gap-2 mt-2 mb-1">
+          <div>
+            <span className="text-xl sm:text-2xl font-heading font-black text-slate-900 tracking-tight leading-none">
+              {t ? `₹${t.received.toLocaleString('en-IN')}` : '₹…'}
+            </span>
+            <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider leading-none">{RANGE_HEADLINE[selectedTimeRange]}</p>
+          </div>
+          {t && t.changePercent !== null && (
+            <div className={`flex items-center gap-0.5 font-extrabold text-[9px] sm:text-[10px] pb-0.5 text-right ${up ? 'text-emerald-600' : 'text-rose-600'}`}>
+              <span>{up ? '+' : '−'}{Math.abs(t.changePercent)}% vs {t.compareLabel}</span>
+              <span className="text-xs leading-none font-bold">{up ? '↑' : '↓'}</span>
+            </div>
+          )}
+        </div>
 
-      return {
-        received,
-        pending,
-        totalBookings,
-        totalEarnings,
-        percentageChange: "+12%",
-        labels,
-        points
-      };
-    } else {
-      // Fallback premium data exactly as in the second mockup image
-      const mockReceived = Math.round(85000 * rangeScale);
-      const mockPending = Math.round(45000 * rangeScale);
-      const mockTotalBookings = Math.round(215000 * rangeScale);
-      const mockTotalEarnings = Math.round(125750 * rangeScale);
-      
-      const scaleFactor = mockTotalEarnings / 0.85;
-      const points = baseWave.map(w => Math.round(w * scaleFactor));
-      
-      return {
-        received: mockReceived,
-        pending: mockPending,
-        totalBookings: mockTotalBookings,
-        totalEarnings: mockTotalEarnings,
-        percentageChange: "+18%",
-        labels,
-        points
-      };
-    }
+        {/* Chart */}
+        <div className="relative w-full h-24 sm:h-28 mt-2 select-none">
+          {!data ? (
+            earnings?.failed ? (
+              <div className="absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-slate-400">Could not load your earnings. Pull down or reopen the page to try again.</div>
+            ) : (
+              <div className="absolute inset-0 rounded-xl bg-slate-50 animate-pulse" />
+            )
+          ) : (
+            <>
+              <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} width="100%" height="100%" preserveAspectRatio="none" aria-hidden="true">
+                <defs>
+                  <linearGradient id="chartPurpleGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#7C3AED" stopOpacity="0.15" />
+                    <stop offset="100%" stopColor="#7C3AED" stopOpacity="0.0" />
+                  </linearGradient>
+                </defs>
+                {[0, 0.5, 1].map((level, i) => (
+                  <line
+                    key={i}
+                    x1={paddingLeft}
+                    y1={yAt(level * niceMax)}
+                    x2={svgWidth - paddingRight}
+                    y2={yAt(level * niceMax)}
+                    stroke="#F1F5F9"
+                    strokeWidth="1"
+                    strokeDasharray="4 4"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ))}
+                {fillPath && <path d={fillPath} fill="url(#chartPurpleGradient)" />}
+                {linePath && (
+                  <path d={linePath} stroke="#7C3AED" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                )}
+              </svg>
+
+              {/* Y-axis labels (HTML, so they are not stretched with the chart) */}
+              {[0, 0.5, 1].map((level, i) => (
+                <span
+                  key={i}
+                  className="absolute -translate-y-1/2 text-[9px] font-bold text-slate-400 leading-none text-right"
+                  style={{ top: pctY(yAt(level * niceMax)), left: 0, width: `calc(${pctX(paddingLeft)} - 6px)` }}
+                >
+                  {formatYValue(level * niceMax)}
+                </span>
+              ))}
+
+              {/* Points: hover or tap for the amount */}
+              {dots.map(p => {
+                const b = buckets[p.idx];
+                return (
+                  <span
+                    key={p.idx}
+                    title={`${b.label}: ₹${b.received.toLocaleString('en-IN')} received · ₹${cumulative[p.idx].toLocaleString('en-IN')} so far`}
+                    className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#7C3AED] ring-2 ring-white cursor-default"
+                    style={{ left: pctX(p.x), top: pctY(p.y) }}
+                  />
+                );
+              })}
+
+              {t.received === 0 && (
+                <div className="absolute inset-0 flex items-center justify-center px-4" style={{ paddingLeft: pctX(paddingLeft) }}>
+                  <div className="bg-white/90 rounded-lg px-2.5 py-1 text-center">
+                  <p className="text-[11px] font-bold text-slate-500">No payments recorded {RANGE_EMPTY[selectedTimeRange]}</p>
+                  <p className="text-[10px] text-slate-400">Record the payments you receive on each booking to see them here.</p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* X-axis labels */}
+        <div className="relative h-3.5 mt-1">
+          {data && labelIdx.map(i => (
+            <span
+              key={i}
+              className={`absolute text-[9px] font-bold leading-none whitespace-nowrap ${buckets[i].future ? 'text-slate-300' : 'text-slate-400'} ${i === 0 ? '' : i === buckets.length - 1 ? '-translate-x-full' : '-translate-x-1/2'}`}
+              style={{ left: pctX(xAt(i)) }}
+            >
+              {selectedTimeRange === 'week' ? buckets[i].label.split(' ')[0] : buckets[i].label}
+            </span>
+          ))}
+        </div>
+
+        {/* Breakdown boxes */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-3">
+          <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-xl bg-slate-50/60 border border-slate-100/50 hover:bg-slate-50 transition-all">
+            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-emerald-50 text-emerald-500 border border-emerald-100/80 flex items-center justify-center flex-shrink-0 shadow-2xs">
+              <Icon name="bag" size="xs" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs sm:text-[13px] font-sans font-black text-slate-800 truncate leading-tight tracking-tight">
+                {t ? t.payments : '…'}
+              </p>
+              <p className="text-[8px] sm:text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-none mt-0.5">Payments</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-xl bg-slate-50/60 border border-slate-100/50 hover:bg-slate-50 transition-all" title={t ? `Still due on ${t.dueBookings} booking(s)` : undefined}>
+            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-amber-50 text-amber-500 border border-amber-100/80 flex items-center justify-center flex-shrink-0 shadow-2xs">
+              <Icon name="clock" size="xs" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs sm:text-[13px] font-sans font-black text-slate-800 truncate leading-tight tracking-tight">
+                {t ? `₹${t.due.toLocaleString('en-IN')}` : '…'}
+              </p>
+              <p className="text-[8px] sm:text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-none mt-0.5">To collect</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-xl bg-slate-50/60 border border-slate-100/50 hover:bg-slate-50 transition-all">
+            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-blue-50 text-blue-500 border border-blue-100/80 flex items-center justify-center flex-shrink-0 shadow-2xs">
+              <Icon name="calendar" size="xs" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs sm:text-[13px] font-sans font-black text-slate-800 truncate leading-tight tracking-tight">
+                {t ? `₹${t.newBookingsValue.toLocaleString('en-IN')}` : '…'}
+              </p>
+              <p className="text-[8px] sm:text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-none mt-0.5 truncate">
+                {t ? `${t.newBookings} booked` : 'Booked'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -527,209 +662,7 @@ const VendorDashboard = () => {
       </div>
 
       {/* Earnings Overview Graph Card */}
-      {(() => {
-        const {
-          received: chartReceived,
-          pending: chartPending,
-          totalBookings: chartTotalBookings,
-          totalEarnings: chartTotalEarnings,
-          percentageChange: chartPercentageChange,
-          labels: chartLabels,
-          points: chartPoints
-        } = getChartData();
-
-        const svgWidth = 500;
-        const svgHeight = 100;
-        const paddingLeft = 45;
-        const paddingRight = 10;
-        const paddingTop = 10;
-        const paddingBottom = 20;
-        
-        const chartWidth = svgWidth - paddingLeft - paddingRight;
-        const chartHeight = svgHeight - paddingTop - paddingBottom;
-        
-        const rawMax = Math.max(...chartPoints, 1000);
-        const niceMax = getNiceMaxVal(rawMax);
-
-        const svgPoints = chartPoints.map((val, idx) => {
-          const x = paddingLeft + (idx / (chartPoints.length - 1)) * chartWidth;
-          const y = paddingTop + chartHeight - (val / niceMax) * chartHeight;
-          return { x, y };
-        });
-
-        const linePath = getSvgPath(svgPoints);
-        const fillPath = svgPoints.length > 0 
-          ? `${linePath} L ${svgPoints[svgPoints.length - 1].x} ${paddingTop + chartHeight} L ${svgPoints[0].x} ${paddingTop + chartHeight} Z`
-          : '';
-
-        return (
-          <div className="reveal-on-scroll rounded-2xl p-3 sm:p-4 bg-white border border-slate-100/80 shadow-xs font-sans w-full max-w-full overflow-hidden">
-            <div className="flex justify-between items-center">
-              <h3 className="text-xs sm:text-sm font-sans font-bold text-slate-800 tracking-tight">Earnings Overview</h3>
-              
-              {/* Custom Time Range Selector */}
-              <div className="relative">
-                <select
-                  value={selectedTimeRange}
-                  onChange={(e) => setSelectedTimeRange(e.target.value)}
-                  className="appearance-none bg-slate-50 hover:bg-slate-100 text-slate-600 font-extrabold text-[10px] sm:text-xs py-1 px-2.5 pr-7 rounded-full border border-slate-200 outline-none cursor-pointer transition-colors"
-                >
-                  <option value="This Week">This Week</option>
-                  <option value="This Month">This Month</option>
-                  <option value="This Year">This Year</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400">
-                  <Icon name="chevronDown" size="xs" />
-                </div>
-              </div>
-            </div>
-
-            {/* Value and Percentage Row */}
-            <div className="flex justify-between items-end mt-2 mb-1">
-              <div>
-                <span className="text-xl sm:text-2xl font-heading font-black text-slate-900 tracking-tight leading-none">
-                  ₹{chartTotalEarnings.toLocaleString('en-IN')}
-                </span>
-                <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider leading-none">Total Earnings</p>
-              </div>
-              <div className="flex items-center gap-0.5 text-emerald-600 font-extrabold text-[9px] sm:text-[10px] pb-0.5">
-                <span>{chartPercentageChange} vs last month</span>
-                <span className="text-xs leading-none font-bold">↑</span>
-              </div>
-            </div>
-
-            {/* Chart SVG */}
-            <div className="relative w-full h-24 sm:h-28 mt-2 select-none">
-              <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} width="100%" height="100%" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="chartPurpleGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#7C3AED" stopOpacity="0.15" />
-                    <stop offset="100%" stopColor="#7C3AED" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
-
-                {/* Horizontal Dashed Grid Lines & Y-Axis Labels */}
-                {[0, 0.33, 0.66, 1].map((level, i) => {
-                  const yCoord = paddingTop + chartHeight - level * chartHeight;
-                  const val = level * niceMax;
-                  return (
-                    <g key={i}>
-                      {/* Grid Line */}
-                      <line 
-                        x1={paddingLeft} 
-                        y1={yCoord} 
-                        x2={svgWidth - paddingRight} 
-                        y2={yCoord} 
-                        stroke="#F1F5F9" 
-                        strokeWidth="1" 
-                        strokeDasharray="4 4" 
-                      />
-                      {/* Y-Axis Label */}
-                      <text 
-                        x={paddingLeft - 8} 
-                        y={yCoord + 3} 
-                        textAnchor="end" 
-                        className="text-[9px] font-sans font-bold fill-slate-400"
-                      >
-                        {formatYValue(val)}
-                      </text>
-                    </g>
-                  );
-                })}
-
-                {/* X-Axis Labels */}
-                {chartLabels.map((lbl, idx) => {
-                  const xCoord = paddingLeft + (idx / (chartLabels.length - 1)) * chartWidth;
-                  return (
-                    <text 
-                      key={idx}
-                      x={xCoord} 
-                      y={svgHeight - 4} 
-                      textAnchor="middle" 
-                      className="text-[9px] font-sans font-bold fill-slate-400"
-                    >
-                      {lbl}
-                    </text>
-                  );
-                })}
-
-                {/* Gradient Fill Under Curve */}
-                {fillPath && (
-                  <path d={fillPath} fill="url(#chartPurpleGradient)" />
-                )}
-
-                {/* Line Curve */}
-                {linePath && (
-                  <path 
-                    d={linePath} 
-                    stroke="#7C3AED" 
-                    strokeWidth="2.2" 
-                    fill="none" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                  />
-                )}
-
-                {/* Point Vertices/Dots */}
-                {svgPoints.map((pt, idx) => (
-                  <circle 
-                    key={idx}
-                    cx={pt.x} 
-                    cy={pt.y} 
-                    r="3" 
-                    fill="#7C3AED" 
-                    stroke="#FFFFFF" 
-                    strokeWidth="1.2" 
-                    className="transition-transform duration-200 hover:r-4 cursor-pointer"
-                  />
-                ))}
-              </svg>
-            </div>
-
-            {/* Breakdown boxes */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-4">
-              {/* Received Card */}
-              <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-xl bg-slate-50/60 border border-slate-100/50 hover:bg-slate-50 transition-all">
-                <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-emerald-50 text-emerald-500 border border-emerald-100/80 flex items-center justify-center flex-shrink-0 shadow-2xs">
-                  <Icon name="bag" size="xs" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs sm:text-[13px] font-sans font-black text-slate-800 truncate leading-tight tracking-tight">
-                    ₹{chartReceived.toLocaleString('en-IN')}
-                  </p>
-                  <p className="text-[8px] sm:text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-none mt-0.5">Received</p>
-                </div>
-              </div>
-
-              {/* Pending Card */}
-              <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-xl bg-slate-50/60 border border-slate-100/50 hover:bg-slate-50 transition-all">
-                <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-amber-50 text-amber-500 border border-amber-100/80 flex items-center justify-center flex-shrink-0 shadow-2xs">
-                  <Icon name="clock" size="xs" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs sm:text-[13px] font-sans font-black text-slate-800 truncate leading-tight tracking-tight">
-                    ₹{chartPending.toLocaleString('en-IN')}
-                  </p>
-                  <p className="text-[8px] sm:text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-none mt-0.5">Pending</p>
-                </div>
-              </div>
-
-              {/* Total Bookings Card */}
-              <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-xl bg-slate-50/60 border border-slate-100/50 hover:bg-slate-50 transition-all">
-                <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-blue-50 text-blue-500 border border-blue-100/80 flex items-center justify-center flex-shrink-0 shadow-2xs">
-                  <Icon name="calendar" size="xs" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs sm:text-[13px] font-sans font-black text-slate-800 truncate leading-tight tracking-tight">
-                    ₹{chartTotalBookings.toLocaleString('en-IN')}
-                  </p>
-                  <p className="text-[8px] sm:text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-none mt-0.5">Bookings</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {renderEarningsChart()}
 
       {/* Activity Grid: Enquiries & Bookings */}
       <div className="grid gap-3 sm:gap-5 lg:grid-cols-2">

@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Icon from '../../../components/ui/Icon';
 import { useVendorState } from '../useVendorState';
 import { vendorApi } from '../vendorApi';
 
 const VendorTopbar = ({ onMenuClick }) => {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const onDashboard = /^\/vendor\/dashboard\/?$/.test(pathname);
   const { vendorState } = useVendorState();
   const [showBookingsDropdown, setShowBookingsDropdown] = useState(false);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
@@ -98,9 +100,17 @@ const VendorTopbar = ({ onMenuClick }) => {
 
       {/* Right Side: Action Buttons */}
       <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0 mr-3 sm:mr-5">
-        <button className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center bg-transparent text-slate-500 hover:text-violet-600 active:scale-95 transition-all">
-          <Icon name="search" size="sm" />
-        </button>
+        {/* Home button on every page except the dashboard (home) itself */}
+        {!onDashboard && (
+          <button
+            onClick={() => navigate('/vendor/dashboard')}
+            className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center bg-transparent text-slate-500 hover:text-violet-600 active:scale-95 transition-all"
+            aria-label="Home"
+            title="Home"
+          >
+            <Icon name="home" size="sm" />
+          </button>
+        )}
 
         {/* Calendar button for bookings dropdown */}
         <div className="relative" ref={dropdownRef}>
