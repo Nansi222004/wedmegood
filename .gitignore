@@ -3,8 +3,6 @@ temp_auto_push.bat
 temp_interactive_push.bat
 
 # Environment variables
-.env
-.env.*
 *.env
 !.env.example
 !**/.env.example
@@ -48,3 +46,4 @@ audit_*.json
 
 # Expo mobile app (kept local, not pushed)
 /mobile/
+config.bat

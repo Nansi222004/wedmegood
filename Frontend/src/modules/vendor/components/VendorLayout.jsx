@@ -5,7 +5,6 @@ import Icon from '../../../components/ui/Icon';
 import VendorSidebar from './VendorSidebar';
 import VendorTopbar from './VendorTopbar';
 import VendorBottomNav from './VendorBottomNav';
-import VendorChatbot from './VendorChatbot';
 import { useVendorState } from '../useVendorState';
 import { UploadProvider } from '../context/UploadContext';
 import UploadProgressWidget from './UploadProgressWidget';
@@ -152,9 +151,6 @@ const VendorLayout = () => {
         </div>
       </div>
       
-      {/* Global AI Chatbot */}
-      <VendorChatbot />
-
       <div className="lg:hidden" id="global-bottom-nav">
          <VendorBottomNav isApproved={isApproved} />
       </div>
