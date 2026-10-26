@@ -721,25 +721,35 @@ const VendorBookings = () => {
           {/* Event Timeline */}
           <div className="luxury-card p-4 space-y-3 font-luxury-sans">
             <h3 className="text-[11.5px] font-semibold text-slate-800 uppercase tracking-widest font-luxury-sans">Event Pipeline Progress</h3>
-            <div className="relative flex justify-between items-center w-full px-2 py-2">
-              <div className="absolute top-[16px] left-[20px] right-[20px] h-[2px] bg-[#ECECF4] z-0 rounded-full"></div>
-              <div
-                className="absolute top-[16px] left-[20px] h-[2px] bg-emerald-500 z-0 rounded-full transition-all duration-500"
-                style={{ width: isFullyPaid ? '50%' : paidAmount > 0 ? '40%' : '25%' }}
-              ></div>
-
-              {[
-                { label: 'Inquiry', completed: true, val: '✓', color: 'bg-emerald-500 text-white' },
-                { label: 'Quote Accepted', completed: true, val: '✓', color: 'bg-emerald-500 text-white' },
+            {(() => {
+              // Steps follow the booking: payments recorded, work started, event date passed or marked completed
+              const done = { val: '✓', color: 'bg-emerald-500 text-white' };
+              const todo = { val: '○', color: 'bg-slate-100 text-slate-400' };
+              const eventPassed = !!d && d < new Date(new Date().toDateString());
+              const eventDone = booking.status === 'Completed' || eventPassed;
+              const coordinating = booking.status === 'In Progress' || eventDone;
+              const steps = [
+                { label: 'Inquiry', completed: true, ...done },
+                { label: 'Quote Accepted', completed: true, ...done },
                 {
                   label: isFullyPaid ? '100% Paid' : paidAmount > 0 ? 'Partial Paid' : 'Payment Due',
                   completed: paidAmount > 0,
                   val: isFullyPaid ? '✓' : paidAmount > 0 ? '●' : '○',
                   color: isFullyPaid ? 'bg-emerald-500 text-white' : paidAmount > 0 ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-400'
                 },
-                { label: 'Coordination', completed: false, val: '○', color: 'bg-slate-100 text-slate-400' },
-                { label: 'Event Day', completed: false, val: '○', color: 'bg-slate-100 text-slate-400' },
-              ].map((step, idx) => (
+                { label: 'Coordination', completed: coordinating, ...(coordinating ? done : todo) },
+                { label: 'Event Day', completed: eventDone, ...(eventDone ? done : todo) },
+              ];
+              const lastDone = steps.reduce((acc, s, i) => (s.completed ? i : acc), 0);
+              return (
+            <div className="relative flex justify-between items-center w-full px-2 py-2">
+              <div className="absolute top-[16px] left-[20px] right-[20px] h-[2px] bg-[#ECECF4] z-0 rounded-full"></div>
+              <div
+                className="absolute top-[16px] left-[20px] h-[2px] bg-emerald-500 z-0 rounded-full transition-all duration-500"
+                style={{ width: `calc(20px + (100% - 80px) * ${lastDone / (steps.length - 1)})` }}
+              ></div>
+
+              {steps.map((step, idx) => (
                 <div key={idx} className="flex flex-col items-center relative z-10 w-16 shrink-0">
                   <div className={`h-7 w-7 rounded-full flex items-center justify-center font-bold text-[10px] shadow-3xs transition-all duration-300 ${step.color}`}>
                     {step.val}
@@ -748,6 +758,8 @@ const VendorBookings = () => {
                 </div>
               ))}
             </div>
+              );
+            })()}
           </div>
 
           {/* Discrepancy Note Banner if database has inconsistent values */}
